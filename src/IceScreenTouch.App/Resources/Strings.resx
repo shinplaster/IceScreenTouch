@@ -1,0 +1,319 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- User-facing text, English (the neutral language). Strings.ja.resx has the Japanese text with the same names;
+     a test checks that both files have the same names and the same {n} placeholders. Names starting with
+     "Format" are composite format strings (Loc.Format). Log lines stay in English and are not here. -->
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <!-- Tabs -->
+  <data name="TabStatus" xml:space="preserve"><value>Status</value></data>
+  <data name="TabSettings" xml:space="preserve"><value>Settings</value></data>
+  <data name="TabProbe" xml:space="preserve"><value>Test</value></data>
+  <data name="TabLog" xml:space="preserve"><value>Log</value></data>
+  <data name="HeadlineStarting" xml:space="preserve"><value>Starting…</value></data>
+  <data name="HeadlineSuspended" xml:space="preserve"><value>Measuring</value></data>
+  <data name="HeadlineProblem" xml:space="preserve"><value>Needs attention</value></data>
+  <data name="HeadlineWaitingPhone" xml:space="preserve"><value>Waiting for the iPhone (Bluetooth)</value></data>
+  <data name="HeadlineWaitingMirroring" xml:space="preserve"><value>Waiting for Screen Mirroring</value></data>
+  <data name="HeadlineReady" xml:space="preserve"><value>Ready</value></data>
+  <data name="FormatTrayTooltip" xml:space="preserve"><value>IceScreen Touch: {0}</value></data>
+  <data name="ButtonOpenLogFolder" xml:space="preserve"><value>Open the log folder</value></data>
+
+  <!-- Status tab -->
+  <data name="LabelReceiver" xml:space="preserve"><value>Receiver</value></data>
+  <data name="LabelPicture" xml:space="preserve"><value>Picture</value></data>
+  <data name="LabelRotation" xml:space="preserve"><value>Rotation</value></data>
+  <data name="ButtonHome" xml:space="preserve"><value>Home</value></data>
+  <data name="TipHome" xml:space="preserve"><value>Go to the Home Screen (the Home key when the mirror window is in front)</value></data>
+  <data name="ButtonRotate" xml:space="preserve"><value>Switch rotation</value></data>
+  <data name="TipRotate" xml:space="preserve"><value>Switch this when touches land on the opposite side (Ctrl+R): 90° ⇄ 270° in landscape, 0° ⇄ 180° in portrait (an iPad held upside down)</value></data>
+  <data name="ButtonRestart" xml:space="preserve"><value>Restart</value></data>
+  <data name="TipRestart" xml:space="preserve"><value>Stop Bluetooth and the receiver, then start again</value></data>
+  <data name="ButtonStart" xml:space="preserve"><value>Start</value></data>
+  <data name="TipStart" xml:space="preserve"><value>Start Bluetooth and the receiver</value></data>
+  <data name="ButtonStop" xml:space="preserve"><value>Stop</value></data>
+  <data name="TipStop" xml:space="preserve"><value>Stop Bluetooth and the receiver (the iPhone disconnects)</value></data>
+  <data name="SectionControls" xml:space="preserve"><value>Controls</value></data>
+  <data name="ControlDragKey" xml:space="preserve"><value>Left drag</value></data>
+  <data name="ControlDrag" xml:space="preserve"><value>Touch, swipe</value></data>
+  <data name="ControlPinchKey" xml:space="preserve"><value>Ctrl + left drag</value></data>
+  <data name="ControlPinch" xml:space="preserve"><value>Pinch (two fingers)</value></data>
+  <data name="ControlRightKey" xml:space="preserve"><value>Right click</value></data>
+  <data name="ControlRight" xml:space="preserve"><value>Long press</value></data>
+  <data name="ControlWheelKey" xml:space="preserve"><value>Wheel</value></data>
+  <data name="ControlWheel" xml:space="preserve"><value>Scroll (Shift: sideways)</value></data>
+  <data name="ControlHomeKey" xml:space="preserve"><value>Home key</value></data>
+  <data name="ControlHome" xml:space="preserve"><value>Home</value></data>
+  <data name="ControlRotate" xml:space="preserve"><value>Switch the rotation (90° ⇄ 270° in landscape; 0° ⇄ 180° in portrait, for an iPad held upside down)</value></data>
+  <data name="ControlTypeKey" xml:space="preserve"><value>Other keys</value></data>
+  <data name="ControlType" xml:space="preserve"><value>Typed on the device (Ctrl = ⌘, Ctrl+Space or Zenkaku/Hankaku switches the input source)</value></data>
+  <data name="ControlsNote" xml:space="preserve"><value>Keys work while the mirror window is in front. The device converts Japanese itself (add the "Japanese – Romaji" keyboard on it).</value></data>
+  <data name="SectionSetup" xml:space="preserve"><value>Setup</value></data>
+  <data name="FormatSetupProgress" xml:space="preserve"><value>{0} of {1} done</value></data>
+  <data name="ButtonOpenProbe" xml:space="preserve"><value>Test touches in the Test tab…</value></data>
+  <data name="Portrait" xml:space="preserve"><value>portrait</value></data>
+  <data name="Landscape" xml:space="preserve"><value>landscape</value></data>
+  <data name="FormatPictureSize" xml:space="preserve"><value>{0:0}×{1:0} ({2})</value></data>
+  <data name="FormatPictureOnScreen" xml:space="preserve"><value>{0:0}×{1:0} on screen ({2})</value></data>
+  <data name="FormatRotationLandscape" xml:space="preserve"><value>Landscape {0}°</value></data>
+  <data name="RotationPortraitUpsideDown" xml:space="preserve"><value>Portrait 180° (upside down)</value></data>
+  <data name="FormatStats" xml:space="preserve"><value>Touches {0} (long presses {1}) · scrolls {2} · not sent {3}</value></data>
+  <data name="Stopped" xml:space="preserve"><value>Stopped</value></data>
+  <data name="BleStarting" xml:space="preserve"><value>Starting…</value></data>
+  <data name="FormatBleUnsupported" xml:space="preserve"><value>Not usable ({0})</value></data>
+  <data name="FormatError" xml:space="preserve"><value>Error: {0}</value></data>
+  <data name="BleAdvertising" xml:space="preserve"><value>Waiting for the iPhone to connect</value></data>
+  <data name="BleConnected" xml:space="preserve"><value>Connected to the iPhone</value></data>
+  <data name="BleDryRun" xml:space="preserve"><value>Test mode (no Bluetooth)</value></data>
+  <data name="FormatReceiverWaiting" xml:space="preserve"><value>{0}: waiting for Screen Mirroring</value></data>
+  <data name="FormatReceiverShowingDevice" xml:space="preserve"><value>{0}: showing ({1})</value></data>
+  <data name="FormatReceiverShowing" xml:space="preserve"><value>{0}: showing</value></data>
+  <data name="FormatReceiverNotFound" xml:space="preserve"><value>{0} not found</value></data>
+  <data name="FormatReceiverExited" xml:space="preserve"><value>{0} exited ({1})</value></data>
+  <data name="FormatReceiverError" xml:space="preserve"><value>{0}: {1}</value></data>
+  <data name="FormatExitCode" xml:space="preserve"><value>exit code {0}</value></data>
+  <data name="FormatBridgeStopped" xml:space="preserve"><value>Input handling stopped: {0}</value></data>
+
+  <!-- Status tab: what to do next -->
+  <data name="HintStarting" xml:space="preserve"><value>Starting…</value></data>
+  <data name="HintStopped" xml:space="preserve"><value>Stopped. Press "Start".</value></data>
+  <data name="HintSuspended" xml:space="preserve"><value>Measuring in the Test tab. Until it ends, the mirror window does not control the iPhone.</value></data>
+  <data name="HintBleStarting" xml:space="preserve"><value>Preparing Bluetooth…</value></data>
+  <data name="HintBleUnsupported" xml:space="preserve"><value>This PC's Bluetooth adapter cannot act as a BLE peripheral. An adapter that can is needed.</value></data>
+  <data name="HintBleError" xml:space="preserve"><value>Could not publish the Bluetooth HID service. If a PoC or IceScreenTouch.Probe / Bridge is running, quit it, then press "Restart".</value></data>
+  <data name="HintUxPlayNotFound" xml:space="preserve"><value>uxplay.exe was not found. Pick a receiver in the list below, or enter its location in the Settings tab.</value></data>
+  <data name="FormatHintProcessNotRunning" xml:space="preserve"><value>{0}.exe is not running. Start the receiver (you can start it from the list below).</value></data>
+  <data name="HintReceiverStopped" xml:space="preserve"><value>The receiver stopped. Press "Restart" (details in the Log tab).</value></data>
+  <data name="HintPair" xml:space="preserve"><value>On the iPhone, open Settings &gt; Bluetooth and choose this PC (pair the first time; after that it connects by itself).</value></data>
+  <data name="FormatHintMirrorUxPlay" xml:space="preserve"><value>On the iPhone, open Control Center &gt; Screen Mirroring and choose "{0}".</value></data>
+  <data name="FormatHintMirrorAttach" xml:space="preserve"><value>On the iPhone, open Control Center &gt; Screen Mirroring and choose the {0} entry (waiting for the video window to appear).</value></data>
+  <data name="HintReadyLandscape" xml:space="preserve"><value>Click the mirror window to control the iPhone. If touches land on the opposite side in landscape, press "Switch rotation".</value></data>
+  <data name="HintReady" xml:space="preserve"><value>Click the mirror window to control the iPhone (right click = long press, wheel = scroll). If the iPhone does not respond, check that Accessibility &gt; Zoom is turned on.</value></data>
+
+  <!-- Setup tab -->
+  <data name="SectionReceivers" xml:space="preserve"><value>AirPlay receivers on this PC</value></data>
+  <data name="ReceiversIntro" xml:space="preserve"><value>IceScreen Touch does not receive the video itself. It follows the window of an AirPlay receiver and turns clicks on it into touches on the iPhone.</value></data>
+  <data name="ButtonLaunch" xml:space="preserve"><value>Start</value></data>
+  <data name="NoReceivers" xml:space="preserve"><value>None found. Install and start an AirPlay receiver such as AirServer, then press "Search again". A receiver that is not listed can be followed by entering its process name in the Settings tab.</value></data>
+  <data name="ButtonSearch" xml:space="preserve"><value>Search again</value></data>
+  <data name="ReceiverRunning" xml:space="preserve"><value>Running</value></data>
+  <data name="ReceiverInstalled" xml:space="preserve"><value>Installed (not running)</value></data>
+  <data name="ReceiverInUse" xml:space="preserve"><value>In use</value></data>
+  <data name="ReceiverUse" xml:space="preserve"><value>Use</value></data>
+  <data name="ReceiverUxPlayRunning" xml:space="preserve"><value>UxPlay (running)</value></data>
+  <data name="ReceiverUxPlayLocal" xml:space="preserve"><value>UxPlay (started by this app)</value></data>
+  <data name="StepChecking" xml:space="preserve"><value>Checking…</value></data>
+  <data name="StepStopped" xml:space="preserve"><value>Stopped.</value></data>
+  <data name="StepAdapter" xml:space="preserve"><value>Bluetooth adapter</value></data>
+  <data name="StepAdapterOk" xml:space="preserve"><value>Ready (it can act as a BLE peripheral)</value></data>
+  <data name="FormatStepAdapterUnsupported" xml:space="preserve"><value>This PC's Bluetooth cannot act as a BLE peripheral (the accessory role). A Bluetooth adapter that can (USB or other) is needed. ({0})</value></data>
+  <data name="FormatStepAdapterError" xml:space="preserve"><value>Could not publish the HID service ({0}). If another IceScreen Touch or a PoC is running, quit it, then press "Restart".</value></data>
+  <data name="StepAdapterDryRun" xml:space="preserve"><value>Test mode (no Bluetooth) is on. Turn it off in the Settings tab.</value></data>
+  <data name="StepAdapterStopped" xml:space="preserve"><value>Stopped. Press "Start".</value></data>
+  <data name="StepPairing" xml:space="preserve"><value>Connect the iPhone (Bluetooth)</value></data>
+  <data name="StepPairingOk" xml:space="preserve"><value>Connected.</value></data>
+  <data name="FormatStepPairingWaiting" xml:space="preserve"><value>On the iPhone, open Settings &gt; Bluetooth and choose "{0}". The first time, confirm the pairing. After that it connects by itself.</value></data>
+  <data name="StepPairingIdle" xml:space="preserve"><value>Once Bluetooth is ready.</value></data>
+  <data name="StepZoom" xml:space="preserve"><value>Zoom on the iPhone</value></data>
+  <data name="StepZoomOk" xml:space="preserve"><value>The touch test confirmed that touches arrive.</value></data>
+  <data name="StepZoomTodo" xml:space="preserve"><value>On the iPhone, turn on Settings &gt; Accessibility &gt; Zoom (there is no need to zoom in). Without it, touches do not arrive. A touch test proves it.</value></data>
+  <data name="StepReceiver" xml:space="preserve"><value>AirPlay receiver</value></data>
+  <data name="FormatStepReceiverOk" xml:space="preserve"><value>{0} is running.</value></data>
+  <data name="StepReceiverUxPlayNotFound" xml:space="preserve"><value>uxplay.exe was not found. Pick a receiver from the list below, or enter its location in the Settings tab.</value></data>
+  <data name="FormatStepReceiverNotRunning" xml:space="preserve"><value>{0}.exe is not running. Start the receiver ("Start" in the list below).</value></data>
+  <data name="FormatStepReceiverStopped" xml:space="preserve"><value>{0} stopped ({1}). Press "Restart".</value></data>
+  <data name="FormatMirrorItemUxPlay" xml:space="preserve"><value>"{0}"</value></data>
+  <data name="FormatMirrorItemAttach" xml:space="preserve"><value>the {0} entry (usually the PC's name)</value></data>
+  <data name="StepMirroring" xml:space="preserve"><value>Screen Mirroring</value></data>
+  <data name="FormatStepMirroringOkDevice" xml:space="preserve"><value>Showing ({0}).</value></data>
+  <data name="StepMirroringOk" xml:space="preserve"><value>Showing.</value></data>
+  <data name="FormatStepMirroringWaiting" xml:space="preserve"><value>Open Control Center on the iPhone, tap Screen Mirroring and choose {0}. The iPhone and the PC must be on the same network.</value></data>
+  <data name="StepMirroringIdle" xml:space="preserve"><value>Once the receiver is running.</value></data>
+
+  <!-- Settings tab -->
+  <data name="ButtonApply" xml:space="preserve"><value>Save and apply</value></data>
+  <data name="ButtonRevert" xml:space="preserve"><value>Revert</value></data>
+  <data name="OptionStartUxPlay" xml:space="preserve"><value>Start UxPlay</value></data>
+  <data name="OptionAttach" xml:space="preserve"><value>Follow the window of a running receiver</value></data>
+  <data name="LabelAirPlayName" xml:space="preserve"><value>AirPlay name (shown in Screen Mirroring on the iPhone)</value></data>
+  <data name="LabelUxPlayPath" xml:space="preserve"><value>uxplay.exe (empty = find it automatically)</value></data>
+  <data name="ButtonBrowse" xml:space="preserve"><value>Browse…</value></data>
+  <data name="LabelMsysBin" xml:space="preserve"><value>MSYS2 ucrt64\bin (empty = the default scoop location)</value></data>
+  <data name="LabelProcessName" xml:space="preserve"><value>Process name (without .exe)</value></data>
+  <data name="SectionVideo" xml:space="preserve"><value>Picture</value></data>
+  <data name="OptionDetectPicture" xml:space="preserve"><value>Find the picture inside the window (for receivers that add black bars)</value></data>
+  <data name="OptionFollowVideoSize" xml:space="preserve"><value>Fit the window when the picture rotates or changes size (not when maximized or full screen)</value></data>
+  <data name="LabelScreen" xml:space="preserve"><value>Screen of the mirrored device (used to find the picture when the receiver does not report its size)</value></data>
+  <data name="SectionMouse" xml:space="preserve"><value>Mouse</value></data>
+  <data name="OptionLongPress" xml:space="preserve"><value>Right click = long press</value></data>
+  <data name="LabelLongPressTime" xml:space="preserve"><value>Hold time</value></data>
+  <data name="OptionWheel" xml:space="preserve"><value>Wheel = scroll</value></data>
+  <data name="LabelWheelStep" xml:space="preserve"><value>Finger travel per notch (share of the picture height)</value></data>
+  <data name="LabelMomentum" xml:space="preserve"><value>Momentum after the wheel stops</value></data>
+  <data name="FormatWheelStep" xml:space="preserve"><value>{0:0}%</value></data>
+  <data name="FormatMomentum" xml:space="preserve"><value>{0:0}%</value></data>
+  <data name="TipMomentum" xml:space="preserve"><value>How far the content keeps moving after the wheel stops. At 0% it stops with the wheel.</value></data>
+  <data name="SectionKeyboard" xml:space="preserve"><value>Keyboard</value></data>
+  <data name="OptionKeyboardInput" xml:space="preserve"><value>Send the keys typed in the mirror window to the device</value></data>
+  <data name="SectionApp" xml:space="preserve"><value>App</value></data>
+  <data name="SectionAdvanced" xml:space="preserve"><value>Advanced (for testing and troubleshooting)</value></data>
+  <data name="OptionCloseToTray" xml:space="preserve"><value>Keep running in the notification area when the window is closed</value></data>
+  <data name="OptionVerboseLog" xml:space="preserve"><value>Log every touch</value></data>
+  <data name="OptionDryRun" xml:space="preserve"><value>Do not use Bluetooth (for testing)</value></data>
+  <data name="LabelLanguage" xml:space="preserve"><value>Language</value></data>
+  <data name="LanguageAuto" xml:space="preserve"><value>Automatic (the Windows display language)</value></data>
+  <data name="LanguageNote" xml:space="preserve"><value>A new language takes effect the next time IceScreen Touch starts.</value></data>
+  <data name="LabelTheme" xml:space="preserve"><value>Appearance (light / dark)</value></data>
+  <data name="ThemeAuto" xml:space="preserve"><value>Automatic (Windows app mode)</value></data>
+  <data name="ThemeLight" xml:space="preserve"><value>Light</value></data>
+  <data name="ThemeDark" xml:space="preserve"><value>Dark</value></data>
+  <data name="PickUxPlay" xml:space="preserve"><value>Choose uxplay.exe</value></data>
+  <data name="PickMsys" xml:space="preserve"><value>Choose MSYS2 ucrt64\bin</value></data>
+  <data name="ScreenAuto" xml:space="preserve"><value>Automatic (the model, over Bluetooth)</value></data>
+  <data name="ScreenIphone" xml:space="preserve"><value>iPhone (no Home button: X and later)</value></data>
+  <data name="ScreenIphoneHomeButton" xml:space="preserve"><value>iPhone (Home button: SE, 8 and earlier)</value></data>
+  <data name="ScreenIpad" xml:space="preserve"><value>iPad (10th generation and later), iPad Air 11-inch (4th generation and later)</value></data>
+  <data name="ScreenIpadPro11" xml:space="preserve"><value>iPad Pro 11-inch</value></data>
+  <data name="ScreenIpadMini" xml:space="preserve"><value>iPad mini (6th generation and later)</value></data>
+  <data name="ScreenIpad4x3" xml:space="preserve"><value>iPad (4:3: iPad Pro 12.9/13-inch, iPad Air 13-inch, models with a Home button)</value></data>
+
+  <!-- Test tab -->
+  <data name="ProbeIntro" xml:space="preserve"><value>On a test page opened in Safari on the iPhone, this checks that touches land 1:1 on the screen and that typed keys arrive, and measures scrolling and latency. Hold the iPhone upright and turn on Zoom (Accessibility).</value></data>
+  <data name="LabelFirewall" xml:space="preserve"><value>Firewall</value></data>
+  <data name="ButtonFirewall" xml:space="preserve"><value>Set up the firewall (administrator)</value></data>
+  <data name="TipFirewall" xml:space="preserve"><value>Creates a rule that accepts the test page's port from the same network (local subnet) only. Windows asks for permission (UAC).</value></data>
+  <data name="ButtonTouchProbe" xml:space="preserve"><value>Test touches</value></data>
+  <data name="TipTouchProbe" xml:space="preserve"><value>Sends taps at 9 points, a swipe and a pinch to the /touch page, and compares them with where they reached the page (about 15 seconds)</value></data>
+  <data name="ButtonScrollProbe" xml:space="preserve"><value>Measure scrolling</value></data>
+  <data name="TipScrollProbe" xml:space="preserve"><value>Scrolls the /scroll page with the current wheel settings and measures how far and how it glides (about 1 minute)</value></data>
+  <data name="ButtonLatencyProbe" xml:space="preserve"><value>Measure latency</value></data>
+  <data name="ButtonKeysProbe" xml:space="preserve"><value>Test typing</value></data>
+  <data name="TipKeysProbe" xml:space="preserve"><value>Types letters, symbols, Enter, arrows, Backspace and ⌘A / ⌘C / ⌘V into the box of the /keys page and checks what arrived (about 15 seconds). Tap the box first. The device's input must be English.</value></data>
+  <data name="TipLatencyProbe" xml:space="preserve"><value>Presses the middle of the /latency page 10 times and measures how long the mirror window takes to turn white (about 20 seconds). Keep the mirror window uncovered.</value></data>
+  <data name="ButtonCancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="SectionDetails" xml:space="preserve"><value>Details</value></data>
+  <data name="PageTouch" xml:space="preserve"><value>the touch page (/touch)</value></data>
+  <data name="PageScroll" xml:space="preserve"><value>the scroll page (/scroll)</value></data>
+  <data name="PageLatency" xml:space="preserve"><value>the latency page (/latency)</value></data>
+  <data name="QrHint" xml:space="preserve"><value>Point the iPhone's camera at this code and tap the link that appears to open the page in Safari.</value></data>
+  <data name="PageKeys" xml:space="preserve"><value>the typing page (/keys)</value></data>
+  <data name="WaitFieldNotFocused" xml:space="preserve"><value>Tap the box on the typing page so that the cursor is in it.</value></data>
+  <data name="WaitBluetooth" xml:space="preserve"><value>The iPhone is not connected over Bluetooth. On the iPhone, open Settings &gt; Bluetooth and connect to this PC.</value></data>
+  <data name="FormatWaitWrongPage" xml:space="preserve"><value>Another test page is open. Open the URL of {0} in Safari on the iPhone.</value></data>
+  <data name="WaitFirewallHint" xml:space="preserve"><value>If it does not open, press "Set up the firewall" below.</value></data>
+  <data name="WaitFirewallHintPackaged" xml:space="preserve"><value>If it does not open, the firewall rule that came with the app may be missing. Repair or reinstall the app.</value></data>
+  <data name="WaitNetworkHint" xml:space="preserve"><value>Check that the iPhone and the PC are on the same network.</value></data>
+  <data name="FormatWaitPageNotOpened" xml:space="preserve"><value>Open the URL of {0} in Safari on the iPhone (you can do it through the mirror window). {1}</value></data>
+  <data name="FormatWaitPageNotInFront" xml:space="preserve"><value>Bring {0} to the front in Safari.</value></data>
+  <data name="WaitMirrorHidden" xml:space="preserve"><value>The black test page is not visible in the middle of the mirror window. Do not cover the mirror window with other windows (this one included).</value></data>
+  <data name="WaitSoon" xml:space="preserve"><value>Starting soon…</value></data>
+  <data name="ProbePreparingTouch" xml:space="preserve"><value>Preparing the test…</value></data>
+  <data name="ProbePreparingMeasure" xml:space="preserve"><value>Preparing the measurement…</value></data>
+  <data name="ProbePreparingPage" xml:space="preserve"><value>Preparing the test page…</value></data>
+  <data name="ProbeCancelled" xml:space="preserve"><value>Cancelled.</value></data>
+  <data name="ProbeRunningTouch" xml:space="preserve"><value>Testing (about 15 seconds). Do not touch the iPhone, and keep the page in front. The mirror window does not control the iPhone meanwhile.</value></data>
+  <data name="ProbeRunningScroll" xml:space="preserve"><value>Measuring (about 1 minute). Do not touch the iPhone, and keep the page in front. The mirror window does not control the iPhone meanwhile.</value></data>
+  <data name="ProbeRunningLatency" xml:space="preserve"><value>Measuring (about 20 seconds). Do not touch the iPhone, and do not move or cover the mirror window. The mirror window does not control the iPhone meanwhile.</value></data>
+  <data name="FormatProbeCountdown" xml:space="preserve"><value>Starting in {0} s. Do not touch the iPhone, and keep the page in front.</value></data>
+  <data name="ProbeIdleStopped" xml:space="preserve"><value>Stopped. Press "Start" in the Status tab.</value></data>
+  <data name="ProbeIdleDryRun" xml:space="preserve"><value>Tests cannot run in test mode (no Bluetooth).</value></data>
+  <data name="ProbeIdleNoBle" xml:space="preserve"><value>Tests cannot run because Bluetooth is not available (see the Status tab).</value></data>
+  <data name="ProbeIdleReady" xml:space="preserve"><value>Turn on Zoom on the iPhone, then press one of the buttons first. That makes the test page available; then open the URL above in Safari on the iPhone.</value></data>
+  <data name="FormatFirewallAllowed" xml:space="preserve"><value>Allowed (TCP {0}, local subnet only)</value></data>
+  <data name="FormatFirewallAllowedByPackage" xml:space="preserve"><value>Allowed (TCP {0}, rule created when the app was installed)</value></data>
+  <data name="FormatFirewallMissing" xml:space="preserve"><value>No rule allows TCP {0}. The iPhone may not be able to open the page.</value></data>
+  <data name="FormatFirewallMissingPackaged" xml:space="preserve"><value>There is no firewall rule for the test page (TCP {0}). Repair or reinstall the app.</value></data>
+  <data name="FormatFirewallTooBroad" xml:space="preserve"><value>TCP {0} is allowed from anywhere. Limiting it to the local subnet is recommended.</value></data>
+  <data name="FirewallUnknown" xml:space="preserve"><value>Could not check.</value></data>
+  <data name="FirewallWaitingUac" xml:space="preserve"><value>Waiting for administrator approval (UAC)…</value></data>
+  <data name="FormatFirewallFailed" xml:space="preserve"><value>Could not set it up (cancelled or failed; see the Log tab). {0}</value></data>
+
+  <!-- Test results -->
+  <data name="ProbeAlreadyRunning" xml:space="preserve"><value>A test is already running.</value></data>
+  <data name="FormatProbePortBusy" xml:space="preserve"><value>Cannot serve the test page on TCP {0} ({1}). If IceScreenTouch.Probe or another tool is running, quit it.</value></data>
+  <data name="CheckTaps" xml:space="preserve"><value>Taps at 9 points</value></data>
+  <data name="CheckMapping" xml:space="preserve"><value>Position match (1:1)</value></data>
+  <data name="CheckOrientation" xml:space="preserve"><value>Orientation (portrait)</value></data>
+  <data name="CheckSwipe" xml:space="preserve"><value>Swipe</value></data>
+  <data name="CheckSwipeLift" xml:space="preserve"><value>Swipe lift</value></data>
+  <data name="CheckPinch" xml:space="preserve"><value>Pinch (two fingers)</value></data>
+  <data name="CheckPinchLift" xml:space="preserve"><value>Pinch lift</value></data>
+  <data name="ProbeRunningKeys" xml:space="preserve"><value>Typing (about 15 seconds). Do not touch the iPhone. The mirror window does not control the iPhone meanwhile.</value></data>
+  <data name="ProbeNoKeyboard" xml:space="preserve"><value>The HID keyboard is not published (an older pairing layout). Restart IceScreen Touch, then forget this PC on the device and pair again.</value></data>
+  <data name="CheckKeysArrive" xml:space="preserve"><value>Keys reach the page</value></data>
+  <data name="CheckLetters" xml:space="preserve"><value>Letters and digits</value></data>
+  <data name="CheckSymbols" xml:space="preserve"><value>Symbols (keyboard layout)</value></data>
+  <data name="CheckEditing" xml:space="preserve"><value>Enter, arrows, Backspace</value></data>
+  <data name="CheckSelectAll" xml:space="preserve"><value>⌘A (select all)</value></data>
+  <data name="CheckPaste" xml:space="preserve"><value>⌘C / ⌘V (copy and paste)</value></data>
+  <data name="KeysFailedNone" xml:space="preserve"><value>No key reached the page. Is the page in front, with the cursor in the box?</value></data>
+  <data name="FormatKeysPassed" xml:space="preserve"><value>Typing works.{0}</value></data>
+  <data name="FormatKeysFailed" xml:space="preserve"><value>{0} checks failed.{1}</value></data>
+  <data name="FormatKeysLatency" xml:space="preserve"><value> A key takes {0:0} ms (median) to reach the page.</value></data>
+  <data name="KeysLayoutHint" xml:space="preserve"><value> The symbols look like a device set to JIS: set the layout to QWERTY (US) in Settings &gt; General &gt; Keyboard &gt; Hardware Keyboard on the device.</value></data>
+  <data name="KeysJapaneseHint" xml:space="preserve"><value> The device's input is Japanese: switch it to English (Ctrl+Space in the mirror window) and run again.</value></data>
+  <data name="KeysNavigationTakenHint" xml:space="preserve"><value> Letters arrived, but Space or the arrow keys did not reach the page: turn off Full Keyboard Access on the device (Settings &gt; Accessibility &gt; Keyboards) and run again.</value></data>
+  <data name="TouchFailedNone" xml:space="preserve"><value>Failed: no touch reached the page. On the iPhone, check that Settings &gt; Accessibility &gt; Zoom is turned on and that the page is in front.</value></data>
+  <data name="FormatTouchLatency" xml:space="preserve"><value> (median latency {0:0} ms)</value></data>
+  <data name="FormatTouchPassed" xml:space="preserve"><value>Passed: touches land 1:1 on the screen{0}.</value></data>
+  <data name="FormatTouchFailedOrientation" xml:space="preserve"><value>Failed: the iPhone is not upright. Hold it upright and try again{0}.</value></data>
+  <data name="FormatTouchFailed" xml:space="preserve"><value>Failed: {0} checks did not pass{1}. Hold the iPhone upright, keep the page in front, do not touch it, and try again.</value></data>
+  <data name="FormatLatencyRange" xml:space="preserve"><value>median {0:0} ms ({1:0}–{2:0}, {3} times)</value></data>
+  <data name="LatencyPress" xml:space="preserve"><value>Press → shown on the PC</value></data>
+  <data name="LatencyTouchPart" xml:space="preserve"><value>  of which touch</value></data>
+  <data name="FormatLatencyTouchDetail" xml:space="preserve"><value>{0} (Bluetooth and iOS input)</value></data>
+  <data name="LatencyPicturePart" xml:space="preserve"><value>  of which picture</value></data>
+  <data name="FormatLatencyPictureDetail" xml:space="preserve"><value>{0} (iPhone display → receiver → PC screen)</value></data>
+  <data name="LatencyRelease" xml:space="preserve"><value>Release → shown on the PC</value></data>
+  <data name="LatencyResolution" xml:space="preserve"><value>Measurement resolution</value></data>
+  <data name="FormatLatencyResolution" xml:space="preserve"><value>one screen read {0:0.0} ms, clock sync round trip {1:0.0} ms</value></data>
+  <data name="FormatLatencyTooFew" xml:space="preserve"><value>The mirror window changed in only {1} of {0} presses. Check that /latency is in front in Safari and that the mirror window is not covered.</value></data>
+  <data name="FormatLatencySplit" xml:space="preserve"><value> (touch {0:0} ms + picture {1:0} ms and more)</value></data>
+  <data name="FormatLatencyPassed" xml:space="preserve"><value>From a press to the response on the PC screen: median {0:0} ms{1}. Not included: the monitor's own display lag and the few ms from the mouse to sending.</value></data>
+  <data name="ScrollOneNotch" xml:space="preserve"><value>1 notch</value></data>
+  <data name="ScrollFiveFast" xml:space="preserve"><value>5 notches, fast</value></data>
+  <data name="FormatScrollTail" xml:space="preserve"><value>, moved up to {0:0} ms after release</value></data>
+  <data name="FormatScrollRatio" xml:space="preserve"><value>ratio {0:0.00} ({1}){2}</value></data>
+  <data name="FormatScrollSetting" xml:space="preserve"><value>{0:0}% per notch, momentum {1:0}%</value></data>
+  <data name="FormatScrollPassed" xml:space="preserve"><value>Measured ({0}). Ratio = scrolled distance ÷ wheel distance. Around 0.7 the content stops with the wheel; larger values glide further with momentum (small amounts come out short by iOS's slack of about 28 pt).</value></data>
+  <data name="FormatScrollFailed" xml:space="preserve"><value>Some scrolls did not reach the page ({0}). Check that /scroll is in front in Safari and that Zoom is on.</value></data>
+
+  <!-- Notification area and dialogs -->
+  <data name="TrayShow" xml:space="preserve"><value>Show</value></data>
+  <data name="TrayExit" xml:space="preserve"><value>Exit</value></data>
+  <data name="AlreadyRunning" xml:space="preserve"><value>IceScreen Touch is already running. Open it from its icon in the notification area.</value></data>
+  <data name="LabelTarget" xml:space="preserve"><value>Input to</value></data>
+  <data name="TipTarget" xml:space="preserve"><value>Touches and keys go to one device only. Automatic: the device the mirror window shows, else the device that connected last.</value></data>
+  <data name="TargetAuto" xml:space="preserve"><value>Automatic</value></data>
+  <data name="TargetUnnamed" xml:space="preserve"><value>Device without a name</value></data>
+  <data name="FormatTargetNotConnected" xml:space="preserve"><value>{0} (not connected)</value></data>
+  <data name="FormatTargetChosen" xml:space="preserve"><value>Sending to {0}, the device you chose.</value></data>
+  <data name="FormatTargetMirrored" xml:space="preserve"><value>Sending to {0}, the device the mirror window shows.</value></data>
+  <data name="FormatTargetLatest" xml:space="preserve"><value>Sending to {0}, the device that connected last.</value></data>
+  <data name="TabAbout" xml:space="preserve"><value>About</value></data>
+  <data name="FormatAboutVersion" xml:space="preserve"><value>Version {0}</value></data>
+  <data name="FormatAboutVersionCommit" xml:space="preserve"><value>Version {0} (commit {1})</value></data>
+  <data name="ButtonGitHub" xml:space="preserve"><value>GitHub</value></data>
+  <data name="ButtonReportIssue" xml:space="preserve"><value>Report a problem</value></data>
+  <data name="ButtonCopyInfo" xml:space="preserve"><value>Copy version info</value></data>
+  <data name="TipCopyInfo" xml:space="preserve"><value>Copies the version, the HID map, .NET and Windows, for a problem report.</value></data>
+  <data name="InfoCopied" xml:space="preserve"><value>Copied.</value></data>
+  <data name="SectionLicense" xml:space="preserve"><value>License</value></data>
+  <data name="LicenseIntro" xml:space="preserve"><value>The source code of IceScreen Touch is published under the MIT License.</value></data>
+  <data name="LicenseFullText" xml:space="preserve"><value>MIT License (show the full text)</value></data>
+  <data name="SectionThirdParty" xml:space="preserve"><value>Third-party software</value></data>
+  <data name="ThirdPartyIntro" xml:space="preserve"><value>IceScreenTouch.exe includes these components. It does not include an AirPlay receiver: the receiver (AirServer, UxPlay, …) is a separate program.</value></data>
+  <data name="ButtonShowNotices" xml:space="preserve"><value>Show the license texts</value></data>
+  <data name="NoticesTitle" xml:space="preserve"><value>Third-party notices</value></data>
+  <data name="SectionData" xml:space="preserve"><value>Data folder</value></data>
+  <data name="DataNote" xml:space="preserve"><value>Settings and logs are kept on this PC only.</value></data>
+  <data name="ButtonOpen" xml:space="preserve"><value>Open</value></data>
+  <data name="SectionVersions" xml:space="preserve"><value>Versions</value></data>
+  <data name="FormatHidMapVersion" xml:space="preserve"><value>HID map: version {0} ({1} bytes). A new version needs pairing again.</value></data>
+  <data name="FormatSettingsVersion" xml:space="preserve"><value>Settings file: version {0}</value></data>
+  <data name="Trademarks" xml:space="preserve"><value>Apple®, iPhone®, iPad®, AirPlay® and Safari® are trademarks of Apple Inc., registered in the U.S. and other countries. IceScreen Touch is not affiliated with or endorsed by Apple Inc. Other product names are trademarks of their owners.</value></data>
+  <data name="FormatComponents" xml:space="preserve"><value>{0} components</value></data>
+</root>

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Manifest template of the Microsoft Store (MSIX) package of IceScreen Touch. tools/publish.ps1 -Msix replaces the
+  {{...}} placeholders, lays the manifest out next to IceScreenTouch.exe and Assets\, and runs makeappx. The real
+  Identity values come from the Partner Center reservation of the app name; the defaults of the script are for
+  local test packages only. The package is unsigned: the Store signs it.
+
+  The published single-file exe runs unchanged inside the package (verified on a device
+  before packaging), so the manifest only declares what the app needs.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:desktop2="http://schemas.microsoft.com/appx/manifest/desktop/windows10/2"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 desktop desktop2 rescap">
+
+  <Identity Name="{{IDENTITY_NAME}}" Publisher="{{PUBLISHER}}" Version="{{VERSION}}" ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>IceScreen Touch</DisplayName>
+    <PublisherDisplayName>{{PUBLISHER_DISPLAY_NAME}}</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-US" />
+    <Resource Language="ja-JP" />
+  </Resources>
+
+  <Applications>
+    <Application Id="App" Executable="IceScreenTouch.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="IceScreen Touch"
+        Description="Control an iPhone or iPad from its mirrored screen on the PC with the mouse and keyboard."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+      </uap:VisualElements>
+
+      <Extensions>
+        <!-- Lets IceScreenTouch.exe be started from a terminal by name, e.g. for its self-check switch (a packaged exe is not on PATH). -->
+        <uap3:Extension Category="windows.appExecutionAlias" Executable="IceScreenTouch.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap3:AppExecutionAlias>
+            <desktop:ExecutionAlias Alias="IceScreenTouch.exe" />
+          </uap3:AppExecutionAlias>
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- A desktop (Win32) app in a package: global mouse and keyboard hooks, starting the AirPlay receiver
+         the user installed, finding its window, reading the process list, writing %LOCALAPPDATA%. Needs a
+         reason in Partner Center. -->
+    <rescap:Capability Name="runFullTrust" />
+    <!-- Bluetooth LE: the app is a BLE HID peripheral (GATT server and advertising) towards the iPhone. -->
+    <DeviceCapability Name="bluetooth" />
+  </Capabilities>
+
+  <!-- Package-level extension (not under the application): inbound TCP for the measurement page, which the iPhone
+       opens in Safari. The manifest cannot limit the remote address; the app's firewall line accepts this rule as it
+       is when packaged. The port is WindowsProbeService.DefaultPort (publish.ps1 fills it in from there). -->
+  <Extensions>
+    <desktop2:Extension Category="windows.firewallRules">
+      <desktop2:FirewallRules Executable="IceScreenTouch.exe">
+        <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="{{PROBE_PORT}}" LocalPortMax="{{PROBE_PORT}}" Profile="all" />
+      </desktop2:FirewallRules>
+    </desktop2:Extension>
+  </Extensions>
+</Package>

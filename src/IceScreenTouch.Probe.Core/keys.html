@@ -1,0 +1,47 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>keyboard probe</title>
+<style>
+  body{margin:0;background:#101418;color:#cfd8dc;font:13px/1.4 ui-monospace,Menlo,monospace}
+  #hud{margin:8px;white-space:pre-wrap;min-height:3.2em}
+  #hud.ready{color:#a5d6a7}
+  textarea{display:block;box-sizing:border-box;width:calc(100% - 16px);height:38vh;margin:0 8px;padding:6px;
+    background:#1c2329;color:#eceff1;border:2px solid #455a64;border-radius:6px;font:16px/1.3 ui-monospace,Menlo,monospace}
+  textarea:focus{border-color:#4fc3f7;outline:none}
+  #log{margin:8px;white-space:pre-wrap;color:#78909c;font-size:11px}
+</style></head>
+<body>
+<div id="hud">Tap the box below so the cursor is in it.</div>
+<textarea id="t" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+<div id="log"></div>
+<script>
+// Keyboard probe: the PC types over BLE HID into the box; every key and every change of the text is POSTed
+// back so the PC can compare what it typed with what arrived. "hello" says whether the box has the cursor.
+const t = document.getElementById('t'), hud = document.getElementById('hud'), log = document.getElementById('log');
+let n = 0, lines = [];
+function send(o){ o.seq = ++n; o.v = t.value; o.ss = t.selectionStart; o.se = t.selectionEnd;
+  try{ fetch('/e' + location.search, {method:'POST', body: JSON.stringify(o), keepalive:true}); }catch(_){} }
+function focused(){ return document.activeElement === t; }
+function hello(){
+  send({type:'hello', pg:'keys', state: document.visibilityState, f: focused(), vw: innerWidth, vh: innerHeight, sw: screen.width, sh: screen.height});
+  hud.textContent = focused() ? 'Ready: the PC can type now. Keep this page in front.' : 'Tap the box below so the cursor is in it.';
+  hud.className = focused() ? 'ready' : '';
+}
+function note(s){ lines.push(s); if (lines.length > 12) lines.shift(); log.textContent = lines.join('\n'); }
+addEventListener('pageshow', hello);
+document.addEventListener('visibilitychange', hello);
+t.addEventListener('focus', () => { t.value = ''; hello(); });
+t.addEventListener('blur', hello);
+setInterval(() => { if (document.visibilityState === 'visible') hello(); }, 2000);
+function mods(e){ return (e.shiftKey?1:0) | (e.ctrlKey?2:0) | (e.altKey?4:0) | (e.metaKey?8:0); }
+t.addEventListener('keydown', e => { send({type:'keydown', key: e.key, code: e.code, mods: mods(e)}); note('keydown ' + e.key + ' ' + e.code + ' mods=' + mods(e)); });
+t.addEventListener('keyup', e => send({type:'keyup', key: e.key, code: e.code, mods: mods(e)}));
+t.addEventListener('input', e => send({type:'input', it: e.inputType, data: e.data, ic: !!e.isComposing}));
+// Selection changes (select all) at most once per frame.
+let pending = false;
+document.addEventListener('selectionchange', () => {
+  if (pending || !focused()) return; pending = true;
+  requestAnimationFrame(() => { pending = false; send({type:'sel'}); });
+});
+</script></body></html>

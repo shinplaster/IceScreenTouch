@@ -1,0 +1,73 @@
+diff --git a/lib/raop_rtp_mirror.c b/lib/raop_rtp_mirror.c
+index 6adce11..f8d7323 100644
+--- a/lib/raop_rtp_mirror.c
++++ b/lib/raop_rtp_mirror.c
+@@ -603,6 +603,13 @@ raop_rtp_mirror_thread(void *arg)
+                 logger_log(raop_rtp_mirror->logger, LOGGER_DEBUG,
+                            "raop_rtp_mirror width_source = %f height_source = %f x_offset = %f y_offset = %f width = %f height = %f",
+                            width_source, height_source, x_offset, y_offset, width, height);
++                /* iScrMirror patch: dump the whole 128-byte codec packet header, to look for any field that
++                 * tells the phone's orientation (e.g. the two landscape directions). Debug output only. */
++                if (logger_debug) {
++                    char *isr_hdr = utils_data_to_string(packet, 128, 16);
++                    logger_log(raop_rtp_mirror->logger, LOGGER_DEBUG, "iScrMirror: codec header\n%s", isr_hdr);
++                    free(isr_hdr);
++                }
+ 
+                 if (payload_size == 0) {
+                     logger_log(raop_rtp_mirror->logger, LOGGER_ERR, "raop_rtp_mirror: received type 0x01 packet with no payload:\n"
+diff --git a/renderers/video_renderer.c b/renderers/video_renderer.c
+index 4b3ec82..1b463a7 100644
+--- a/renderers/video_renderer.c
++++ b/renderers/video_renderer.c
+@@ -20,6 +20,7 @@
+  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
+  */
+ 
++#include <stdio.h>
+ #include <gst/gst.h>
+ #include <gst/app/gstappsrc.h>
+ #include "video_renderer.h"
+@@ -27,6 +28,28 @@
+ 
+ static uintptr_t external_window_handle = 0;
+ 
++/* iScrMirror patch: report the real size of every frame the video sink is about to draw, so that a
++ * controlling program can map window coordinates to device coordinates (the size changes when the
++ * phone rotates). Output format:  iScrMirror: sink-caps <w>x<h> par <n>/<d>  */
++static GstPadProbeReturn
++isr_caps_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
++    GstEvent *event = GST_PAD_PROBE_INFO_EVENT(info);
++    if (event && GST_EVENT_TYPE(event) == GST_EVENT_CAPS) {
++        GstCaps *caps = NULL;
++        gst_event_parse_caps(event, &caps);
++        if (caps && gst_caps_get_size(caps) > 0) {
++            GstStructure *s = gst_caps_get_structure(caps, 0);
++            int w = 0, h = 0, pn = 1, pd = 1;
++            if (gst_structure_get_int(s, "width", &w) && gst_structure_get_int(s, "height", &h)) {
++                gst_structure_get_fraction(s, "pixel-aspect-ratio", &pn, &pd);
++                printf("iScrMirror: sink-caps %dx%d par %d/%d\n", w, h, pn, pd);
++                fflush(stdout);
++            }
++        }
++    }
++    return GST_PAD_PROBE_OK;
++}
++
+ static GstBusSyncReply
+ window_handle_bus_sync_handler(GstBus *bus, GstMessage *message, gpointer user_data) {
+     if (gst_is_video_overlay_prepare_window_handle_message(message)) {
+@@ -1012,7 +1035,12 @@ static gboolean gstreamer_video_pipeline_bus_callback(GstBus *bus, GstMessage *m
+                     // Element is safe to capture once it hits or finishes its READY transition
+                     if (new_state >= GST_STATE_READY) {
+                         renderer->videosink = GST_ELEMENT(gst_object_ref(message->src));
+-                        logger_log(logger, LOGGER_DEBUG, 
++                        GstPad *isr_pad = gst_element_get_static_pad(renderer->videosink, "sink");
++                        if (isr_pad) {
++                            gst_pad_add_probe(isr_pad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, isr_caps_probe, NULL, NULL);
++                            gst_object_unref(isr_pad);
++                        }
++                        logger_log(logger, LOGGER_DEBUG,
+                                    "videosink element (renderer %d: %s)  identified as: %s",
+                                     renderer->id + 1, renderer->codec, src_name);
+ #ifdef X_DISPLAY_FIX

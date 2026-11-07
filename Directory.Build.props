@@ -1,0 +1,24 @@
+<Project>
+  <!-- Shared settings for every project in the solution. -->
+  <PropertyGroup>
+    <!-- Windows-only projects need the WinRT projection (Bluetooth GATT server, Graphics.Capture). The 22621
+         projection has the Windows 11 connection-parameter API (BluetoothLEDevice.RequestPreferredConnectionParameters);
+         the app still runs on 19041 (SupportedOSPlatformVersion) and skips that call there. -->
+    <WindowsTfm>net10.0-windows10.0.22621.0</WindowsTfm>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <!-- A newer projection than the SDK's default (.57): its WinRT.Runtime is trim safe, so the trimmed
+         single-file build (M6) has no trim warnings (22621.57 failed with IL2104, 22621.87 passes). -->
+    <WindowsSdkPackageVersion>10.0.22621.87</WindowsSdkPackageVersion>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <!-- Product version: the one place for it (Semantic Versioning, 0.x until stable; rules in CHANGELOG.md). The
+         .NET SDK appends the git commit to the informational version (shown on the About tab); tools/publish.ps1
+         names the zip after it; a vX.Y.Z tag must match it. -->
+    <Version>0.1.0</Version>
+    <Copyright>Copyright (c) 2026 Shin-plaster</Copyright>
+  </PropertyGroup>
+</Project>

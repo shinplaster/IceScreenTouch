@@ -1,0 +1,442 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:IceScreenTouch.App.ViewModels"
+        xmlns:ctl="using:IceScreenTouch.App.Controls"
+        xmlns:svc="using:IceScreenTouch.App.Services"
+        xmlns:res="using:IceScreenTouch.App.Resources"
+        x:Class="IceScreenTouch.App.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="IceScreen Touch"
+        Icon="/Assets/icon.ico"
+        Background="{DynamicResource AppWindowBackground}"
+        Width="480" Height="680" MinWidth="400" MinHeight="440">
+
+  <!-- Status window: the state and what to do next, the setup steps, buttons; settings;
+       tests; log. Slider limits match AppSettings.Min/Max* (the settings are clamped there too). -->
+  <Window.Styles>
+    <Style Selector="Ellipse.dot">
+      <Setter Property="Width" Value="10" />
+      <Setter Property="Height" Value="10" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Fill" Value="#9AA0A6" />
+    </Style>
+    <Style Selector="Ellipse.dot.ok">
+      <Setter Property="Fill" Value="#1E9E4A" />
+    </Style>
+    <Style Selector="Ellipse.dot.waiting">
+      <Setter Property="Fill" Value="#E0A100" />
+    </Style>
+    <Style Selector="Ellipse.dot.error">
+      <Setter Property="Fill" Value="#D93025" />
+    </Style>
+    <!-- The headline: a box with a coloured edge. -->
+    <!-- Translucent tints, so they work on the light and the dark theme. -->
+    <Style Selector="Border.banner">
+      <Setter Property="Background" Value="#14808080" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="12,10" />
+      <Setter Property="BorderThickness" Value="4,0,0,0" />
+      <Setter Property="BorderBrush" Value="#9AA0A6" />
+    </Style>
+    <Style Selector="Border.banner.ok">
+      <Setter Property="BorderBrush" Value="#1E9E4A" />
+      <Setter Property="Background" Value="#141E9E4A" />
+    </Style>
+    <Style Selector="Border.banner.waiting">
+      <Setter Property="BorderBrush" Value="#E0A100" />
+      <Setter Property="Background" Value="#18E0A100" />
+    </Style>
+    <Style Selector="Border.banner.error">
+      <Setter Property="BorderBrush" Value="#D93025" />
+      <Setter Property="Background" Value="#14D93025" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Opacity" Value="0.7" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.note">
+      <Setter Property="Opacity" Value="0.7" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TabItem">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="MinHeight" Value="36" />
+    </Style>
+    <Style Selector="ListBox.log ListBoxItem">
+      <Setter Property="Padding" Value="6,1" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,10,0,0" />
+    </Style>
+    <!-- A slider under its check box: name above, value on the right. -->
+    <Style Selector="StackPanel.slider">
+      <Setter Property="Margin" Value="32,0,0,4" />
+      <Setter Property="Spacing" Value="0" />
+    </Style>
+    <Style Selector="StackPanel.slider TextBlock.value">
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextAlignment" Value="Right" />
+      <Setter Property="MinWidth" Value="64" />
+      <Setter Property="Margin" Value="10,0,0,0" />
+    </Style>
+    <Style Selector="Expander">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+  </Window.Styles>
+
+  <!-- Tab order: MainViewModel.StatusTab = 0, SettingsTab = 1, ProbeTab = 2, LogTab = 3, AboutTab = 4. -->
+  <TabControl Padding="12,4,12,12" SelectedIndex="{Binding SelectedTab}">
+    <TabItem Header="{x:Static res:Strings.TabStatus}">
+      <ScrollViewer>
+        <StackPanel Spacing="12" Margin="0,8,8,8">
+          <!-- The whole state in a few words, and the one thing to do next. -->
+          <Border Classes="banner" Classes.ok="{Binding HeadlineOk}" Classes.waiting="{Binding HeadlineWaiting}" Classes.error="{Binding HeadlineError}">
+            <StackPanel Spacing="4">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Ellipse Classes="dot" Classes.ok="{Binding HeadlineOk}" Classes.waiting="{Binding HeadlineWaiting}" Classes.error="{Binding HeadlineError}" />
+                <TextBlock Text="{Binding Headline}" FontSize="17" FontWeight="SemiBold" />
+              </StackPanel>
+              <TextBlock Text="{Binding Hint}" TextWrapping="Wrap" Margin="18,0,0,0" />
+            </StackPanel>
+          </Border>
+
+          <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">
+            <Button Content="{x:Static res:Strings.ButtonHome}" Command="{Binding HomeCommand}" ToolTip.Tip="{x:Static res:Strings.TipHome}" />
+            <Button Content="{x:Static res:Strings.ButtonRotate}" Command="{Binding ToggleRotationCommand}" ToolTip.Tip="{x:Static res:Strings.TipRotate}" />
+            <Button Content="{Binding StartStopText}" Command="{Binding StartStopCommand}" ToolTip.Tip="{Binding StartStopTip}" />
+            <Button Content="{x:Static res:Strings.ButtonRestart}" Command="{Binding RestartCommand}" ToolTip.Tip="{x:Static res:Strings.TipRestart}" />
+          </WrapPanel>
+
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="4">
+            <TextBlock Grid.Row="0" Classes="label" Text="{x:Static res:Strings.LabelPicture}" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding PictureText}" />
+            <TextBlock Grid.Row="1" Classes="label" Text="{x:Static res:Strings.LabelRotation}" IsVisible="{Binding HasRotationText}" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding RotationText}" IsVisible="{Binding HasRotationText}" />
+            <!-- One device gets the input: automatic (the mirrored one, else the last to connect) or the one chosen here. -->
+            <TextBlock Grid.Row="2" Classes="label" Text="{x:Static res:Strings.LabelTarget}" VerticalAlignment="Center" IsVisible="{Binding HasDevices}" />
+            <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding TargetOptions}" SelectedItem="{Binding SelectedTarget}" MinWidth="220"
+                      ToolTip.Tip="{x:Static res:Strings.TipTarget}" IsVisible="{Binding HasDevices}" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding TargetText}" TextWrapping="Wrap" Classes="note" IsVisible="{Binding HasDevices}" />
+          </Grid>
+
+          <!-- The setup steps: done ones on one line, open ones with what to do. -->
+          <StackPanel Spacing="6" DataContext="{Binding Setup}" x:DataType="vm:SetupViewModel">
+            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,0">
+              <TextBlock Text="{x:Static res:Strings.SectionSetup}" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding ProgressText}" Classes="note" VerticalAlignment="Center" />
+            </StackPanel>
+            <ItemsControl ItemsSource="{Binding Steps}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:SetupStep">
+                  <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" Margin="0,3">
+                    <Ellipse Classes="dot" Classes.ok="{Binding IsOk}" Classes.waiting="{Binding IsWaiting}" Classes.error="{Binding IsError}" />
+                    <TextBlock Grid.Column="1" FontWeight="SemiBold">
+                      <Run Text="{Binding NumberText}" />
+                      <Run Text="{Binding Title}" />
+                    </TextBlock>
+                    <TextBlock Grid.Column="2" Text="{Binding Detail}" Opacity="0.7" TextTrimming="CharacterEllipsis" IsVisible="{Binding IsOk}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Detail}" TextWrapping="Wrap" Opacity="0.9" IsVisible="{Binding IsOpen}" Margin="0,2,0,0" />
+                    <Button Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,6,0,2" Content="{x:Static res:Strings.ButtonOpenProbe}"
+                            Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).OpenProbeCommand}">
+                      <Button.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                          <Binding Path="OffersProbe" />
+                          <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).HasProbe" />
+                        </MultiBinding>
+                      </Button.IsVisible>
+                    </Button>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <!-- The AirPlay receivers on this PC; opens by itself when the receiver needs the user. -->
+          <Expander Header="{x:Static res:Strings.SectionReceivers}" IsVisible="{Binding Setup.CanSearch}"
+                    IsExpanded="{Binding Setup.ReceiversExpanded, Mode=TwoWay}">
+            <StackPanel Spacing="8" DataContext="{Binding Setup}" x:DataType="vm:SetupViewModel">
+              <TextBlock Classes="note" Text="{x:Static res:Strings.ReceiversIntro}" />
+              <ItemsControl ItemsSource="{Binding Receivers}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ReceiverChoice">
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,3">
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Detail}" Classes="note" />
+                      </StackPanel>
+                      <Button Grid.Column="1" Content="{x:Static res:Strings.ButtonLaunch}" Command="{Binding LaunchCommand}" IsVisible="{Binding CanLaunch}" VerticalAlignment="Center" />
+                      <Button Grid.Column="2" Content="{Binding UseText}" Command="{Binding UseCommand}" VerticalAlignment="Center" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock TextWrapping="Wrap" IsVisible="{Binding NoReceivers}" Text="{x:Static res:Strings.NoReceivers}" />
+              <Button Content="{x:Static res:Strings.ButtonSearch}" Command="{Binding SearchCommand}" />
+            </StackPanel>
+          </Expander>
+
+          <StackPanel Spacing="4">
+            <TextBlock Text="{x:Static res:Strings.SectionControls}" FontWeight="SemiBold" Margin="0,4,0,0" />
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="2">
+              <TextBlock Grid.Row="0" Classes="label" Text="{x:Static res:Strings.ControlDragKey}" />
+              <TextBlock Grid.Row="0" Grid.Column="1" Text="{x:Static res:Strings.ControlDrag}" />
+              <TextBlock Grid.Row="1" Classes="label" Text="{x:Static res:Strings.ControlPinchKey}" />
+              <TextBlock Grid.Row="1" Grid.Column="1" Text="{x:Static res:Strings.ControlPinch}" />
+              <TextBlock Grid.Row="2" Classes="label" Text="{x:Static res:Strings.ControlRightKey}" />
+              <TextBlock Grid.Row="2" Grid.Column="1" Text="{x:Static res:Strings.ControlRight}" />
+              <TextBlock Grid.Row="3" Classes="label" Text="{x:Static res:Strings.ControlWheelKey}" />
+              <TextBlock Grid.Row="3" Grid.Column="1" Text="{x:Static res:Strings.ControlWheel}" />
+              <TextBlock Grid.Row="4" Classes="label" Text="{x:Static res:Strings.ControlHomeKey}" />
+              <TextBlock Grid.Row="4" Grid.Column="1" Text="{x:Static res:Strings.ControlHome}" />
+              <TextBlock Grid.Row="5" Classes="label" Text="Ctrl + R" />
+              <TextBlock Grid.Row="5" Grid.Column="1" Text="{x:Static res:Strings.ControlRotate}" TextWrapping="Wrap" />
+              <TextBlock Grid.Row="6" Classes="label" Text="{x:Static res:Strings.ControlTypeKey}" />
+              <TextBlock Grid.Row="6" Grid.Column="1" Text="{x:Static res:Strings.ControlType}" TextWrapping="Wrap" />
+            </Grid>
+            <TextBlock Classes="note" Text="{x:Static res:Strings.ControlsNote}" />
+          </StackPanel>
+
+          <TextBlock Text="{Binding StatsText}" Classes="note" />
+        </StackPanel>
+      </ScrollViewer>
+    </TabItem>
+
+    <TabItem Header="{x:Static res:Strings.TabSettings}">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+          <Button Content="{x:Static res:Strings.ButtonApply}" Classes="accent" Command="{Binding ApplySettingsCommand}" />
+          <Button Content="{x:Static res:Strings.ButtonRevert}" Command="{Binding RevertSettingsCommand}" />
+        </StackPanel>
+        <ScrollViewer>
+          <StackPanel Spacing="8" Margin="0,8,8,8">
+            <TextBlock Classes="section" Text="{x:Static res:Strings.LabelReceiver}" Margin="0" />
+            <RadioButton GroupName="receiver" Content="{x:Static res:Strings.OptionStartUxPlay}" IsChecked="{Binding StartUxPlay}" />
+            <RadioButton GroupName="receiver" Content="{x:Static res:Strings.OptionAttach}" IsChecked="{Binding AttachToProcess}" />
+
+            <StackPanel Spacing="6" IsVisible="{Binding StartUxPlay}">
+              <TextBlock Classes="label" Text="{x:Static res:Strings.LabelAirPlayName}" />
+              <TextBox Text="{Binding AirPlayName}" />
+              <TextBlock Classes="label" Text="{x:Static res:Strings.LabelUxPlayPath}" />
+              <DockPanel>
+                <Button DockPanel.Dock="Right" Content="{x:Static res:Strings.ButtonBrowse}" Margin="6,0,0,0" Click="BrowseUxPlay" />
+                <TextBox Text="{Binding UxPlayPath}" PlaceholderText="poc\poc1-uxplay\UxPlay\build-isr\uxplay.exe" />
+              </DockPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="6" IsVisible="{Binding AttachToProcess}">
+              <TextBlock Classes="label" Text="{x:Static res:Strings.LabelProcessName}" />
+              <TextBox Text="{Binding AttachProcessName}" PlaceholderText="AirServer" />
+            </StackPanel>
+
+            <TextBlock Classes="section" Text="{x:Static res:Strings.SectionVideo}" />
+            <CheckBox IsChecked="{Binding DetectPicture}" IsVisible="{Binding AttachToProcess}">
+              <TextBlock Text="{x:Static res:Strings.OptionDetectPicture}" TextWrapping="Wrap" />
+            </CheckBox>
+            <CheckBox IsChecked="{Binding FollowVideoSize}">
+              <TextBlock Text="{x:Static res:Strings.OptionFollowVideoSize}" TextWrapping="Wrap" />
+            </CheckBox>
+            <TextBlock Classes="label" Text="{x:Static res:Strings.LabelScreen}" TextWrapping="Wrap" />
+            <ComboBox ItemsSource="{Binding ScreenPresets}" SelectedItem="{Binding Screen}" HorizontalAlignment="Stretch" />
+
+            <TextBlock Classes="section" Text="{x:Static res:Strings.SectionMouse}" />
+            <CheckBox Content="{x:Static res:Strings.OptionLongPress}" IsChecked="{Binding RightButtonLongPress}" />
+            <StackPanel Classes="slider" IsEnabled="{Binding RightButtonLongPress}">
+              <TextBlock Classes="note" Text="{x:Static res:Strings.LabelLongPressTime}" />
+              <Grid ColumnDefinitions="*,Auto">
+                <Slider Minimum="300" Maximum="3000" Value="{Binding LongPressMilliseconds}"
+                        SmallChange="50" LargeChange="100" TickFrequency="50" IsSnapToTickEnabled="True" />
+                <TextBlock Grid.Column="1" Classes="value" Text="{Binding LongPressMilliseconds, StringFormat='{}{0:0} ms'}" />
+              </Grid>
+            </StackPanel>
+            <CheckBox Content="{x:Static res:Strings.OptionWheel}" IsChecked="{Binding WheelScroll}" />
+            <StackPanel Classes="slider" IsEnabled="{Binding WheelScroll}">
+              <TextBlock Classes="note" Text="{x:Static res:Strings.LabelWheelStep}" />
+              <Grid ColumnDefinitions="*,Auto">
+                <Slider Minimum="2" Maximum="50" Value="{Binding WheelStepPercent}"
+                        SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True" />
+                <TextBlock Grid.Column="1" Classes="value" Text="{Binding WheelStepPercent, StringFormat={x:Static res:Strings.FormatWheelStep}}" />
+              </Grid>
+              <TextBlock Classes="note" Text="{x:Static res:Strings.LabelMomentum}" ToolTip.Tip="{x:Static res:Strings.TipMomentum}" Margin="0,6,0,0" />
+              <Grid ColumnDefinitions="*,Auto">
+                <Slider Minimum="0" Maximum="100" Value="{Binding WheelMomentumPercent}"
+                        SmallChange="5" LargeChange="10" TickFrequency="5" IsSnapToTickEnabled="True"
+                        ToolTip.Tip="{x:Static res:Strings.TipMomentum}" />
+                <TextBlock Grid.Column="1" Classes="value" Text="{Binding WheelMomentumPercent, StringFormat={x:Static res:Strings.FormatMomentum}}" />
+              </Grid>
+            </StackPanel>
+
+            <TextBlock Classes="section" Text="{x:Static res:Strings.SectionKeyboard}" />
+            <CheckBox IsChecked="{Binding KeyboardInput}">
+              <TextBlock Text="{x:Static res:Strings.OptionKeyboardInput}" TextWrapping="Wrap" />
+            </CheckBox>
+
+            <TextBlock Classes="section" Text="{x:Static res:Strings.SectionApp}" />
+            <CheckBox Content="{x:Static res:Strings.OptionCloseToTray}" IsChecked="{Binding CloseToTray}" />
+            <TextBlock Classes="label" Text="{x:Static res:Strings.LabelLanguage}" Margin="0,4,0,0" />
+            <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding Language}" HorizontalAlignment="Stretch" />
+            <TextBlock Classes="note" Text="{x:Static res:Strings.LanguageNote}" />
+            <TextBlock Classes="label" Text="{x:Static res:Strings.LabelTheme}" Margin="0,4,0,0" />
+            <ComboBox ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}" HorizontalAlignment="Stretch" />
+
+            <Expander Header="{x:Static res:Strings.SectionAdvanced}" Margin="0,10,0,0">
+              <StackPanel Spacing="8">
+                <StackPanel Spacing="6" IsVisible="{Binding StartUxPlay}">
+                  <TextBlock Classes="label" Text="{x:Static res:Strings.LabelMsysBin}" TextWrapping="Wrap" />
+                  <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="{x:Static res:Strings.ButtonBrowse}" Margin="6,0,0,0" Click="BrowseMsys" />
+                    <TextBox Text="{Binding MsysBin}" />
+                  </DockPanel>
+                </StackPanel>
+                <CheckBox Content="{x:Static res:Strings.OptionVerboseLog}" IsChecked="{Binding VerboseLog}" />
+                <CheckBox Content="{x:Static res:Strings.OptionDryRun}" IsChecked="{Binding DryRun}" />
+              </StackPanel>
+            </Expander>
+          </StackPanel>
+        </ScrollViewer>
+      </DockPanel>
+    </TabItem>
+
+    <TabItem Header="{x:Static res:Strings.TabProbe}" IsVisible="{Binding HasProbe}">
+      <!-- The probes: Safari page on the iPhone, input sent over BLE, checked.
+           Four equal buttons; the page's address shows (with a QR code) once a run waits for it. -->
+      <DockPanel DataContext="{Binding Probe}" x:DataType="vm:ProbeViewModel">
+        <StackPanel DockPanel.Dock="Top" Spacing="10" Margin="0,8,8,0">
+          <TextBlock TextWrapping="Wrap" Opacity="0.8" Text="{x:Static res:Strings.ProbeIntro}" />
+
+          <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+            <Button Grid.Row="0" Grid.Column="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Content="{x:Static res:Strings.ButtonTouchProbe}" Command="{Binding StartTouchCommand}" ToolTip.Tip="{x:Static res:Strings.TipTouchProbe}" />
+            <Button Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Content="{x:Static res:Strings.ButtonKeysProbe}" Command="{Binding StartKeysCommand}" ToolTip.Tip="{x:Static res:Strings.TipKeysProbe}" />
+            <Button Grid.Row="1" Grid.Column="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Content="{x:Static res:Strings.ButtonScrollProbe}" Command="{Binding StartScrollCommand}" ToolTip.Tip="{x:Static res:Strings.TipScrollProbe}" />
+            <Button Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Content="{x:Static res:Strings.ButtonLatencyProbe}" Command="{Binding StartLatencyCommand}" ToolTip.Tip="{x:Static res:Strings.TipLatencyProbe}" />
+          </Grid>
+
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Stretch" IsVisible="{Binding IsRunning}"
+                    Content="{x:Static res:Strings.ButtonCancel}" Command="{Binding CancelCommand}" />
+            <Border Classes="banner" Classes.ok="{Binding StatusOk}" Classes.waiting="{Binding StatusWaiting}" Classes.error="{Binding StatusError}">
+              <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
+            </Border>
+          </DockPanel>
+
+          <!-- While a run waits for its page: the address as a QR code for the iPhone's camera. -->
+          <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding ShowQr}">
+            <ctl:QrCodeView Text="{Binding QrUrl}" Width="168" Height="168" />
+            <StackPanel VerticalAlignment="Center" Spacing="6" MaxWidth="260">
+              <TextBlock TextWrapping="Wrap" Text="{x:Static res:Strings.QrHint}" />
+              <SelectableTextBlock Text="{Binding QrUrl}" FontFamily="Cascadia Mono, Consolas, monospace" TextWrapping="Wrap" />
+            </StackPanel>
+          </StackPanel>
+
+          <ItemsControl ItemsSource="{Binding Checks}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="svc:ProbeCheckItem">
+                <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8" Margin="0,1">
+                  <Ellipse Classes="dot" Classes.ok="{Binding Ok}" Classes.error="{Binding !Ok}" />
+                  <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="2" Text="{Binding Detail}" TextWrapping="Wrap" Opacity="0.8" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+            <TextBlock Classes="label" Text="{x:Static res:Strings.LabelFirewall}" VerticalAlignment="Top" />
+            <StackPanel Grid.Column="1" Spacing="6">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Ellipse Classes="dot" Classes.ok="{Binding FirewallOk}" Classes.waiting="{Binding FirewallWaiting}" VerticalAlignment="Top" Margin="0,5,0,0" />
+                <TextBlock Text="{Binding FirewallText}" TextWrapping="Wrap" MaxWidth="300" />
+              </StackPanel>
+              <Button Content="{x:Static res:Strings.ButtonFirewall}" Command="{Binding AllowFirewallCommand}" IsVisible="{Binding ShowFirewallButton}"
+                      ToolTip.Tip="{x:Static res:Strings.TipFirewall}" />
+            </StackPanel>
+          </Grid>
+
+          <TextBlock Classes="section" Text="{x:Static res:Strings.SectionDetails}" />
+        </StackPanel>
+        <ListBox Classes="log" ItemsSource="{Binding Output}" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="11" Margin="0,4,0,0">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <SelectableTextBlock Text="{Binding}" TextWrapping="Wrap" />
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </TabItem>
+
+    <TabItem Header="{x:Static res:Strings.TabLog}">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+          <Button Content="{x:Static res:Strings.ButtonOpenLogFolder}" Click="OpenLogFolder" />
+        </StackPanel>
+        <ListBox x:Name="LogList" Classes="log" ItemsSource="{Binding LogLines}" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="11">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <SelectableTextBlock Text="{Binding}" TextWrapping="Wrap" />
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </TabItem>
+    <TabItem Header="{x:Static res:Strings.TabAbout}">
+      <!-- About: version and commit, links, license, third-party components, data folder,
+           the versions kept apart from the app's, the trademark notice. -->
+      <ScrollViewer>
+        <StackPanel Spacing="8" Margin="0,8,8,8" DataContext="{Binding About}" x:DataType="vm:AboutViewModel">
+          <!-- The icon (its largest frame, set by MainWindow), name, version and copyright, centred. -->
+          <StackPanel HorizontalAlignment="Center" Spacing="2" Margin="0,4,0,4">
+            <Image x:Name="AboutIcon" Width="96" Height="96" HorizontalAlignment="Center" RenderOptions.BitmapInterpolationMode="HighQuality" />
+            <TextBlock Text="{Binding ProductName}" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,6,0,0" />
+            <SelectableTextBlock Text="{Binding VersionText}" HorizontalAlignment="Center" />
+            <TextBlock Text="{Binding Copyright}" Classes="note" HorizontalAlignment="Center" />
+          </StackPanel>
+          <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Center" Margin="0,4,0,0">
+            <Button Content="{x:Static res:Strings.ButtonGitHub}" Click="OpenRepository" />
+            <Button Content="{x:Static res:Strings.ButtonReportIssue}" Click="OpenIssues" />
+            <Button Content="{x:Static res:Strings.ButtonCopyInfo}" Click="CopyInfo" ToolTip.Tip="{x:Static res:Strings.TipCopyInfo}" />
+            <TextBlock Text="{x:Static res:Strings.InfoCopied}" IsVisible="{Binding Copied}" VerticalAlignment="Center" Classes="note" />
+          </WrapPanel>
+
+          <TextBlock Classes="section" Text="{x:Static res:Strings.SectionLicense}" />
+          <TextBlock Text="{x:Static res:Strings.LicenseIntro}" TextWrapping="Wrap" />
+          <Expander Header="{x:Static res:Strings.LicenseFullText}">
+            <SelectableTextBlock Text="{Binding LicenseText}" TextWrapping="Wrap" FontSize="12" />
+          </Expander>
+
+          <TextBlock Classes="section" Text="{x:Static res:Strings.SectionThirdParty}" />
+          <TextBlock Classes="note" Text="{x:Static res:Strings.ThirdPartyIntro}" />
+          <Expander Header="{Binding ComponentsHeader}">
+            <ItemsControl ItemsSource="{Binding Components}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <TextBlock Text="{Binding}" Classes="note" Margin="0,1" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Expander>
+          <Button Content="{x:Static res:Strings.ButtonShowNotices}" Click="ShowNotices" />
+
+          <TextBlock Classes="section" Text="{x:Static res:Strings.SectionData}" />
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Margin="8,0,0,0" Content="{x:Static res:Strings.ButtonOpen}" Click="OpenDataFolder" VerticalAlignment="Center" />
+            <SelectableTextBlock Text="{Binding DataFolder}" TextWrapping="Wrap" VerticalAlignment="Center" />
+          </DockPanel>
+          <TextBlock Classes="note" Text="{x:Static res:Strings.DataNote}" />
+
+          <TextBlock Classes="section" Text="{x:Static res:Strings.SectionVersions}" />
+          <TextBlock Classes="note" Text="{Binding HidMapText}" />
+          <TextBlock Classes="note" Text="{Binding SettingsVersionText}" />
+
+          <TextBlock Classes="note" Text="{x:Static res:Strings.Trademarks}" Margin="0,12,0,0" />
+        </StackPanel>
+      </ScrollViewer>
+    </TabItem>
+  </TabControl>
+</Window>

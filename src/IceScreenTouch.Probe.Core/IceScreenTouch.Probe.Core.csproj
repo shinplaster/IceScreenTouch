@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The touch probe without a console: the Safari page server (/ and /scroll), the probe runner, the
+       analysis and the scroll measurement. Used by tools/IceScreenTouch.Probe and by the app's probe tab.
+       Platform-independent (no Bluetooth here: touches go to any ITouchSink). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>IceScreenTouch.Probe</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Kestrel serves the probe page; unlike HttpListener it needs no URL ACL to listen on the LAN. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="page.html" LogicalName="IceScreenTouch.Probe.page.html" />
+    <EmbeddedResource Include="scroll.html" LogicalName="IceScreenTouch.Probe.scroll.html" />
+    <EmbeddedResource Include="latency.html" LogicalName="IceScreenTouch.Probe.latency.html" />
+    <EmbeddedResource Include="keys.html" LogicalName="IceScreenTouch.Probe.keys.html" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="IceScreenTouch.Probe.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IceScreenTouch.Core\IceScreenTouch.Core.csproj" />
+  </ItemGroup>
+
+</Project>

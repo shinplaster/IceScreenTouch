@@ -1,0 +1,317 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- User-facing text, Japanese. Same names and {n} placeholders as Strings.resx (checked by a test). -->
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <!-- Tabs -->
+  <data name="TabStatus" xml:space="preserve"><value>状態</value></data>
+  <data name="TabSettings" xml:space="preserve"><value>設定</value></data>
+  <data name="TabProbe" xml:space="preserve"><value>検証</value></data>
+  <data name="TabLog" xml:space="preserve"><value>ログ</value></data>
+  <data name="HeadlineStarting" xml:space="preserve"><value>起動しています…</value></data>
+  <data name="HeadlineSuspended" xml:space="preserve"><value>計測中</value></data>
+  <data name="HeadlineProblem" xml:space="preserve"><value>対応が必要です</value></data>
+  <data name="HeadlineWaitingPhone" xml:space="preserve"><value>iPhone の接続を待っています</value></data>
+  <data name="HeadlineWaitingMirroring" xml:space="preserve"><value>画面ミラーリングを待っています</value></data>
+  <data name="HeadlineReady" xml:space="preserve"><value>操作できます</value></data>
+  <data name="FormatTrayTooltip" xml:space="preserve"><value>IceScreen Touch: {0}</value></data>
+  <data name="ButtonOpenLogFolder" xml:space="preserve"><value>ログのフォルダを開く</value></data>
+
+  <!-- Status tab -->
+  <data name="LabelReceiver" xml:space="preserve"><value>受信ソフト</value></data>
+  <data name="LabelPicture" xml:space="preserve"><value>映像</value></data>
+  <data name="LabelRotation" xml:space="preserve"><value>回転</value></data>
+  <data name="ButtonHome" xml:space="preserve"><value>ホーム</value></data>
+  <data name="TipHome" xml:space="preserve"><value>ホームへ戻る（ミラー画面が前面のときは Home キー）</value></data>
+  <data name="ButtonRotate" xml:space="preserve"><value>回転を切り替え</value></data>
+  <data name="TipRotate" xml:space="preserve"><value>タッチの位置が反対になるときに切り替える（Ctrl+R）。横向きは 90° ⇄ 270°、縦向きは 0° ⇄ 180°（上下逆の iPad）</value></data>
+  <data name="ButtonRestart" xml:space="preserve"><value>再起動</value></data>
+  <data name="TipRestart" xml:space="preserve"><value>Bluetooth と受信ソフトを止めて、もう一度開始する</value></data>
+  <data name="ButtonStart" xml:space="preserve"><value>開始</value></data>
+  <data name="TipStart" xml:space="preserve"><value>Bluetooth と受信ソフトを開始する</value></data>
+  <data name="ButtonStop" xml:space="preserve"><value>停止</value></data>
+  <data name="TipStop" xml:space="preserve"><value>Bluetooth と受信ソフトを止める（iPhone との接続が切れる）</value></data>
+  <data name="SectionControls" xml:space="preserve"><value>操作</value></data>
+  <data name="ControlDragKey" xml:space="preserve"><value>左ドラッグ</value></data>
+  <data name="ControlDrag" xml:space="preserve"><value>タッチ・スワイプ</value></data>
+  <data name="ControlPinchKey" xml:space="preserve"><value>Ctrl + 左ドラッグ</value></data>
+  <data name="ControlPinch" xml:space="preserve"><value>ピンチ（2 本指）</value></data>
+  <data name="ControlRightKey" xml:space="preserve"><value>右クリック</value></data>
+  <data name="ControlRight" xml:space="preserve"><value>長押し</value></data>
+  <data name="ControlWheelKey" xml:space="preserve"><value>ホイール</value></data>
+  <data name="ControlWheel" xml:space="preserve"><value>スクロール（Shift で横）</value></data>
+  <data name="ControlHomeKey" xml:space="preserve"><value>Home キー</value></data>
+  <data name="ControlHome" xml:space="preserve"><value>ホーム</value></data>
+  <data name="ControlRotate" xml:space="preserve"><value>回転を切り替え（横向きは 90° ⇄ 270°、縦向きは 0° ⇄ 180°。上下逆の iPad 用）</value></data>
+  <data name="ControlTypeKey" xml:space="preserve"><value>そのほかのキー</value></data>
+  <data name="ControlType" xml:space="preserve"><value>端末で文字入力（Ctrl は ⌘、Ctrl+Space か 半角/全角 で入力切替）</value></data>
+  <data name="ControlsNote" xml:space="preserve"><value>キーはミラー画面が前面のときに効きます。日本語は端末側で変換します（端末に「日本語 - ローマ字」キーボードを追加してください）。</value></data>
+  <data name="SectionSetup" xml:space="preserve"><value>準備</value></data>
+  <data name="FormatSetupProgress" xml:space="preserve"><value>{1} 項目中 {0} 項目 済み</value></data>
+  <data name="ButtonOpenProbe" xml:space="preserve"><value>「検証」タブでタッチを確かめる…</value></data>
+  <data name="Portrait" xml:space="preserve"><value>縦</value></data>
+  <data name="Landscape" xml:space="preserve"><value>横</value></data>
+  <data name="FormatPictureSize" xml:space="preserve"><value>{0:0}×{1:0}（{2}）</value></data>
+  <data name="FormatPictureOnScreen" xml:space="preserve"><value>画面上 {0:0}×{1:0}（{2}）</value></data>
+  <data name="FormatRotationLandscape" xml:space="preserve"><value>横向き {0}°</value></data>
+  <data name="RotationPortraitUpsideDown" xml:space="preserve"><value>縦向き 180°（上下逆）</value></data>
+  <data name="FormatStats" xml:space="preserve"><value>タッチ {0}（長押し {1}）・スクロール {2}・未送信 {3}</value></data>
+  <data name="Stopped" xml:space="preserve"><value>停止中</value></data>
+  <data name="BleStarting" xml:space="preserve"><value>準備中…</value></data>
+  <data name="FormatBleUnsupported" xml:space="preserve"><value>使えません（{0}）</value></data>
+  <data name="FormatError" xml:space="preserve"><value>エラー: {0}</value></data>
+  <data name="BleAdvertising" xml:space="preserve"><value>iPhone の接続待ち</value></data>
+  <data name="BleConnected" xml:space="preserve"><value>iPhone と接続済み</value></data>
+  <data name="BleDryRun" xml:space="preserve"><value>テスト用（Bluetooth を使わない）</value></data>
+  <data name="FormatReceiverWaiting" xml:space="preserve"><value>{0}: 画面ミラーリングの待ち</value></data>
+  <data name="FormatReceiverShowingDevice" xml:space="preserve"><value>{0}: 表示中（{1}）</value></data>
+  <data name="FormatReceiverShowing" xml:space="preserve"><value>{0}: 表示中</value></data>
+  <data name="FormatReceiverNotFound" xml:space="preserve"><value>{0} が見つかりません</value></data>
+  <data name="FormatReceiverExited" xml:space="preserve"><value>{0} が終了しました（{1}）</value></data>
+  <data name="FormatReceiverError" xml:space="preserve"><value>{0}: {1}</value></data>
+  <data name="FormatExitCode" xml:space="preserve"><value>終了コード {0}</value></data>
+  <data name="FormatBridgeStopped" xml:space="preserve"><value>操作の処理が止まりました: {0}</value></data>
+
+  <!-- Status tab: what to do next -->
+  <data name="HintStarting" xml:space="preserve"><value>起動しています…</value></data>
+  <data name="HintStopped" xml:space="preserve"><value>停止中です。「開始」を押してください。</value></data>
+  <data name="HintSuspended" xml:space="preserve"><value>「検証」タブで計測しています。終わるまでミラー画面の操作は iPhone に届きません。</value></data>
+  <data name="HintBleStarting" xml:space="preserve"><value>Bluetooth を準備しています…</value></data>
+  <data name="HintBleUnsupported" xml:space="preserve"><value>この PC の Bluetooth アダプタは BLE ペリフェラルとして動けません。対応するアダプタが必要です。</value></data>
+  <data name="HintBleError" xml:space="preserve"><value>Bluetooth の HID サービスを公開できませんでした。PoC や IceScreenTouch.Probe / Bridge が動いていれば終了してから「再起動」を押してください。</value></data>
+  <data name="HintUxPlayNotFound" xml:space="preserve"><value>uxplay.exe が見つかりません。下の一覧から受信ソフトを選ぶか、「設定」タブで場所を指定してください。</value></data>
+  <data name="FormatHintProcessNotRunning" xml:space="preserve"><value>{0}.exe が動いていません。受信ソフトを起動してください（下の一覧から起動できます）。</value></data>
+  <data name="HintReceiverStopped" xml:space="preserve"><value>受信ソフトが止まりました。「再起動」を押してください（詳しくは「ログ」タブ）。</value></data>
+  <data name="HintPair" xml:space="preserve"><value>iPhone の「設定 &gt; Bluetooth」で、この PC を選んでください（初回はペアリング。2 回目からは自動で接続します）。</value></data>
+  <data name="FormatHintMirrorUxPlay" xml:space="preserve"><value>iPhone のコントロールセンター &gt;「画面ミラーリング」で「{0}」を選んでください。</value></data>
+  <data name="FormatHintMirrorAttach" xml:space="preserve"><value>iPhone のコントロールセンター &gt;「画面ミラーリング」で {0} の項目を選んでください（映像のウィンドウが出るのを待っています）。</value></data>
+  <data name="HintReadyLandscape" xml:space="preserve"><value>ミラー画面をクリックして操作できます。横向きでタッチの位置が反対になるときは「回転を切り替え」を押してください。</value></data>
+  <data name="HintReady" xml:space="preserve"><value>ミラー画面をクリックして操作できます（右クリック = 長押し、ホイール = スクロール）。反応しないときは iPhone の「ズーム」（アクセシビリティ）がオンか確かめてください。</value></data>
+
+  <!-- Setup tab -->
+  <data name="SectionReceivers" xml:space="preserve"><value>この PC の受信ソフト（AirPlay）</value></data>
+  <data name="ReceiversIntro" xml:space="preserve"><value>IceScreen Touch は映像を受信しません。AirPlay を受信するソフトのウィンドウを追い、その上のクリックを iPhone へのタッチにします。</value></data>
+  <data name="ButtonLaunch" xml:space="preserve"><value>起動</value></data>
+  <data name="NoReceivers" xml:space="preserve"><value>見つかりませんでした。AirServer など AirPlay の受信ソフトを入れて起動してから「探し直す」を押してください。一覧にないソフトは「設定」タブでプロセス名を指定すると追えます。</value></data>
+  <data name="ButtonSearch" xml:space="preserve"><value>探し直す</value></data>
+  <data name="ReceiverRunning" xml:space="preserve"><value>動作中</value></data>
+  <data name="ReceiverInstalled" xml:space="preserve"><value>インストール済み（停止中）</value></data>
+  <data name="ReceiverInUse" xml:space="preserve"><value>使用中</value></data>
+  <data name="ReceiverUse" xml:space="preserve"><value>使う</value></data>
+  <data name="ReceiverUxPlayRunning" xml:space="preserve"><value>UxPlay（起動済み）</value></data>
+  <data name="ReceiverUxPlayLocal" xml:space="preserve"><value>UxPlay（このアプリが起動）</value></data>
+  <data name="StepChecking" xml:space="preserve"><value>確認しています…</value></data>
+  <data name="StepStopped" xml:space="preserve"><value>停止中です。</value></data>
+  <data name="StepAdapter" xml:space="preserve"><value>Bluetooth アダプタ</value></data>
+  <data name="StepAdapterOk" xml:space="preserve"><value>使えます（BLE のペリフェラルになれます）</value></data>
+  <data name="FormatStepAdapterUnsupported" xml:space="preserve"><value>この PC の Bluetooth は BLE のペリフェラル（周辺機器の役）になれません。対応する Bluetooth アダプタ（USB など）が必要です。（{0}）</value></data>
+  <data name="FormatStepAdapterError" xml:space="preserve"><value>HID サービスを公開できませんでした（{0}）。ほかに IceScreen Touch や PoC が動いていれば終了してから「再起動」を押してください。</value></data>
+  <data name="StepAdapterDryRun" xml:space="preserve"><value>テスト用の設定（Bluetooth を使わない）になっています。「設定」タブで外してください。</value></data>
+  <data name="StepAdapterStopped" xml:space="preserve"><value>停止中です。「開始」を押してください。</value></data>
+  <data name="StepPairing" xml:space="preserve"><value>iPhone と接続（Bluetooth）</value></data>
+  <data name="StepPairingOk" xml:space="preserve"><value>接続しています。</value></data>
+  <data name="FormatStepPairingWaiting" xml:space="preserve"><value>iPhone の「設定 &gt; Bluetooth」で「{0}」を選んでください。初回はペアリングの確認が出ます。2 回目からは自動で接続します。</value></data>
+  <data name="StepPairingIdle" xml:space="preserve"><value>Bluetooth の準備ができてからです。</value></data>
+  <data name="StepZoom" xml:space="preserve"><value>iPhone のズーム</value></data>
+  <data name="StepZoomOk" xml:space="preserve"><value>タッチの検証で、タッチが届くことを確かめました。</value></data>
+  <data name="StepZoomTodo" xml:space="preserve"><value>iPhone の「設定 &gt; アクセシビリティ &gt; ズーム」をオンにしてください（拡大しなくてかまいません）。オフだとタッチが届きません。タッチの検証で確かめられます。</value></data>
+  <data name="StepReceiver" xml:space="preserve"><value>受信ソフト（AirPlay）</value></data>
+  <data name="FormatStepReceiverOk" xml:space="preserve"><value>{0} が動いています。</value></data>
+  <data name="StepReceiverUxPlayNotFound" xml:space="preserve"><value>uxplay.exe が見つかりません。下の一覧から受信ソフトを選ぶか、「設定」タブで場所を指定してください。</value></data>
+  <data name="FormatStepReceiverNotRunning" xml:space="preserve"><value>{0}.exe が動いていません。受信ソフトを起動してください（下の一覧の「起動」）。</value></data>
+  <data name="FormatStepReceiverStopped" xml:space="preserve"><value>{0} が止まりました（{1}）。「再起動」を押してください。</value></data>
+  <data name="FormatMirrorItemUxPlay" xml:space="preserve"><value>「{0}」</value></data>
+  <data name="FormatMirrorItemAttach" xml:space="preserve"><value>{0} の項目（ふつうは PC の名前）</value></data>
+  <data name="StepMirroring" xml:space="preserve"><value>画面ミラーリング</value></data>
+  <data name="FormatStepMirroringOkDevice" xml:space="preserve"><value>表示しています（{0}）。</value></data>
+  <data name="StepMirroringOk" xml:space="preserve"><value>表示しています。</value></data>
+  <data name="FormatStepMirroringWaiting" xml:space="preserve"><value>iPhone のコントロールセンターを開き、「画面ミラーリング」で{0}を選んでください。iPhone と PC は同じネットワークにつないでください。</value></data>
+  <data name="StepMirroringIdle" xml:space="preserve"><value>受信ソフトが動いてからです。</value></data>
+
+  <!-- Settings tab -->
+  <data name="ButtonApply" xml:space="preserve"><value>保存して適用</value></data>
+  <data name="ButtonRevert" xml:space="preserve"><value>元に戻す</value></data>
+  <data name="OptionStartUxPlay" xml:space="preserve"><value>UxPlay を起動する</value></data>
+  <data name="OptionAttach" xml:space="preserve"><value>起動済みの受信ソフトのウィンドウを追う</value></data>
+  <data name="LabelAirPlayName" xml:space="preserve"><value>AirPlay の名前（iPhone の画面ミラーリングに出る名前）</value></data>
+  <data name="LabelUxPlayPath" xml:space="preserve"><value>uxplay.exe（空欄 = 自動で探す）</value></data>
+  <data name="ButtonBrowse" xml:space="preserve"><value>参照…</value></data>
+  <data name="LabelMsysBin" xml:space="preserve"><value>MSYS2 の ucrt64\bin（空欄 = scoop の既定の場所）</value></data>
+  <data name="LabelProcessName" xml:space="preserve"><value>プロセス名（.exe なし）</value></data>
+  <data name="SectionVideo" xml:space="preserve"><value>映像</value></data>
+  <data name="OptionDetectPicture" xml:space="preserve"><value>映像の位置をウィンドウの中から探す（黒帯のある受信ソフト向け）</value></data>
+  <data name="OptionFollowVideoSize" xml:space="preserve"><value>映像の向きやサイズが変わったらウィンドウを合わせる（最大化・全画面のときは合わせない）</value></data>
+  <data name="LabelScreen" xml:space="preserve"><value>ミラーリングする端末の画面（受信ソフトが映像のサイズを知らせないとき、この形で映像の位置を探す）</value></data>
+  <data name="SectionMouse" xml:space="preserve"><value>マウス</value></data>
+  <data name="OptionLongPress" xml:space="preserve"><value>右クリック = 長押し</value></data>
+  <data name="LabelLongPressTime" xml:space="preserve"><value>長押しの時間</value></data>
+  <data name="OptionWheel" xml:space="preserve"><value>ホイール = スクロール</value></data>
+  <data name="LabelWheelStep" xml:space="preserve"><value>1 目盛りで指を動かす量（映像の高さに対する割合）</value></data>
+  <data name="LabelMomentum" xml:space="preserve"><value>ホイールを止めたあとの慣性</value></data>
+  <data name="FormatWheelStep" xml:space="preserve"><value>{0:0}%</value></data>
+  <data name="FormatMomentum" xml:space="preserve"><value>{0:0}%</value></data>
+  <data name="TipMomentum" xml:space="preserve"><value>ホイールを止めたあとに流れる量。0% はホイールと一緒に止まる</value></data>
+  <data name="SectionKeyboard" xml:space="preserve"><value>キーボード</value></data>
+  <data name="OptionKeyboardInput" xml:space="preserve"><value>ミラー画面で打ったキーを端末に送る</value></data>
+  <data name="SectionApp" xml:space="preserve"><value>アプリ</value></data>
+  <data name="SectionAdvanced" xml:space="preserve"><value>詳細設定（テストや問題の調査用）</value></data>
+  <data name="OptionCloseToTray" xml:space="preserve"><value>ウィンドウを閉じても通知領域に残る</value></data>
+  <data name="OptionVerboseLog" xml:space="preserve"><value>タッチをすべてログに書く</value></data>
+  <data name="OptionDryRun" xml:space="preserve"><value>Bluetooth を使わない（テスト用）</value></data>
+  <data name="LabelLanguage" xml:space="preserve"><value>言語（Language）</value></data>
+  <data name="LanguageAuto" xml:space="preserve"><value>自動（Windows の表示言語）</value></data>
+  <data name="LanguageNote" xml:space="preserve"><value>言語の変更は、次に IceScreen Touch を起動したときに反映されます。</value></data>
+  <data name="LabelTheme" xml:space="preserve"><value>画面の色（ライト／ダーク）</value></data>
+  <data name="ThemeAuto" xml:space="preserve"><value>自動（Windows のアプリ モード）</value></data>
+  <data name="ThemeLight" xml:space="preserve"><value>ライト</value></data>
+  <data name="ThemeDark" xml:space="preserve"><value>ダーク</value></data>
+  <data name="PickUxPlay" xml:space="preserve"><value>uxplay.exe を選ぶ</value></data>
+  <data name="PickMsys" xml:space="preserve"><value>MSYS2 の ucrt64\bin を選ぶ</value></data>
+  <data name="ScreenAuto" xml:space="preserve"><value>自動（Bluetooth で機種を判別）</value></data>
+  <data name="ScreenIphone" xml:space="preserve"><value>iPhone（ホームボタンなし: X 以降）</value></data>
+  <data name="ScreenIphoneHomeButton" xml:space="preserve"><value>iPhone（ホームボタン付き: SE、8 以前）</value></data>
+  <data name="ScreenIpad" xml:space="preserve"><value>iPad（第 10 世代以降）、iPad Air 11 インチ（第 4 世代以降）</value></data>
+  <data name="ScreenIpadPro11" xml:space="preserve"><value>iPad Pro 11 インチ</value></data>
+  <data name="ScreenIpadMini" xml:space="preserve"><value>iPad mini（第 6 世代以降）</value></data>
+  <data name="ScreenIpad4x3" xml:space="preserve"><value>iPad（4:3: iPad Pro 12.9／13 インチ、iPad Air 13 インチ、ホームボタン付き）</value></data>
+
+  <!-- Test tab -->
+  <data name="ProbeIntro" xml:space="preserve"><value>iPhone の Safari に開いた計測ページで、タッチが画面に 1:1 で届くか、打ったキーが届くかを確かめ、スクロールの量と操作の遅延を測ります。iPhone は縦向きにし、ズーム（アクセシビリティ）をオンにしてください。</value></data>
+  <data name="LabelFirewall" xml:space="preserve"><value>ファイアウォール</value></data>
+  <data name="ButtonFirewall" xml:space="preserve"><value>ファイアウォールを設定（管理者）</value></data>
+  <data name="TipFirewall" xml:space="preserve"><value>計測ページのポートを、同じネットワーク（ローカルサブネット）からだけ受け付ける規則を作ります。UAC の確認が出ます</value></data>
+  <data name="ButtonTouchProbe" xml:space="preserve"><value>タッチを検証</value></data>
+  <data name="TipTouchProbe" xml:space="preserve"><value>/touch ページに 9 点のタップ、スワイプ、ピンチを送り、ページに届いた位置と比べます（15 秒ほど）</value></data>
+  <data name="ButtonScrollProbe" xml:space="preserve"><value>スクロールを計測</value></data>
+  <data name="TipScrollProbe" xml:space="preserve"><value>今の設定のホイールで /scroll ページをスクロールし、量と流れ方を測ります（1 分ほど）</value></data>
+  <data name="ButtonLatencyProbe" xml:space="preserve"><value>遅延を計測</value></data>
+  <data name="ButtonKeysProbe" xml:space="preserve"><value>キー入力を検証</value></data>
+  <data name="TipKeysProbe" xml:space="preserve"><value>/keys ページの入力欄に、英数字・記号・Enter・矢印・Backspace・⌘A / ⌘C / ⌘V を打ち、届いた内容を確かめます（15 秒ほど）。先に入力欄をタップしてください。端末の入力は英語にしておきます</value></data>
+  <data name="TipLatencyProbe" xml:space="preserve"><value>/latency ページの中央を 10 回押し、ミラー画面が白くなるまでの時間を測ります（20 秒ほど）。ミラー画面を隠さないでください</value></data>
+  <data name="ButtonCancel" xml:space="preserve"><value>中止</value></data>
+  <data name="SectionDetails" xml:space="preserve"><value>詳細</value></data>
+  <data name="PageTouch" xml:space="preserve"><value>タッチの検証ページ（/touch）</value></data>
+  <data name="PageScroll" xml:space="preserve"><value>スクロールの計測ページ（/scroll）</value></data>
+  <data name="PageLatency" xml:space="preserve"><value>遅延の計測ページ（/latency）</value></data>
+  <data name="QrHint" xml:space="preserve"><value>iPhone のカメラをこのコードに向け、出てきたリンクをタップすると Safari でページが開きます。</value></data>
+  <data name="PageKeys" xml:space="preserve"><value>キー入力の検証ページ（/keys）</value></data>
+  <data name="WaitFieldNotFocused" xml:space="preserve"><value>キー入力の検証ページの入力欄をタップして、カーソルを置いてください。</value></data>
+  <data name="WaitBluetooth" xml:space="preserve"><value>iPhone が Bluetooth で接続していません。iPhone の「設定 &gt; Bluetooth」で、この PC に接続してください。</value></data>
+  <data name="FormatWaitWrongPage" xml:space="preserve"><value>別の計測ページが開いています。iPhone の Safari で{0}の URL を開いてください。</value></data>
+  <data name="WaitFirewallHint" xml:space="preserve"><value>開けないときは、下の「ファイアウォールを設定」を押してください。</value></data>
+  <data name="WaitFirewallHintPackaged" xml:space="preserve"><value>開けないときは、アプリのインストールで作られたファイアウォールの規則がなくなっているかもしれません。アプリを修復するか、入れ直してください。</value></data>
+  <data name="WaitNetworkHint" xml:space="preserve"><value>iPhone と PC が同じネットワークにあるか確かめてください。</value></data>
+  <data name="FormatWaitPageNotOpened" xml:space="preserve"><value>iPhone の Safari で{0}の URL を開いてください（ミラー画面から操作してもかまいません）。{1}</value></data>
+  <data name="FormatWaitPageNotInFront" xml:space="preserve"><value>Safari で{0}を前面に表示してください。</value></data>
+  <data name="WaitMirrorHidden" xml:space="preserve"><value>ミラー画面の中央に、黒い計測ページが映っていません。ミラー画面を他のウィンドウ（このウィンドウも）で隠さないようにしてください。</value></data>
+  <data name="WaitSoon" xml:space="preserve"><value>まもなく開始します…</value></data>
+  <data name="ProbePreparingTouch" xml:space="preserve"><value>検証を準備しています…</value></data>
+  <data name="ProbePreparingMeasure" xml:space="preserve"><value>計測を準備しています…</value></data>
+  <data name="ProbePreparingPage" xml:space="preserve"><value>計測ページを準備しています…</value></data>
+  <data name="ProbeCancelled" xml:space="preserve"><value>中止しました。</value></data>
+  <data name="ProbeRunningTouch" xml:space="preserve"><value>検証中です（15 秒ほど）。iPhone に触れず、ページを前面にしたままにしてください。ミラー画面の操作は止めています。</value></data>
+  <data name="ProbeRunningScroll" xml:space="preserve"><value>計測中です（1 分ほど）。iPhone に触れず、ページを前面にしたままにしてください。ミラー画面の操作は止めています。</value></data>
+  <data name="ProbeRunningLatency" xml:space="preserve"><value>計測中です（20 秒ほど）。iPhone に触れず、ミラー画面を動かしたり隠したりしないでください。ミラー画面の操作は止めています。</value></data>
+  <data name="FormatProbeCountdown" xml:space="preserve"><value>{0} 秒後に開始します。iPhone に触れず、ページを前面にしたままにしてください。</value></data>
+  <data name="ProbeIdleStopped" xml:space="preserve"><value>停止中です。「状態」タブの「開始」を押してください。</value></data>
+  <data name="ProbeIdleDryRun" xml:space="preserve"><value>Bluetooth を使わない設定（テスト用）では検証できません。</value></data>
+  <data name="ProbeIdleNoBle" xml:space="preserve"><value>Bluetooth が使えないため検証できません（「状態」タブを確認してください）。</value></data>
+  <data name="ProbeIdleReady" xml:space="preserve"><value>iPhone のズームをオンにして、先に計測のボタンを押してください。押すと計測ページが開けるようになるので、iPhone の Safari で上の URL を開きます。</value></data>
+  <data name="FormatFirewallAllowed" xml:space="preserve"><value>許可済み（TCP {0}、ローカルサブネットのみ）</value></data>
+  <data name="FormatFirewallAllowedByPackage" xml:space="preserve"><value>許可されています（TCP {0}、アプリのインストールで作成された規則）</value></data>
+  <data name="FormatFirewallMissing" xml:space="preserve"><value>TCP {0} を許可する規則がありません。iPhone からページを開けないことがあります。</value></data>
+  <data name="FormatFirewallMissingPackaged" xml:space="preserve"><value>計測ページ用のファイアウォールの規則がありません（TCP {0}）。アプリを修復するか、入れ直してください。</value></data>
+  <data name="FormatFirewallTooBroad" xml:space="preserve"><value>TCP {0} がすべての接続元に許可されています。ローカルサブネットに絞ることをおすすめします。</value></data>
+  <data name="FirewallUnknown" xml:space="preserve"><value>確認できませんでした。</value></data>
+  <data name="FirewallWaitingUac" xml:space="preserve"><value>管理者の確認（UAC）を待っています…</value></data>
+  <data name="FormatFirewallFailed" xml:space="preserve"><value>設定できませんでした（取り消されたか失敗しました。詳しくは「ログ」タブ）。{0}</value></data>
+
+  <!-- Test results -->
+  <data name="ProbeAlreadyRunning" xml:space="preserve"><value>検証はすでに実行中です。</value></data>
+  <data name="FormatProbePortBusy" xml:space="preserve"><value>TCP {0} で計測ページを開けません（{1}）。IceScreenTouch.Probe などが動いていれば終了してください。</value></data>
+  <data name="CheckTaps" xml:space="preserve"><value>9 点のタップ</value></data>
+  <data name="CheckMapping" xml:space="preserve"><value>位置の一致（1:1）</value></data>
+  <data name="CheckOrientation" xml:space="preserve"><value>向き（縦）</value></data>
+  <data name="CheckSwipe" xml:space="preserve"><value>スワイプ</value></data>
+  <data name="CheckSwipeLift" xml:space="preserve"><value>スワイプの離し方</value></data>
+  <data name="CheckPinch" xml:space="preserve"><value>ピンチ（2 本指）</value></data>
+  <data name="CheckPinchLift" xml:space="preserve"><value>ピンチの離し方</value></data>
+  <data name="ProbeRunningKeys" xml:space="preserve"><value>入力中です（15 秒ほど）。iPhone に触れないでください。ミラー画面の操作は止めています。</value></data>
+  <data name="ProbeNoKeyboard" xml:space="preserve"><value>HID のキーボードを公開していません（古い構成です）。IceScreen Touch を再起動し、端末でこの PC の登録を解除してペアリングし直してください。</value></data>
+  <data name="CheckKeysArrive" xml:space="preserve"><value>キーがページに届く</value></data>
+  <data name="CheckLetters" xml:space="preserve"><value>英字と数字</value></data>
+  <data name="CheckSymbols" xml:space="preserve"><value>記号（キーボードの配列）</value></data>
+  <data name="CheckEditing" xml:space="preserve"><value>Enter・矢印・Backspace</value></data>
+  <data name="CheckSelectAll" xml:space="preserve"><value>⌘A（全選択）</value></data>
+  <data name="CheckPaste" xml:space="preserve"><value>⌘C / ⌘V（コピーとペースト）</value></data>
+  <data name="KeysFailedNone" xml:space="preserve"><value>キーがページに届きませんでした。ページが前面にあり、入力欄にカーソルがあるか確かめてください。</value></data>
+  <data name="FormatKeysPassed" xml:space="preserve"><value>キー入力は正常です。{0}</value></data>
+  <data name="FormatKeysFailed" xml:space="preserve"><value>{0} 項目が不合格です。{1}</value></data>
+  <data name="FormatKeysLatency" xml:space="preserve"><value>キーがページに届くまで {0:0} ms（中央値）。</value></data>
+  <data name="KeysLayoutHint" xml:space="preserve"><value>記号が JIS の配列の端末のように入りました。端末の「設定 &gt; 一般 &gt; キーボード &gt; ハードウェアキーボード」で配列を QWERTY（US）にしてください。</value></data>
+  <data name="KeysJapaneseHint" xml:space="preserve"><value>端末の入力が日本語になっています。英語にして（ミラー画面で Ctrl+Space）もう一度試してください。</value></data>
+  <data name="KeysNavigationTakenHint" xml:space="preserve"><value>文字は届きましたが、Space か矢印キーがページに届きませんでした。端末の「設定 → アクセシビリティ → キーボード」で「フルキーボードアクセス」をオフにして、もう一度試してください。</value></data>
+  <data name="TouchFailedNone" xml:space="preserve"><value>不合格: タッチがページに届きませんでした。iPhone のズームがオンか、ページが前面にあるか確かめてください。</value></data>
+  <data name="FormatTouchLatency" xml:space="preserve"><value>（遅延の中央値 {0:0} ms）</value></data>
+  <data name="FormatTouchPassed" xml:space="preserve"><value>合格: タッチは画面に 1:1 で届いています{0}。</value></data>
+  <data name="FormatTouchFailedOrientation" xml:space="preserve"><value>不合格: 向きが縦ではありません。iPhone を縦向きにして、もう一度試してください{0}。</value></data>
+  <data name="FormatTouchFailed" xml:space="preserve"><value>不合格: {0} 項目が通りませんでした{1}。iPhone を縦向きにし、ページを前面にしたまま触れずに、もう一度試してください。</value></data>
+  <data name="FormatLatencyRange" xml:space="preserve"><value>中央値 {0:0} ms（{1:0}〜{2:0}、{3} 回）</value></data>
+  <data name="LatencyPress" xml:space="preserve"><value>押す → PC に映る</value></data>
+  <data name="LatencyTouchPart" xml:space="preserve"><value>　うちタッチ</value></data>
+  <data name="FormatLatencyTouchDetail" xml:space="preserve"><value>{0}（Bluetooth と iOS の入力）</value></data>
+  <data name="LatencyPicturePart" xml:space="preserve"><value>　うち映像</value></data>
+  <data name="FormatLatencyPictureDetail" xml:space="preserve"><value>{0}（iPhone の表示 → 受信ソフト → PC の画面）</value></data>
+  <data name="LatencyRelease" xml:space="preserve"><value>離す → PC に映る</value></data>
+  <data name="LatencyResolution" xml:space="preserve"><value>計測の分解能</value></data>
+  <data name="FormatLatencyResolution" xml:space="preserve"><value>画面の読み取り 1 回 {0:0.0} ms、時計合わせの往復 {1:0.0} ms</value></data>
+  <data name="FormatLatencyTooFew" xml:space="preserve"><value>ミラー画面の変化を {0} 回中 {1} 回しか捉えられませんでした。/latency が Safari の前面にあり、ミラー画面が隠れていないか確かめてください。</value></data>
+  <data name="FormatLatencySplit" xml:space="preserve"><value>（タッチ {0:0} ms ＋ 映像 {1:0} ms ほか）</value></data>
+  <data name="FormatLatencyPassed" xml:space="preserve"><value>押してから PC の画面に反応が映るまで、中央値 {0:0} ms{1}。モニター自体の表示の遅れと、マウスから送信までの数 ms は含みません。</value></data>
+  <data name="ScrollOneNotch" xml:space="preserve"><value>1 目盛り</value></data>
+  <data name="ScrollFiveFast" xml:space="preserve"><value>速く 5 目盛り</value></data>
+  <data name="FormatScrollTail" xml:space="preserve"><value>、離したあと最大 {0:0} ms 動いた</value></data>
+  <data name="FormatScrollRatio" xml:space="preserve"><value>比 {0:0.00}（{1}）{2}</value></data>
+  <data name="FormatScrollSetting" xml:space="preserve"><value>1 目盛り {0:0}%、慣性 {1:0}%</value></data>
+  <data name="FormatScrollPassed" xml:space="preserve"><value>計測しました（{0}）。比 = スクロール量 ÷ ホイールの量。0.7 前後はホイールと一緒に止まり、大きいほど慣性で流れます（小さい量は iOS の遊び約 28 pt の分だけ少なく出ます）。</value></data>
+  <data name="FormatScrollFailed" xml:space="preserve"><value>一部のスクロールがページに届きませんでした（{0}）。/scroll が Safari の前面にあり、ズームがオンか確かめてください。</value></data>
+
+  <!-- Notification area and dialogs -->
+  <data name="TrayShow" xml:space="preserve"><value>表示</value></data>
+  <data name="TrayExit" xml:space="preserve"><value>終了</value></data>
+  <data name="AlreadyRunning" xml:space="preserve"><value>IceScreen Touch はすでに動いています。通知領域のアイコンから開いてください。</value></data>
+  <data name="LabelTarget" xml:space="preserve"><value>操作の送り先</value></data>
+  <data name="TipTarget" xml:space="preserve"><value>タッチとキーは 1 台の端末にだけ送ります。自動: ミラー画面に映っている端末、分からなければ最後につながった端末。</value></data>
+  <data name="TargetAuto" xml:space="preserve"><value>自動</value></data>
+  <data name="TargetUnnamed" xml:space="preserve"><value>名前の分からない端末</value></data>
+  <data name="FormatTargetNotConnected" xml:space="preserve"><value>{0}（未接続）</value></data>
+  <data name="FormatTargetChosen" xml:space="preserve"><value>{0} に送っています（選んだ端末）。</value></data>
+  <data name="FormatTargetMirrored" xml:space="preserve"><value>{0} に送っています（ミラー画面に映っている端末）。</value></data>
+  <data name="FormatTargetLatest" xml:space="preserve"><value>{0} に送っています（最後につながった端末）。</value></data>
+  <data name="TabAbout" xml:space="preserve"><value>情報</value></data>
+  <data name="FormatAboutVersion" xml:space="preserve"><value>バージョン {0}</value></data>
+  <data name="FormatAboutVersionCommit" xml:space="preserve"><value>バージョン {0}（コミット {1}）</value></data>
+  <data name="ButtonGitHub" xml:space="preserve"><value>GitHub</value></data>
+  <data name="ButtonReportIssue" xml:space="preserve"><value>問題を報告</value></data>
+  <data name="ButtonCopyInfo" xml:space="preserve"><value>バージョン情報をコピー</value></data>
+  <data name="TipCopyInfo" xml:space="preserve"><value>問題を報告するときのために、バージョン・HID の構成・.NET・Windows の情報をコピーします。</value></data>
+  <data name="InfoCopied" xml:space="preserve"><value>コピーしました。</value></data>
+  <data name="SectionLicense" xml:space="preserve"><value>ライセンス</value></data>
+  <data name="LicenseIntro" xml:space="preserve"><value>IceScreen Touch のソースコードは、MIT ライセンスで公開しています。</value></data>
+  <data name="LicenseFullText" xml:space="preserve"><value>MIT License（全文を表示）</value></data>
+  <data name="SectionThirdParty" xml:space="preserve"><value>第三者のソフトウェア</value></data>
+  <data name="ThirdPartyIntro" xml:space="preserve"><value>IceScreenTouch.exe には次の部品が入っています。AirPlay の受信ソフトは入っていません。受信ソフト（AirServer、UxPlay など）は別のプログラムです。</value></data>
+  <data name="ButtonShowNotices" xml:space="preserve"><value>ライセンスの全文を表示</value></data>
+  <data name="NoticesTitle" xml:space="preserve"><value>第三者のライセンス</value></data>
+  <data name="SectionData" xml:space="preserve"><value>データのフォルダ</value></data>
+  <data name="DataNote" xml:space="preserve"><value>設定とログは、この PC の中にだけ保存します。</value></data>
+  <data name="ButtonOpen" xml:space="preserve"><value>開く</value></data>
+  <data name="SectionVersions" xml:space="preserve"><value>バージョンの詳細</value></data>
+  <data name="FormatHidMapVersion" xml:space="preserve"><value>HID の構成: バージョン {0}（{1} バイト）。バージョンが変わると、端末のペアリングのやり直しが要ります。</value></data>
+  <data name="FormatSettingsVersion" xml:space="preserve"><value>設定ファイル: バージョン {0}</value></data>
+  <data name="Trademarks" xml:space="preserve"><value>Apple®、iPhone®、iPad®、AirPlay®、Safari® は、米国その他の国で登録された Apple Inc. の商標です。IceScreen Touch は Apple Inc. と関係がなく、Apple Inc. の承認も受けていません。そのほかの製品名は、各社の商標です。</value></data>
+  <data name="FormatComponents" xml:space="preserve"><value>部品の一覧（{0} 個）</value></data>
+</root>

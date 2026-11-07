@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Console version of the bridge (M3): mouse over the UxPlay window -> BLE HID touch. Port of
+       poc/poc3-integrated/mirror_touch.py. The Avalonia app (M4) will reuse the same parts. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(WindowsTfm)</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="IceScreenTouch.Windows.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\IceScreenTouch.Core\IceScreenTouch.Core.csproj" />
+    <ProjectReference Include="..\..\src\IceScreenTouch.Ble\IceScreenTouch.Ble.csproj" />
+    <ProjectReference Include="..\..\src\IceScreenTouch.Platform.Windows\IceScreenTouch.Platform.Windows.csproj" />
+    <ProjectReference Include="..\..\src\IceScreenTouch.Video\IceScreenTouch.Video.csproj" />
+  </ItemGroup>
+
+</Project>

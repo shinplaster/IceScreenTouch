@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Video source adapters: UxPlay child process, generic receiver window. -->
+  <PropertyGroup>
+    <TargetFramework>$(WindowsTfm)</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="IceScreenTouch.Windows.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IceScreenTouch.Core\IceScreenTouch.Core.csproj" />
+    <ProjectReference Include="..\IceScreenTouch.Platform.Windows\IceScreenTouch.Platform.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

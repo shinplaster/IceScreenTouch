@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- HID over GATT peripheral (WinRT GattServiceProvider). -->
+  <PropertyGroup>
+    <TargetFramework>$(WindowsTfm)</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IceScreenTouch.Core\IceScreenTouch.Core.csproj" />
+  </ItemGroup>
+
+</Project>

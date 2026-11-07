@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- E (16-32 px): the same layout as D with thick outlines and only the shapes that survive at small sizes. -->
+  <g transform="translate(128 128) scale(0.9) translate(-37 38)">
+    <g transform="rotate(35)">
+      <path d="M-46 0 L46 0 L0 102 Z" fill="#E8A95A" stroke="#3E2214" stroke-width="16" stroke-linejoin="round"/>
+    </g>
+    <g transform="rotate(27) translate(8 6)">
+      <path d="M-32 -154 H32 a26 26 0 0 1 26 26 V-4 a12 12 0 0 1 -24 0 v10 a12 12 0 0 1 -24 0 V0 H-32 a26 26 0 0 1 -26 -26 V-128 a26 26 0 0 1 26 -26 Z"
+            fill="#6FD6B8" stroke="#3E2214" stroke-width="16" stroke-linejoin="round"/>
+      <rect x="-38" y="-132" width="76" height="102" rx="8" fill="#F4FFFB"/>
+    </g>
+    <g transform="translate(48 -70) rotate(-10) scale(1.6)">
+      <path d="M0 0 V40 L10 31 L17 46 L25 42 L18 28 L31 28 Z" fill="#2A1A10" stroke="#F4FFFB" stroke-width="5" stroke-linejoin="round" paint-order="stroke"/>
+    </g>
+  </g>
+</svg>

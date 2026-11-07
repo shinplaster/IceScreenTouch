@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>latency probe</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#000;color:#555;
+    font:11px/1.4 ui-monospace,Menlo,monospace;touch-action:none;-webkit-user-select:none;user-select:none}
+  #hud{position:fixed;left:8px;top:8px;right:8px;pointer-events:none;white-space:pre-wrap}
+</style></head>
+<body>
+<div id="hud">latency probe - syncing the clock</div>
+<script>
+// Latency probe. The page is black and turns white while a finger is down. The PC sends the touch over BLE
+// HID and watches the middle of the mirror window: down -> white on the PC is the whole delay. The page
+// also tells when the touch arrived and when it painted, in PC time (the clock is synced over /t), so the
+// delay can be split into "touch reaches the page" and "the picture reaches the PC".
+const hud = document.getElementById('hud');
+let n = 0, offset = null, rtt = null, samples = [];
+function send(o){ o.seq = ++n; try{ fetch('/e' + location.search, {method:'POST', body: JSON.stringify(o), keepalive:true}); }catch(_){} }
+// PC time (s) of a page time (ms, performance.now / event.timeStamp).
+function pc(t){ return offset === null ? null : t / 1000 + offset; }
+async function syncOnce(){
+  const t0 = performance.now();
+  const r = await fetch('/t', {cache:'no-store'}); const s = parseFloat(await r.text());
+  const t1 = performance.now();
+  samples.push({rtt: t1 - t0, offset: s - (t0 + t1) / 2000});
+  if (samples.length > 40) samples.shift();
+  const best = samples.reduce((a, b) => b.rtt < a.rtt ? b : a);   // the fastest round trip is the most symmetric
+  offset = best.offset; rtt = best.rtt;
+}
+async function sync(count){ for (let i = 0; i < count; i++){ try{ await syncOnce(); }catch(_){} } }
+function hello(){ if (rtt !== null) send({type:'hello', pg:'latency', state: document.visibilityState,
+  vw: innerWidth, vh: innerHeight, sw: screen.width, sh: screen.height, rtt: rtt}); }
+function show(){ hud.textContent = 'latency probe  rtt ' + (rtt === null ? '-' : rtt.toFixed(1) + ' ms') + '  #' + n; }
+addEventListener('pageshow', async () => { samples = []; await sync(20); hello(); show(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sync(10).then(hello); else hello(); });
+setInterval(async () => { if (document.visibilityState === 'visible'){ await sync(3); hello(); show(); } }, 2000);
+function onPtr(e){
+  e.preventDefault();
+  const down = e.type === 'pointerdown';
+  if (!down && e.type !== 'pointerup' && e.type !== 'pointercancel') return;
+  document.body.style.background = down ? '#fff' : '#000';
+  const at = pc(e.timeStamp);
+  // The first animation frame after the change: the frame that shows it starts here.
+  requestAnimationFrame(t => send({type:'lat', what: down ? 'down' : 'up', ts: at, tp: pc(t), rtt: rtt,
+    nx: Math.round(e.clientX/innerWidth*10000), ny: Math.round(e.clientY/innerHeight*10000)}));
+}
+['pointerdown','pointerup','pointercancel'].forEach(t => addEventListener(t, onPtr, {passive:false}));
+['touchstart','touchmove','gesturestart'].forEach(t => addEventListener(t, e => e.preventDefault(), {passive:false}));
+</script></body></html>

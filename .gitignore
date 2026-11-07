@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+poc/poc1-uxplay/UxPlay/
+poc/poc3-integrated/logs/
+
+# .NET
+bin/
+obj/
+.vs/
+*.user
+TestResults/
+
+# Published builds (tools/publish.ps1)
+artifacts/

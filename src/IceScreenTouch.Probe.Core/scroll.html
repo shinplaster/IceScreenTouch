@@ -1,0 +1,37 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>scroll probe</title>
+<style>
+  body{margin:0;background:#101418;color:#cfd8dc;font:12px/1.4 ui-monospace,Menlo,monospace;-webkit-user-select:none;user-select:none}
+  #ruler{position:relative;height:60000px;
+    background:repeating-linear-gradient(#101418 0 99px,#37474f 99px 100px)}
+  .mark{position:absolute;left:8px;color:#78909c}
+  #hud{position:fixed;left:8px;top:8px;right:8px;pointer-events:none;white-space:pre-wrap;background:#101418cc}
+</style></head>
+<body>
+<div id="hud">scroll probe ready</div>
+<div id="ruler"></div>
+<script>
+// Scroll probe: a long page that scrolls natively. It reports the scroll position and the touches back to
+// the PC, so the PC can compare how far the finger moved with how far the page scrolled (momentum).
+const hud = document.getElementById('hud'), ruler = document.getElementById('ruler');
+for (let y = 0; y < 60000; y += 500) { const d = document.createElement('div'); d.className = 'mark'; d.style.top = y + 'px'; d.textContent = y; ruler.appendChild(d); }
+let n = 0, lastSent = -1, pending = false;
+function send(o){ o.seq = ++n; try{ fetch('/e' + location.search, {method:'POST', body: JSON.stringify(o), keepalive:true}); }catch(_){} }
+function hello(){ send({type:'hello', state: document.visibilityState, vw: innerWidth, vh: innerHeight, sw: screen.width, sh: screen.height, sy: scrollY}); }
+addEventListener('pageshow', () => { if (scrollY < 1000) scrollTo(0, 30000); hello(); });
+document.addEventListener('visibilitychange', hello);
+setInterval(() => { if (document.visibilityState === 'visible') hello(); }, 2000);
+// Scroll position: at most once per frame while it changes.
+addEventListener('scroll', () => {
+  if (pending) return; pending = true;
+  requestAnimationFrame(() => { pending = false;
+    if (scrollY !== lastSent) { lastSent = scrollY; send({type:'scroll', sy: scrollY, vh: innerHeight}); }
+    hud.textContent = 'scrollY=' + Math.round(scrollY) + '  #' + n; });
+}, {passive:true});
+// Touches (passive: the page must keep scrolling natively).
+function onTouch(e){ const t = e.changedTouches[0];
+  send({type:e.type, id:t.identifier, cx:t.clientX, cy:t.clientY, sy: scrollY, vh: innerHeight, sh: screen.height}); }
+['touchstart','touchend','touchcancel'].forEach(t => addEventListener(t, onTouch, {passive:true}));
+</script></body></html>

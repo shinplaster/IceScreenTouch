@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/IceScreenTouch.App/IceScreenTouch.App.csproj" />
+    <Project Path="src/IceScreenTouch.Ble/IceScreenTouch.Ble.csproj" />
+    <Project Path="src/IceScreenTouch.Core/IceScreenTouch.Core.csproj" />
+    <Project Path="src/IceScreenTouch.Platform.Windows/IceScreenTouch.Platform.Windows.csproj" />
+    <Project Path="src/IceScreenTouch.Probe.Core/IceScreenTouch.Probe.Core.csproj" />
+    <Project Path="src/IceScreenTouch.Video/IceScreenTouch.Video.csproj" />
+    <Project Path="src/IceScreenTouch.Windows/IceScreenTouch.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/IceScreenTouch.App.Tests/IceScreenTouch.App.Tests.csproj" />
+    <Project Path="tests/IceScreenTouch.Core.Tests/IceScreenTouch.Core.Tests.csproj" />
+    <Project Path="tests/IceScreenTouch.Probe.Tests/IceScreenTouch.Probe.Tests.csproj" />
+    <Project Path="tests/IceScreenTouch.Windows.Tests/IceScreenTouch.Windows.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/IceScreenTouch.Bridge/IceScreenTouch.Bridge.csproj" />
+    <Project Path="tools/IceScreenTouch.Probe/IceScreenTouch.Probe.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Windows head: the executable that wires the Windows services (WinRT BLE, Win32 hooks,
+       UxPlay adapter) into the cross-platform Avalonia UI. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(WindowsTfm)</TargetFramework>
+    <AssemblyName>IceScreenTouch</AssemblyName>
+    <ApplicationIcon>IceScreenTouch.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IceScreenTouch.App\IceScreenTouch.App.csproj" />
+    <ProjectReference Include="..\IceScreenTouch.Core\IceScreenTouch.Core.csproj" />
+    <ProjectReference Include="..\IceScreenTouch.Ble\IceScreenTouch.Ble.csproj" />
+    <ProjectReference Include="..\IceScreenTouch.Platform.Windows\IceScreenTouch.Platform.Windows.csproj" />
+    <ProjectReference Include="..\IceScreenTouch.Video\IceScreenTouch.Video.csproj" />
+    <ProjectReference Include="..\IceScreenTouch.Probe.Core\IceScreenTouch.Probe.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Run elevated from memory (-EncodedCommand) by the probe tab's firewall button; one script for the
+         console tool and the app. -->
+    <EmbeddedResource Include="..\..\tools\IceScreenTouch.Probe\allow_firewall.ps1" LogicalName="IceScreenTouch.Windows.allow_firewall.ps1" />
+  </ItemGroup>
+
+  <!-- Native symbol files that come with the Skia and HarfBuzz packages are not shipped. -->
+  <Target Name="DropSymbolFilesFromPublish" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
+
+  <!-- What goes into the single-file bundle, one "path<TAB>package<TAB>version" line per file, written next to
+       the publish folder for tools/publish.ps1 (it checks that no receiver code such as UxPlay, GStreamer or
+       FairPlay is shipped, and writes the third-party notices). -->
+  <Target Name="WriteBundleManifest" AfterTargets="PrepareForBundle" Condition="'$(PublishSingleFile)' == 'true'">
+    <WriteLinesToFile File="$(PublishDir)..\bundle-files-$(RuntimeIdentifier).txt"
+                      Lines="@(FilesToBundle->'%(RelativePath)&#9;%(NuGetPackageId)&#9;%(NuGetPackageVersion)')"
+                      Overwrite="true" />
+  </Target>
+
+</Project>

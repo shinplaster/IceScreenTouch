@@ -1,0 +1,42 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>touch probe</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#101418;color:#cfd8dc;
+    font:12px/1.4 ui-monospace,Menlo,monospace;touch-action:none;-webkit-user-select:none;user-select:none}
+  canvas{position:fixed;inset:0;width:100%;height:100%}
+  #hud{position:fixed;left:8px;top:8px;right:8px;pointer-events:none;white-space:pre-wrap}
+</style></head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">touch probe ready - waiting for input</div>
+<script>
+// Port of poc/poc2-ble-hid/probe_server.py PAGE. Every pointer event is POSTed back to the PC so it can
+// compare what it sent over BLE HID with what iOS delivered. "hello" tells the PC the page is open.
+const cv = document.getElementById('c'), ctx = cv.getContext('2d'), hud = document.getElementById('hud');
+let W = 0, H = 0, dots = [], n = 0;
+function resize(){ const r = devicePixelRatio || 1; W = innerWidth; H = innerHeight;
+  cv.width = W*r; cv.height = H*r; ctx.setTransform(r,0,0,r,0,0); }
+addEventListener('resize', resize); resize();
+function send(o){ try{ fetch('/e' + location.search, {method:'POST', body: JSON.stringify(o), keepalive:true}); }catch(_){} }
+function hello(){ send({type:'hello', pg:'touch', state: document.visibilityState, vw: W, vh: H, sw: screen.width, sh: screen.height, seq: ++n}); }
+addEventListener('pageshow', hello); document.addEventListener('visibilitychange', hello);
+setInterval(() => { if (document.visibilityState === 'visible') hello(); }, 5000);
+function onPtr(e){
+  e.preventDefault();
+  const o = {type:e.type, id:e.pointerId, ptype:e.pointerType, cx:e.clientX, cy:e.clientY,
+             nx: Math.round(e.clientX/W*10000), ny: Math.round(e.clientY/H*10000),
+             vw: W, vh: H, sw: screen.width, sh: screen.height, buttons: e.buttons, seq: ++n};
+  send(o);
+  if (e.type === 'pointerdown' || e.type === 'pointermove') dots.push({x:e.clientX, y:e.clientY, t:performance.now(), c:e.pointerType==='mouse'?'#ffb74d':'#4fc3f7'});
+  hud.textContent = e.type + ' ' + e.pointerType + ' id=' + e.pointerId + '\nclient=(' + Math.round(e.clientX) + ',' + Math.round(e.clientY) + ')'
+    + ' norm=(' + o.nx + ',' + o.ny + ')\nviewport=' + W + 'x' + H + ' screen=' + screen.width + 'x' + screen.height + ' #' + n;
+}
+['pointerdown','pointermove','pointerup','pointercancel'].forEach(t => addEventListener(t, onPtr, {passive:false}));
+['touchstart','touchmove','gesturestart'].forEach(t => addEventListener(t, e => e.preventDefault(), {passive:false}));
+(function draw(){ ctx.clearRect(0,0,W,H); const now = performance.now();
+  dots = dots.filter(d => now - d.t < 4000);
+  for (const d of dots){ ctx.globalAlpha = 1 - (now-d.t)/4000; ctx.fillStyle = d.c; ctx.beginPath(); ctx.arc(d.x,d.y,14,0,7); ctx.fill(); }
+  ctx.globalAlpha = 1; requestAnimationFrame(draw); })();
+</script></body></html>
