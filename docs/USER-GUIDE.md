@@ -15,19 +15,24 @@ IceScreen Touch lets you control an iPhone from its mirrored screen on a Windows
 | iPhone / iPad | Tested with an iPhone (iOS 26) and an iPad Air (iPadOS 18). Connect it to the same network (Wi-Fi) as the PC |
 | AirPlay receiver | A program that receives AirPlay and shows it on the PC (tested with UxPlay, AirServer and LonelyScreen; another receiver can be followed by its process name, but it is not tested or supported yet). Run only one receiver at a time: with two, the iPhone may end up in the other one |
 
-Nothing else needs to be installed, not even .NET: `IceScreenTouch.exe` is a single file.
+Nothing else needs to be installed, not even .NET.
 
-## The warning on first start
+## Installing
 
-`IceScreenTouch.exe` is not code-signed. When you open an exe downloaded from the internet for the first time, Windows may show "Windows protected your PC". Click "More info", then "Run anyway" (this may come back with each new version).
+Install IceScreen Touch from the Microsoft Store. The Store version is signed and updates itself.
 
+You can also build it yourself from the source code (see the README of the GitHub repository). A build of your own is a single file, `IceScreenTouch.exe`, and it is not code-signed:
+
+- When you open it for the first time, Windows may show "Windows protected your PC". Click "More info", then "Run anyway".
 - On a Windows 11 PC with **Smart App Control turned on**, unsigned programs cannot start (see Windows Security > App & browser control > Smart App Control).
 - On a company PC, the administrator's policies may block it.
+
+The Store version and a build of your own keep separate settings.
 
 ## First-time setup
 
 1. Install and start an AirPlay receiver.
-2. Start `IceScreenTouch.exe`. The **Status** tab shows the state at the top (for example "Ready" or "Waiting for the iPhone"), what to do next, and the numbered **Setup** steps. Work through the steps from the top until each has a green dot. The AirPlay receivers found on this PC are listed under "AirPlay receivers on this PC" (it opens by itself when the receiver needs you).
+2. Start IceScreen Touch. The **Status** tab shows the state at the top (for example "Ready" or "Waiting for the iPhone"), what to do next, and the numbered **Setup** steps. Work through the steps from the top until each has a green dot. The AirPlay receivers found on this PC are listed under "AirPlay receivers on this PC" (it opens by itself when the receiver needs you).
 3. **Bluetooth**: on the iPhone, open Settings > Bluetooth and choose this PC's name. The first time, confirm the pairing. After that it connects by itself. The list may show this PC's name twice. Pairing only one of them does not bring touches through, so choose and pair both.
 4. **Zoom**: on the iPhone, turn on Settings > Accessibility > Zoom (there is no need to zoom in). **Without Zoom, touches do not arrive.**
 5. **Screen Mirroring**: open Control Center on the iPhone, tap Screen Mirroring and choose the receiver's entry.
@@ -71,7 +76,7 @@ While the mirror window is in front, the keys you type on the PC reach the iPhon
 
 ## The Test tab
 
-With a test page opened in Safari on the iPhone, IceScreen Touch can measure the following. **Press the button first**: the page can be opened only from the moment you press it until the measurement ends. Until the page is open, a **QR code** of its address is shown: point the iPhone's camera at it and tap the link that appears to open the page in Safari (no typing). For the iPhone to reach the page, press "Set up the firewall (administrator)" once: it lets the page's port (TCP 8000) in from the same network only (Windows asks for permission).
+With a test page opened in Safari on the iPhone, IceScreen Touch can measure the following. **Press the button first**: the page can be opened only from the moment you press it until the measurement ends. Until the page is open, a **QR code** of its address is shown: point the iPhone's camera at it and tap the link that appears to open the page in Safari (no typing). For the iPhone to reach the page, the page's port (TCP 8000) must be let in. The Store version does this when it is installed. For a build of your own, press "Set up the firewall (administrator)" once: it lets the port in from the same network only (Windows asks for permission).
 
 - **Test touches**: whether taps at 9 points, a swipe and a pinch land 1:1 on the iPhone's screen.
 - **Measure scrolling**: how far and how smoothly the wheel scrolls.
@@ -80,10 +85,10 @@ With a test page opened in Safari on the iPhone, IceScreen Touch can measure the
 
 ## Settings and logs
 
-- Settings: `%LOCALAPPDATA%\IceScreenTouch\settings.json` (change them in the **Settings** tab)
+- Settings: `settings.json` in the data folder (change them in the **Settings** tab). The data folder is `%LOCALAPPDATA%\IceScreenTouch` for a build of your own; the Store version keeps it inside its package folder. The **About** tab shows the folder and opens it.
 - Language: IceScreen Touch follows the Windows display language (Japanese for Japanese, English otherwise). You can also choose English or 日本語 under "Language" in the **Settings** tab; a new choice takes effect the next time IceScreen Touch starts.
 - Light or dark: IceScreen Touch follows the Windows app mode. You can also choose Light or Dark under "Appearance (light / dark)" in the **Settings** tab; it changes as soon as you press "Save and apply".
-- Logs: `%LOCALAPPDATA%\IceScreenTouch\logs\` ("Open the log folder" in the **Log** tab)
+- Logs: `logs\` in the data folder ("Open the log folder" in the **Log** tab)
 - Version and licenses: the **About** tab (version, license, third-party software, data folder). When you report a problem, paste the text that "Copy version info" copies.
 - The environment variable `ICESCREENTOUCH_DATA_DIR` moves the settings and logs to another folder.
 
@@ -107,4 +112,5 @@ With a test page opened in Safari on the iPhone, IceScreen Touch can measure the
 
 - IceScreen Touch is under the MIT License (`LICENSE.txt`) and comes **without warranty**. It relies on the way the iPhone's Zoom accepts touches, so an iOS update may stop it from working.
 - The licenses of the bundled components are in `THIRD-PARTY-NOTICES.txt`. IceScreen Touch contains no AirPlay receiver (no UxPlay, no FairPlay code).
+- The name and icon are not covered by the MIT License (see [TRADEMARKS.md](../TRADEMARKS.md)).
 - IceScreen Touch is not affiliated with Apple Inc. iPhone, iPad and AirPlay are trademarks of Apple Inc.

@@ -66,7 +66,7 @@ The UI uses Avalonia so that the platform-neutral parts can later run on macOS a
 
 ## Privacy and network
 
-The app sends nothing to the internet. The test pages are served on TCP port 8000 only while a test is running; each run uses a one-time random key in the URL, and only the first device that uses it can post results. The firewall rule for the port allows only the local subnet in the GitHub build, and is declared by the package in the Store build. Logs leave out session keys, touch positions, typed keys and the connected devices' Bluetooth identifiers (`LogPrivacy`). See the [privacy policy](PRIVACY.md).
+The app sends nothing to the internet. The test pages are served on TCP port 8000 only while a test is running; each run uses a one-time random key in the URL, and only the first device that uses it can post results. The firewall rule for the port allows only the local subnet in a build of your own, and is declared by the package in the Store build. Logs leave out session keys, touch positions, typed keys and the connected devices' Bluetooth identifiers (`LogPrivacy`). See the [privacy policy](PRIVACY.md).
 
 ## Limits
 

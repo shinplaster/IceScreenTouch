@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
-    Builds the distribution of IceScreen Touch: one self-contained IceScreenTouch.exe, checked and zipped (and, with
-    -Msix, packed as an MSIX package for the Microsoft Store).
+    Builds IceScreen Touch from the source: one self-contained IceScreenTouch.exe, checked and zipped (and, with
+    -Msix, packed as an MSIX package for the Microsoft Store). The only official binary is the Store version; the zip is
+    a local build for people who build it themselves (no official zip is published on GitHub).
 
 .DESCRIPTION
     1. dotnet publish with the win-x64 profile (self-contained, single file, trimmed, compressed).
@@ -12,8 +13,8 @@
        at the repository root, which the exe embeds for its About tab. When they differ (packages changed), the
        file is rewritten and steps 1-3 run again; commit the new file.
     4. Runs "IceScreenTouch.exe --self-check" (JSON, firewall COM, WinRT Bluetooth, Kestrel, P/Invoke, About).
-    5. Zips the exe, LICENSE, CHANGELOG.md, THIRD-PARTY-NOTICES.txt and the user guides (README.md in English, README.ja.md in
-       Japanese) into artifacts\IceScreenTouch-<version>-win-x64.zip.
+    5. Zips the exe, LICENSE, TRADEMARKS.md, CHANGELOG.md, THIRD-PARTY-NOTICES.txt and the user guides (README.md in English,
+       README.ja.md in Japanese) into artifacts\IceScreenTouch-<version>-win-x64.zip.
     6. With -Msix: lays out the package under artifacts\msix\layout (the exe, packaging\msix\Package.appxmanifest
        with its placeholders filled in as AppxManifest.xml, the logo images from packaging\msix\Assets, LICENSE.txt and
        THIRD-PARTY-NOTICES.txt), builds resources.pri with makepri (the scale and targetsize qualifiers of the logos
@@ -233,10 +234,14 @@ if (-not $NoZip) {
     # The user guides become README.md (English) and README.ja.md (Japanese); their links to each other follow.
     foreach ($guide in @(@{ From = 'USER-GUIDE.md'; To = 'README.md' }, @{ From = 'USER-GUIDE.ja.md'; To = 'README.ja.md' })) {
         $text = [System.IO.File]::ReadAllText((Join-Path $root "docs\$($guide.From)"))
-        $text = $text.Replace('(USER-GUIDE.ja.md)', '(README.ja.md)').Replace('(USER-GUIDE.md)', '(README.md)')
+        # TRADEMARKS.md sits in docs\.. on GitHub ("../TRADEMARKS.md") and next to the guide in the zip.
+        $text = $text.Replace('(USER-GUIDE.ja.md)', '(README.ja.md)').Replace('(USER-GUIDE.md)', '(README.md)').Replace('(../TRADEMARKS.md)', '(TRADEMARKS.md)')
         [System.IO.File]::WriteAllText((Join-Path $staging $guide.To), $text, [System.Text.UTF8Encoding]::new($false))
     }
     Copy-Item (Join-Path $root 'LICENSE') (Join-Path $staging 'LICENSE.txt')
+    # The license file is LICENSE.txt in the zip, so its link follows.
+    $trademarks = [System.IO.File]::ReadAllText((Join-Path $root 'TRADEMARKS.md')).Replace('(LICENSE)', '(LICENSE.txt)')
+    [System.IO.File]::WriteAllText((Join-Path $staging 'TRADEMARKS.md'), $trademarks, [System.Text.UTF8Encoding]::new($false))
     Copy-Item (Join-Path $root 'CHANGELOG.md') $staging
     Copy-Item $noticesPath (Join-Path $staging 'THIRD-PARTY-NOTICES.txt')
     $zip = Join-Path $artifacts "IceScreenTouch-$version-win-x64.zip"

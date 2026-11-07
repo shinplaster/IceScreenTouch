@@ -32,7 +32,7 @@ It does in software what "wireless monitor with touch control" gadgets for iPhon
 - Several devices connected: touches and keys go to the one the mirror window shows (or the one you choose)
 - A setup checklist, and built-in tests that measure touch accuracy, scrolling and latency through a page in Safari on the iPhone
 - English and Japanese user interface
-- A single self-contained `IceScreenTouch.exe` (about 23 MB); no installer, no .NET install needed
+- Get it from the Microsoft Store (paid: signed by Microsoft, updates itself), or build it yourself from this repository for free: a single self-contained `IceScreenTouch.exe` (about 23 MB), no .NET install needed
 
 ## Requirements
 
@@ -43,10 +43,10 @@ It does in software what "wireless monitor with touch control" gadgets for iPhon
 
 ## Getting started
 
-1. Download `IceScreenTouch-<version>-win-x64.zip` from [Releases](https://github.com/shinplaster/IceScreenTouch/releases) and unzip it, or build it yourself (below).
-2. Start your AirPlay receiver, then `IceScreenTouch.exe`, and follow the setup steps in the **Status** tab.
+1. Install IceScreen Touch from the Microsoft Store (coming soon) <!-- TODO: Store URL -->, or build it yourself (see [Building from source](#building-from-source)). No official builds are published on GitHub.
+2. Start your AirPlay receiver, then IceScreen Touch, and follow the setup steps in the **Status** tab.
 
-The full guide, including the SmartScreen warning (the exe is not code-signed), the controls and troubleshooting, is in [docs/USER-GUIDE.md](docs/USER-GUIDE.md).
+The full guide, including the controls and troubleshooting, is in [docs/USER-GUIDE.md](docs/USER-GUIDE.md).
 
 ## Limitations
 
@@ -55,10 +55,12 @@ The full guide, including the SmartScreen warning (the exe is not code-signed), 
 - **Landscape direction is manual** (Ctrl+R): neither the AirPlay stream nor the picture tells the two apart. The same goes for an upside-down portrait on an iPad.
 - **Changing the HID layout needs re-pairing**: iPhones cache the device description. After an update that changes it, forget the PC on the iPhone and pair again.
 - **Windows only** for now. The UI is Avalonia and the core is platform-neutral, but Bluetooth, input hooks and window capture are Windows code.
-- **Not code-signed**: SmartScreen warns on first start, and PCs with Smart App Control on cannot run it.
+- **A build of your own is not code-signed**: SmartScreen may warn on first start, and PCs with Smart App Control on cannot run it. The Store version is signed by Microsoft.
 - The app does not include an AirPlay receiver; you need one of your own (see Requirements).
 
 ## Building from source
+
+Building it yourself is free. `tools\publish.ps1` makes the same single-file exe that the Store package contains, but unsigned.
 
 Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download) on Windows.
 
@@ -90,4 +92,6 @@ The architecture is outlined in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 - IceScreen Touch is released under the [MIT License](LICENSE), without warranty.
 - The UxPlay patch in [`poc/poc1-uxplay/patches/`](poc/poc1-uxplay/patches/README.md) is a derivative of UxPlay and is under **GPLv3**. The distributed `IceScreenTouch.exe` contains neither UxPlay nor any other AirPlay receiver code; the publish script checks this on every build.
+- The name "IceScreen Touch" and its icon are not covered by the MIT License: see [TRADEMARKS.md](TRADEMARKS.md). If you share a build, give it another name and icon.
+- Buying the Store version keeps the developer going. Spare the price of a coffee, kind soul!
 - IceScreen Touch is not affiliated with Apple Inc. iPhone, iPad and AirPlay are trademarks of Apple Inc.

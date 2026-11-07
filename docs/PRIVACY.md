@@ -4,7 +4,7 @@
 
 Effective date: 2026-11-08
 
-This policy covers IceScreen Touch ("the app"), both the Microsoft Store version and the version downloaded from GitHub. The two are built from the same source code and behave the same way with respect to data.
+This policy covers IceScreen Touch ("the app"), both the Microsoft Store version and a build you make yourself from the source code on GitHub. Both are built from the same source code and behave the same way with respect to data.
 
 ## In short
 
@@ -28,7 +28,7 @@ The app writes your data only to its own data folder, `%LOCALAPPDATA%\IceScreenT
 
 Besides the data folder, the following use the Windows temp folder, and none of it is your data. In both builds, the first time the app starts, .NET extracts the app's native libraries (graphics and text rendering) to `%TEMP%\.net`. The diagnostic switch `--self-check` (run from a terminal; the app does not use it on its own) makes a temporary folder for a test file and deletes it when it finishes.
 
-In the GitHub build (not the Store build), during the firewall setup for the test page (see below), the app also writes a short temporary file in the Windows temp folder and deletes it when the setup ends. The Store build does not do this.
+In a build you make yourself (not the Store build), during the firewall setup for the test page (see below), the app also writes a short temporary file in the Windows temp folder and deletes it when the setup ends. The Store build does not do this.
 
 ### What the log contains
 
@@ -77,7 +77,7 @@ The app does not connect to the internet. On your local network it does the foll
 - **Finding out which device the receiver shows.** The app looks at which devices on your local network are connected to the receiver app (from the system's connection table), and asks such a device for its host name with a small local network (mDNS) query sent straight to that device. Only addresses inside the PC's own networks are asked.
 - **Test page.** When you press a test button (touch, scroll, latency, typing), the app starts a small web server on TCP port 8000 on the PC. It runs only until the test ends. You open it from the iPhone or iPad in Safari (the app shows a QR code). The page sends back touch and key events to the PC for the measurement. They are kept in memory for the test, not saved, and are discarded when the test ends. Each test run uses a one-time random key, and only the first device that uses it can post results. For the iPhone to reach the page, Windows Firewall must let TCP port 8000 in, and this works differently in the two builds:
   - **Store (MSIX) build:** the package declares an inbound rule for TCP port 8000 (for all network profiles, from any remote address), which Windows creates when the app is installed and removes when it is uninstalled. The app only reads the firewall rules to show their state; it never changes them, and it writes no temporary file for this. The web server listens only while a test runs, each run needs a random key in the URL, and only the first device that sends an event with the key is accepted.
-  - **GitHub build:** the Test tab has a button for this; Windows asks for administrator permission before anything is changed, the rule allows only the local subnet, and the app writes the short temporary file mentioned above while it runs.
+  - **A build of your own:** the Test tab has a button for this; Windows asks for administrator permission before anything is changed, the rule allows only the local subnet, and the app writes the short temporary file mentioned above while it runs.
 - **The receiver app** you use shows the picture. See the next section.
 
 ## Other software and services
@@ -85,12 +85,12 @@ The app does not connect to the internet. On your local network it does the foll
 - **The AirPlay receiver app** (AirServer, UxPlay and so on) is a separate product. It is not part of IceScreen Touch and has its own privacy policy and its own network use. IceScreen Touch can start the receiver app for you when you ask it to, and follows its window; it does not read what the receiver app stores. If the app starts UxPlay itself, UxPlay runs on your PC as a child process, and its output is read by IceScreen Touch (see the log above).
 - **Your iPhone or iPad and Apple.** The app does not contact Apple. What your device does with the touches and keys is governed by Apple's terms and policy and your device settings (for example, Accessibility > Zoom must be on for the touches to work).
 - **Links.** The About tab has buttons that open the project's GitHub page and its issue page in your browser. They do nothing until you click them. After that, GitHub's privacy statement applies.
-- **Microsoft Store and GitHub.** If you get the app from the Microsoft Store, Microsoft may collect data about the download and the use of the package under its own terms; the developer may receive reports from Microsoft in aggregated form. If you download it from GitHub, GitHub's terms apply to the download. The app itself does not report anything to either.
+- **Microsoft Store and GitHub.** If you get the app from the Microsoft Store, Microsoft may collect data about the download and the use of the package under its own terms; the developer may receive reports from Microsoft in aggregated form. If you download the source code from GitHub, GitHub's terms apply to the download. The app itself does not report anything to either.
 
 ## Deleting your data
 
 1. Close the app (tray menu > Exit).
-2. Uninstall it (Windows Settings > Apps). For the Microsoft Store version, Windows may remove the app's data with it, if the data is in the package's own storage; for the GitHub version, only delete the folder you unzipped it to.
+2. Uninstall it (Windows Settings > Apps). For the Microsoft Store version, Windows may remove the app's data with it, if the data is in the package's own storage; for a build of your own, only delete the folder where you put the exe.
 3. Delete the data folder: `%LOCALAPPDATA%\IceScreenTouch`. If the app was installed from the Microsoft Store, data may also be under `%LOCALAPPDATA%\Packages\<package family name>\LocalCache\Local\IceScreenTouch`; delete it too if it is still there. If you used an earlier version of the app under its former name (iScrMirror), also delete `%LOCALAPPDATA%\iScrMirror` if present.
 4. If you no longer want the pairing, remove the PC from the Bluetooth list on your iPhone or iPad and in Windows Settings > Bluetooth & devices.
 

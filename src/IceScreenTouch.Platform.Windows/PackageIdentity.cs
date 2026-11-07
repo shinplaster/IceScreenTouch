@@ -4,7 +4,7 @@ namespace IceScreenTouch.Platform.Windows;
 
 /// <summary>
 /// Whether the process runs with a package identity, i.e. installed from an MSIX package (the Microsoft Store
-/// build) rather than started as a plain executable (the GitHub build).
+/// build) rather than started as a plain executable (a build of your own).
 /// </summary>
 public static partial class PackageIdentity
 {

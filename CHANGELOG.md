@@ -36,11 +36,12 @@ The source code is public since 2026-11-08. No build has been released yet; the 
   and Japanese; light and dark themes.
 - About tab: version and commit, license, third-party components, data folder, the HID map and settings versions,
   and a button that copies the version info for a problem report.
-- Single-file `IceScreenTouch.exe` (no installer) and a zip with the user guide, `LICENSE` and
-  `THIRD-PARTY-NOTICES.txt`.
+- `tools\publish.ps1` makes the single-file `IceScreenTouch.exe` (no installer) and a zip with the user guide,
+  `LICENSE`, `THIRD-PARTY-NOTICES.txt` and `TRADEMARKS.md`. The only official binary is the Microsoft Store
+  version; the GitHub repository holds the source code (build it yourself for free).
 - Microsoft Store package (MSIX): manifest and logos under `packaging/msix`, built by `tools/publish.ps1 -Msix`
   (unsigned; the Store signs it). In the packaged build the test page's firewall rule comes from the package, so the
-  Test tab accepts it as it is and never shows the "Set up the firewall" button; the exe from GitHub is unchanged.
+  Test tab accepts it as it is and never shows the "Set up the firewall" button; the exe you build yourself is unchanged.
 
 ### Security
 

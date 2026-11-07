@@ -44,7 +44,7 @@ internal static class SelfCheck
 
         await Check("package", () =>
         {
-            // Packaged (Microsoft Store / MSIX build) or a plain executable (GitHub build); either is fine here, the
+            // Packaged (Microsoft Store / MSIX build) or a plain executable (a build of your own); either is fine here, the
             // firewall check below judges the rule accordingly.
             return Task.FromResult(PackageIdentity.IsPackaged ? $"packaged: {PackageIdentity.FullName}" : "not packaged (plain executable)");
         }).ConfigureAwait(false);

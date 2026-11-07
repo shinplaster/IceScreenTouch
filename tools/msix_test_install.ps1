@@ -3,8 +3,8 @@
     TEST ONLY: installs the unsigned test MSIX of IceScreen Touch on this PC (or removes it again). Not part of any release.
 
 .DESCRIPTION
-    *** FOR LOCAL TESTING OF THE MSIX PACKAGE ONLY. The Microsoft Store signs the real package; GitHub users get the
-    *** exe and the zip. Do not give the certificate or the signed package to anyone.
+    *** FOR LOCAL TESTING OF THE MSIX PACKAGE ONLY. The Microsoft Store signs the real package; builds of your own
+    *** are plain unsigned exes. Do not give the certificate or the signed package to anyone.
 
     Install (default):
       1. Copies the package to artifacts\IceScreenTouch-<version>-x64.test-signed.msix. The Store-named package is NEVER
