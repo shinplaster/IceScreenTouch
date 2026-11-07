@@ -22,7 +22,7 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 
 ## [Unreleased]
 
-The first public release will be 0.1.0.
+The source code is public since 2026-11-08. No build has been released yet; the first release will be 0.1.0.
 
 ### Added
 
@@ -44,31 +44,16 @@ The first public release will be 0.1.0.
 
 ### Security
 
-- The test page now needs a per-run key in its URL and accepts input only from the first device that sends with the
-  key. Every test stops when the page leaves the front of the device.
-- The elevated PowerShell for the firewall scripts gets its values as Base64, loads modules only from the Windows
-  folder, and is started by its full path.
-- UxPlay is found only inside the repository, and its log no longer holds the mirroring key. Device names and IDs are
-  logged only with the verbose log on (MAC and DACP IDs are masked). Touch positions and typed keys are never logged,
-  and BLE device IDs in the log are shortened to a hash.
-- Reverse lookups to find the mirrored device ask only peers on the PC's own subnet, and accept only valid host names.
-- A device that is not the target reads an empty input report.
 - Touch and key input goes only to devices that are paired with the PC: subscribing to the input reports needs an
   encrypted connection, and a subscriber that Windows does not report as paired gets no input, reads only empty
-  reports and is never chosen as the target (it is checked again while it stays subscribed).
-- The Device Information service no longer claims a Logitech vendor ID (it was not visible to devices anyway; the HID
-  report map is unchanged, so no new pairing).
-
-### Fixed
-
-- A skipped release is sent first, so two taps no longer merge into one drag. A target switch waits for the previous
-  device's send to finish.
-- Keys and fingers no longer stay down after a cancel, and the bridge keeps running after a BLE send error or a
-  zero-size picture.
-- Home and Ctrl+R pressed while the bridge is busy are no longer lost (one press, one action).
-- If `settings.json` cannot be read, it is copied to `settings.json.unread` before it is overwritten. A stopped
-  session no longer starts when settings are applied.
-- Wheel scrolling at the screen edge no longer repeats taps; the device model name is read again after a failure; a
-  Bluetooth start error is shown instead of "starting"; the window is recreated after a cancelled sign-out; a
-  maximized UxPlay window no longer shrinks on rotation.
-- `publish.ps1` runs on Windows PowerShell 5.1 and 7 with the same result; the firewall scripts accept paths with `[ ]`.
+  reports and is never chosen as the target (it is checked again while it stays subscribed). A device that is not
+  the target reads an empty input report.
+- The test page needs a per-run key in its URL and accepts input only from the first device that sends with the key.
+  Every test stops when the page leaves the front of the device.
+- The elevated PowerShell for the firewall scripts gets its values as Base64, loads modules only from the Windows
+  folder, and is started by its full path.
+- The log never holds touch positions, typed keys or the mirroring key. Device names and IDs are logged only with the
+  verbose log on (MAC and DACP IDs are masked), and BLE device IDs are shortened to a hash. UxPlay is found only
+  inside the repository.
+- Reverse lookups to find the mirrored device ask only peers on the PC's own subnet, and accept only valid host names.
+- The Device Information service claims no vendor ID.
