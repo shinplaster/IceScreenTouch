@@ -18,7 +18,8 @@ namespace IceScreenTouch.App;
 /// <param name="Log">The app log.</param>
 /// <param name="Probe">The probe tab's service, if the platform has one.</param>
 /// <param name="Receivers">Finds the AirPlay receivers on this PC, if the platform can.</param>
-public sealed record AppServices(IMirrorService Mirror, SettingsStore Store, AppLog Log, IProbeService? Probe = null, IReceiverFinder? Receivers = null);
+/// <param name="License">The Store license check, if this build has one (null = a build of your own, nothing is checked).</param>
+public sealed record AppServices(IMirrorService Mirror, SettingsStore Store, AppLog Log, IProbeService? Probe = null, IReceiverFinder? Receivers = null, LicenseService? License = null);
 
 /// <summary>
 /// Avalonia application shared by every platform head. Lives in the notification area: closing the window
@@ -80,13 +81,14 @@ public partial class App : Application
         }
 
         services.Log.Write($"[app ] settings: {services.Store.Path}{(firstRun ? " (first run)" : string.Empty)}");
-        _vm = new MainViewModel(services.Mirror, services.Store, services.Log, settings, a => Dispatcher.UIThread.Post(a), services.Probe, services.Receivers);
+        _vm = new MainViewModel(services.Mirror, services.Store, services.Log, settings, a => Dispatcher.UIThread.Post(a), services.Probe, services.Receivers, services.License);
         services.Log.LineAdded += (_, line) => Dispatcher.UIThread.Post(() => _vm.AppendLog(line));
         _vm.SettingsApplied += (_, _) => RequestedThemeVariant = AppTheme.ToVariant(_vm.Settings.Theme);
 
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         _window = NewWindow(desktop, settings.Window);
         _window.Show();
+        AttachLicenseWindow(services.License, _window);
 
         _tray = CreateTray();
         _timer = new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) => _vm.Refresh());
@@ -95,7 +97,32 @@ public partial class App : Application
         // Session end (log off, shut down) without our Exit: stop what we can.
         desktop.Exit += (_, _) => StopBlocking(services);
 
-        _ = _vm.StartAsync();
+        _ = BeginAsync(services);
+    }
+
+    // Reads the license before the session starts (an ended trial never gets a session), then starts it. The view model
+    // refuses the start while the license says the trial has ended.
+    private async Task BeginAsync(AppServices services)
+    {
+        if (services.License is { } license)
+        {
+            await license.RefreshAsync().ConfigureAwait(true);
+            license.StartMonitoring();
+        }
+
+        if (!_exiting)
+        {
+            await _vm!.StartAsync().ConfigureAwait(true);
+        }
+    }
+
+    // The Store shows its dialogs over this window (it must be told before a purchase).
+    private static void AttachLicenseWindow(LicenseService? license, Window window)
+    {
+        if (license is not null && window.TryGetPlatformHandle() is { } handle)
+        {
+            license.AttachWindow(handle.Handle);
+        }
     }
 
     private static AppSettings FirstRunSettings(AppServices services, AppSettings settings)
@@ -210,6 +237,7 @@ public partial class App : Application
         }
 
         _window.Show();
+        AttachLicenseWindow(Services?.License, _window);
         if (_window.WindowState == WindowState.Minimized)
         {
             _window.WindowState = WindowState.Normal;
@@ -254,6 +282,7 @@ public partial class App : Application
         _exiting = true;
         RememberWindow();
         _timer?.Stop();
+        Services?.License?.Dispose();
         if (_tray is not null)
         {
             _tray.IsVisible = false;

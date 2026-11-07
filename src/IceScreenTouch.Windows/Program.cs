@@ -2,6 +2,7 @@ using Avalonia;
 using IceScreenTouch.App;
 using IceScreenTouch.App.Logging;
 using IceScreenTouch.App.Resources;
+using IceScreenTouch.App.Services;
 using IceScreenTouch.App.Settings;
 using IceScreenTouch.Platform.Windows;
 
@@ -58,7 +59,11 @@ internal static class Program
         try
         {
             var probe = new WindowsProbeService(mirror, log);
-            return BuildAvaloniaApp(new AppServices(mirror, new SettingsStore(), log, probe, new WindowsReceiverFinder(log, () => mirror.OwnUxPlayProcessId))).StartWithClassicDesktopLifetime(args);
+            // Only the package that came from the Store checks its license. A build of your own, and a test package signed locally
+            // (Developer, Enterprise, None, System), have no source and are always fully usable.
+            log.Write($"[lic ] package signature: {(PackageIdentity.IsPackaged ? PackageIdentity.SignatureKind?.ToString() ?? "unreadable" : "not packaged")}; license check {(PackageIdentity.UsesStoreLicense ? "on" : "off")}");
+            using var license = new LicenseService(PackageIdentity.UsesStoreLicense ? new StoreLicenseSource(log) : null, TimeProvider.System, log);
+            return BuildAvaloniaApp(new AppServices(mirror, new SettingsStore(), log, probe, new WindowsReceiverFinder(log, () => mirror.OwnUxPlayProcessId), license)).StartWithClassicDesktopLifetime(args);
         }
         finally
         {

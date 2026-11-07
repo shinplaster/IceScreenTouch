@@ -21,6 +21,8 @@ Nothing else needs to be installed, not even .NET.
 
 Install IceScreen Touch from the Microsoft Store. The Store version is signed and updates itself.
 
+The Store version has a free 24-hour trial, so you can check that your PC's Bluetooth works with it. The **Status** tab shows how much time is left. When the trial ends, the app stops working until you buy it in the Store; use the **Buy** button in the Status tab. It works again right away.
+
 You can also build it yourself from the source code (see the README of the GitHub repository). A build of your own is a single file, `IceScreenTouch.exe`, and it is not code-signed:
 
 - When you open it for the first time, Windows may show "Windows protected your PC". Click "More info", then "Run anyway".

@@ -11,6 +11,7 @@ This policy covers IceScreen Touch ("the app"), both the Microsoft Store version
 - The app does not send any data to the developer or to any other third party. It has no accounts, no advertising, no analytics, no crash reporting and no update check.
 - Everything the app does with your input stays between your PC and your own iPhone or iPad, over Bluetooth and your local network.
 - The app keeps a small settings file and log files on your PC. They are not uploaded anywhere. You can delete them at any time.
+- The Microsoft Store version asks Windows for its license (trial or purchased); see "Other software and services". A build you make yourself does not.
 
 ## What the app does
 
@@ -39,6 +40,7 @@ The log is meant for finding problems. It contains times, the app version, and w
 - the local network addresses (IP addresses) and host names of the devices connected to the receiver app, and the PC's own local address in the address of the test page;
 - the name and model of the device that UxPlay reports, when the app starts UxPlay;
 - if the PC cannot act as a Bluetooth peripheral, the PC's Bluetooth adapter address.
+- in the Store version, the license kind (trial or purchased) and the time the trial ends, each time they change.
 
 The log does **not** contain the keys you type (even the detailed log only records how many keys are held at a moment, never which keys), the positions of your clicks or touches, or any picture of the screen.
 
@@ -72,7 +74,7 @@ To find where the picture is inside the receiver app's window, the app reads the
 
 ## Local network
 
-The app does not connect to the internet. On your local network it does the following:
+The app does not connect to the internet itself (the Store version's license check, described under "Other software and services", goes through Windows). On your local network it does the following:
 
 - **Finding out which device the receiver shows.** The app looks at which devices on your local network are connected to the receiver app (from the system's connection table), and asks such a device for its host name with a small local network (mDNS) query sent straight to that device. Only addresses inside the PC's own networks are asked.
 - **Test page.** When you press a test button (touch, scroll, latency, typing), the app starts a small web server on TCP port 8000 on the PC. It runs only until the test ends. You open it from the iPhone or iPad in Safari (the app shows a QR code). The page sends back touch and key events to the PC for the measurement. They are kept in memory for the test, not saved, and are discarded when the test ends. Each test run uses a one-time random key, and only the first device that uses it can post results. For the iPhone to reach the page, Windows Firewall must let TCP port 8000 in, and this works differently in the two builds:
@@ -85,6 +87,7 @@ The app does not connect to the internet. On your local network it does the foll
 - **The AirPlay receiver app** (AirServer, UxPlay and so on) is a separate product. It is not part of IceScreen Touch and has its own privacy policy and its own network use. IceScreen Touch can start the receiver app for you when you ask it to, and follows its window; it does not read what the receiver app stores. If the app starts UxPlay itself, UxPlay runs on your PC as a child process, and its output is read by IceScreen Touch (see the log above).
 - **Your iPhone or iPad and Apple.** The app does not contact Apple. What your device does with the touches and keys is governed by Apple's terms and policy and your device settings (for example, Accessibility > Zoom must be on for the touches to work).
 - **Links.** The About tab has buttons that open the project's GitHub page and its issue page in your browser. They do nothing until you click them. After that, GitHub's privacy statement applies.
+- **The Store license (Microsoft Store version only).** The Store version has a free trial and can be bought in the Microsoft Store. When it starts, and about every 10 minutes while it runs (every minute after the trial has ended), the app asks Windows' Store service for the app's license (trial or purchased) and when the trial ends. This goes through Windows to Microsoft, and Microsoft handles it under the Microsoft Privacy Statement. The app itself sends no personal data. It writes the license kind and the end of the trial to its log (see "What the log contains") and does not store the license anywhere else. If you press the Buy button, the purchase takes place in a Microsoft Store dialog, not in the app. A build you make yourself does not do any of this.
 - **Microsoft Store and GitHub.** If you get the app from the Microsoft Store, Microsoft may collect data about the download and the use of the package under its own terms; the developer may receive reports from Microsoft in aggregated form. If you download the source code from GitHub, GitHub's terms apply to the download. The app itself does not report anything to either.
 
 ## Deleting your data

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using IceScreenTouch.App.Logging;
 using IceScreenTouch.App.Resources;
 using IceScreenTouch.App.Services;
@@ -42,9 +43,20 @@ public sealed class MainViewModel : ObservableObject
     private readonly SettingsStore _store;
     private readonly AppLog _log;
     private readonly Action<Action> _post;
+    private readonly LicenseService _license;
     private AppSettings _settings;
     private MirrorStatus _status = MirrorStatus.Idle;
     private bool _busy;
+
+    // Store license: a start that the license refused (or a session it stopped) resumes when the license allows it again.
+    private bool _blockedByLicense;
+    private bool _licensePending;
+    private LicenseState? _licenseShown;
+    private long _trialMinutes = long.MinValue;
+    private string _trialText = string.Empty;
+    private bool _isTrial;
+    private bool _isExpired;
+    private string _purchaseMessage = string.Empty;
 
     private string _bleText = string.Empty;
     private StatusLevel _bleLevel;
@@ -105,9 +117,10 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>
     /// Creates the view model with the loaded <paramref name="settings"/>. Without <paramref name="probe"/> there
-    /// is no probe tab; without <paramref name="receivers"/> the setup tab lists no receivers.
+    /// is no probe tab; without <paramref name="receivers"/> the setup tab lists no receivers; without
+    /// <paramref name="license"/> there is no license check (like a build of your own).
     /// </summary>
-    public MainViewModel(IMirrorService mirror, SettingsStore store, AppLog log, AppSettings settings, Action<Action> post, IProbeService? probe = null, IReceiverFinder? receivers = null)
+    public MainViewModel(IMirrorService mirror, SettingsStore store, AppLog log, AppSettings settings, Action<Action> post, IProbeService? probe = null, IReceiverFinder? receivers = null, LicenseService? license = null)
     {
         ArgumentNullException.ThrowIfNull(mirror);
         ArgumentNullException.ThrowIfNull(store);
@@ -119,11 +132,13 @@ public sealed class MainViewModel : ObservableObject
         _log = log;
         _settings = settings;
         _post = post;
+        _license = license ?? new LicenseService(null, log: log);
 
         HomeCommand = new RelayCommand(_mirror.Home, () => CanHome);
         ToggleRotationCommand = new RelayCommand(_mirror.ToggleRotation, () => _status.Running);
-        RestartCommand = new AsyncRelayCommand(RestartAsync, () => !_busy && !ProbeRunning);
-        StartStopCommand = new AsyncRelayCommand(() => _status.Running ? StopAsync() : StartAsync(), () => !_busy && !ProbeRunning);
+        RestartCommand = new AsyncRelayCommand(RestartAsync, () => !_busy && !ProbeRunning && _license.Current.AllowsSession);
+        StartStopCommand = new AsyncRelayCommand(() => _status.Running ? StopAsync() : StartAsync(), () => !_busy && !ProbeRunning && (_status.Running || _license.Current.AllowsSession));
+        BuyCommand = new AsyncRelayCommand(BuyAsync);
         ApplySettingsCommand = new AsyncRelayCommand(ApplySettingsAsync, () => !_busy && !ProbeRunning && SettingsDirty);
         if (probe is not null)
         {
@@ -145,6 +160,7 @@ public sealed class MainViewModel : ObservableObject
         }
 
         _mirror.LandscapeRotationChanged += (_, r) => _post(() => OnRotationChanged(r));
+        _license.Changed += (_, _) => _post(() => LicenseChange = OnLicenseChangedAsync());
         LoadForm();
         Refresh();
     }
@@ -163,6 +179,40 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The About tab.</summary>
     public AboutViewModel About { get; } = new();
+
+    /// <summary>The last handling of a license change (for tests).</summary>
+    internal Task LicenseChange { get; private set; } = Task.CompletedTask;
+
+    /// <summary>Buy the app in the Microsoft Store.</summary>
+    public AsyncRelayCommand BuyCommand { get; }
+
+    /// <summary>The trial runs: the status tab shows the time left and the Buy button.</summary>
+    public bool IsTrial { get => _isTrial; private set => Set(ref _isTrial, value); }
+
+    /// <summary>The trial ended and the app was not bought: the session does not run.</summary>
+    public bool IsExpired { get => _isExpired; private set => Set(ref _isExpired, value); }
+
+    /// <summary>
+    /// What the last Buy click came to when it needs a word: the store could not be opened, or the purchase is not in the
+    /// license yet. Empty otherwise (also after the user closed the store's dialog).
+    /// </summary>
+    public string PurchaseMessage
+    {
+        get => _purchaseMessage;
+        private set
+        {
+            if (Set(ref _purchaseMessage, value))
+            {
+                OnPropertyChanged(nameof(HasPurchaseMessage));
+            }
+        }
+    }
+
+    /// <summary>There is a <see cref="PurchaseMessage"/> to show.</summary>
+    public bool HasPurchaseMessage => _purchaseMessage.Length > 0;
+
+    /// <summary>"Trial: 23 hours left (until Nov 9, 14:00)" (empty outside the trial).</summary>
+    public string TrialText { get => _trialText; private set => Set(ref _trialText, value); }
 
     /// <summary>The tab shown (<see cref="StatusTab"/>, <see cref="SettingsTab"/>, ...).</summary>
     public int SelectedTab { get => _selectedTab; set => Set(ref _selectedTab, value); }
@@ -471,7 +521,7 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Starts the session with the settings in effect.</summary>
     public async Task StartAsync()
     {
-        await RunBusyAsync(() => _mirror.StartAsync(_settings)).ConfigureAwait(true);
+        await RunBusyAsync(StartSessionAsync).ConfigureAwait(true);
     }
 
     /// <summary>Stops the session.</summary>
@@ -500,11 +550,16 @@ public sealed class MainViewModel : ObservableObject
             ? Loc.Format(Strings.FormatRotationLandscape, deg)
             : s.Running && b.PortraitRotation == Rotation.R180 ? Strings.RotationPortraitUpsideDown : string.Empty;
         IsRunning = s.Running;
-        (Headline, HeadlineLevel) = DescribeHeadline(s);
+        UpdateLicense();
+        // The Store build waits for its first license read before it starts: say so instead of "Stopped".
+        var checking = _license.IsChecking && !s.Running;
+        (Headline, HeadlineLevel) = IsExpired ? (Strings.TrialEndedTitle, StatusLevel.Error)
+            : checking ? (Strings.LicenseChecking, StatusLevel.Waiting)
+            : DescribeHeadline(s);
         StatsText = Loc.Format(Strings.FormatStats, b.Gestures, b.LongPresses, b.Scrolls, b.Dropped);
         CanHome = s.Ble is BleState.Connected or BleState.DryRun;
         ((RelayCommand)ToggleRotationCommand).Refresh();
-        Hint = DescribeNextStep(s, _settings);
+        Hint = IsExpired ? Strings.TrialEndedBody : checking ? Strings.LicenseCheckingHint : DescribeNextStep(s, _settings);
         RefreshTargets(s);
         Probe?.Refresh(s);
         Setup.Refresh(s, _settings, Probe?.TouchVerified ?? false);
@@ -682,8 +737,117 @@ public sealed class MainViewModel : ObservableObject
         await RunBusyAsync(async () =>
         {
             await _mirror.StopAsync().ConfigureAwait(true);
-            await _mirror.StartAsync(_settings).ConfigureAwait(true);
+            await StartSessionAsync().ConfigureAwait(true);
         }).ConfigureAwait(true);
+    }
+
+    // The one place a session starts (Start, Restart, auto start, a purchase that lifts the block): refused while the
+    // trial has ended. The refusal is remembered so that a purchase starts the session without a restart.
+    private Task StartSessionAsync()
+    {
+        if (!_license.Current.AllowsSession)
+        {
+            _blockedByLicense = true;
+            _log.Write("[app ] not started: the trial has ended");
+            return Task.CompletedTask;
+        }
+
+        _blockedByLicense = false;
+        return _mirror.StartAsync(_settings);
+    }
+
+    // Reads the license into the status tab and the About tab (cheap: runs from Refresh). The trial line changes once
+    // a minute, so it is only rebuilt when the minutes left change.
+    private void UpdateLicense()
+    {
+        var state = _license.Current;
+        var tz = _license.LocalTimeZone;
+        if (state != _licenseShown)
+        {
+            _licenseShown = state;
+            _trialMinutes = long.MinValue;
+            About.ShowLicense(state, tz);
+            IsTrial = state.Kind == LicenseKind.Trial;
+            IsExpired = state.Kind == LicenseKind.Expired;
+            if (state.Kind == LicenseKind.Purchased)
+            {
+                PurchaseMessage = string.Empty;
+            }
+
+            RestartCommand.Refresh();
+            StartStopCommand.Refresh();
+        }
+
+        if (state is { Kind: LicenseKind.Trial, Expiration: { } end })
+        {
+            var minutes = (long)Math.Floor((end - _license.UtcNow).TotalMinutes);
+            if (minutes != _trialMinutes)
+            {
+                _trialMinutes = minutes;
+                TrialText = LicenseLines.TrialRemaining(end, _license.UtcNow, tz, CultureInfo.CurrentUICulture);
+            }
+        }
+        else
+        {
+            TrialText = string.Empty;
+        }
+    }
+
+    // The license changed (the event, the timer or a purchase): stop a running session when it ended, start the
+    // one that the license had blocked when it is allowed again.
+    private async Task OnLicenseChangedAsync()
+    {
+        UpdateLicense();
+        if (_busy)
+        {
+            // Start or stop in progress: look again when it is done.
+            _licensePending = true;
+            return;
+        }
+
+        if (!_license.Current.AllowsSession)
+        {
+            if (_mirror.GetStatus().Running)
+            {
+                _log.Write("[app ] the trial has ended; stopping the session");
+                _blockedByLicense = true;
+                Probe?.Cancel();
+                await StopAsync().ConfigureAwait(true);
+            }
+        }
+        else if (_blockedByLicense)
+        {
+            _log.Write("[app ] the license allows the session again; starting");
+            await StartAsync().ConfigureAwait(true);
+        }
+
+        Refresh();
+    }
+
+    private async Task BuyAsync()
+    {
+        // Called on the UI thread (the command), so the store's dialog is requested from it. A purchase that went
+        // through shows up as a license change (Changed -> OnLicenseChangedAsync); this only words what else happened.
+        PurchaseMessage = string.Empty;
+        var outcome = await _license.BuyAsync().ConfigureAwait(true);
+        PurchaseMessage = DescribePurchase(outcome, _license.Current);
+        Refresh();
+    }
+
+    /// <summary>
+    /// The word for a finished purchase request (empty = nothing to say). The user closing the dialog is theirs to
+    /// decide; a bought app whose license does not say so yet is being checked; every failure gets one short message.
+    /// </summary>
+    public static string DescribePurchase(PurchaseOutcome outcome, LicenseState license)
+    {
+        ArgumentNullException.ThrowIfNull(license);
+        return outcome switch
+        {
+            PurchaseOutcome.NotPurchased => string.Empty,
+            PurchaseOutcome.Succeeded or PurchaseOutcome.AlreadyPurchased =>
+                license.Kind == LicenseKind.Purchased ? string.Empty : Strings.PurchaseChecking,
+            _ => Strings.PurchaseFailed,
+        };
     }
 
     private async Task UseReceiverAsync(ReceiverCandidate candidate)
@@ -757,6 +921,11 @@ public sealed class MainViewModel : ObservableObject
             StartStopCommand.Refresh();
             ApplySettingsCommand.Refresh();
             Refresh();
+            if (_licensePending)
+            {
+                _licensePending = false;
+                _post(() => LicenseChange = OnLicenseChangedAsync());
+            }
         }
     }
 

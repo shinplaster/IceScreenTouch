@@ -55,7 +55,7 @@ iPhone 用に売られている「ミラーリング + タッチ操作のワイ�
 - **横向きの左右は手動です**（Ctrl+R）。AirPlay のストリームにも映像にも、2 つの横向きの区別が現れません。上下逆にした iPad の縦向きも同じです。
 - **HID の構成を変えると、ペアリングし直しが要ります**。iPhone は機器の構成を覚えています。構成が変わる更新のあとは、iPhone でこの PC の登録を解除してペアリングし直してください。
 - 今は **Windows だけ**です。画面（Avalonia）と中心の処理は OS に依存しませんが、Bluetooth、入力のフック、ウィンドウの取り込みは Windows のコードです。
-- **自分でビルドした exe にはコード署名がありません**: 初めて起動するときに SmartScreen の警告が出ることがあります。Smart App Control がオンの PC では起動できません。Store 版には Microsoft の署名があります。
+- **自分でビルドした exe にはコード署名がありません**: 初めて起動するときに SmartScreen の警告が出ることがあります。Smart App Control がオンの PC では起動できません。Store のバージョンには Microsoft の署名があります。
 - AirPlay の受信機能は入っていません。受信ソフトを別に用意してください（「必要なもの」を参照）。
 
 ## ソースからビルドする
@@ -93,5 +93,5 @@ dotnet run --project src\IceScreenTouch.Windows      # アプリ
 - IceScreen Touch は [MIT ライセンス](LICENSE)です。無保証です。
 - [`poc/poc1-uxplay/patches/`](poc/poc1-uxplay/patches/README.md) の UxPlay へのパッチは UxPlay の派生物なので **GPLv3** です。配布する `IceScreenTouch.exe` には、UxPlay もほかの AirPlay 受信機能のコードも入っていません。発行のたびにスクリプトで確かめています。
 - 「IceScreen Touch」の名前とアイコンは MIT ライセンスの対象外です（[TRADEMARKS.md](TRADEMARKS.md)）。自分のビルドを人に配るときは、別の名前とアイコンにしてください。
-- Store 版を買ってくださると、開発の励みになります。どうかコーヒー一杯分のお恵みを！
+- Store のバージョンを買ってくださると、開発の励みになります。どうかコーヒー一杯分のお恵みを！
 - IceScreen Touch は Apple Inc. とは関係がありません。iPhone、iPad、AirPlay は Apple Inc. の商標です。

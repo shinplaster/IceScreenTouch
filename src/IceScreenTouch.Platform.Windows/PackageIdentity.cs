@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Windows.ApplicationModel;
 
 namespace IceScreenTouch.Platform.Windows;
 
@@ -23,6 +24,37 @@ public static partial class PackageIdentity
 
     /// <summary>The package family name (<c>Name_PublisherId</c>), or null when not packaged.</summary>
     public static string? FamilyName { get; } = ReadFamilyName();
+
+    /// <summary>
+    /// How the package is signed (<c>Package.Current.SignatureKind</c>): <see cref="PackageSignatureKind.Store"/> for the
+    /// package that came from the Microsoft Store, Developer / Enterprise / System / None for a local test package.
+    /// Null when not packaged or when it cannot be read.
+    /// </summary>
+    public static PackageSignatureKind? SignatureKind { get; } = ReadSignatureKind();
+
+    /// <summary>
+    /// Only the package that came from the Microsoft Store has a Store license to check. A test package signed locally
+    /// (Developer, Enterprise, None, System), a plain executable and an unreadable signature all behave like a build
+    /// of your own: no license check.
+    /// </summary>
+    public static bool UsesStoreLicense => IsStoreSigned(SignatureKind);
+
+    /// <summary>The decision behind <see cref="UsesStoreLicense"/>.</summary>
+    internal static bool IsStoreSigned(PackageSignatureKind? kind) => kind == PackageSignatureKind.Store;
+
+    private static PackageSignatureKind? ReadSignatureKind()
+    {
+        try
+        {
+            return FullName is null ? null : Package.Current.SignatureKind;
+        }
+#pragma warning disable CA1031 // Any failure means "not the Store package": no license check.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return null;
+        }
+    }
 
     /// <summary>
     /// Whether the result of <c>GetCurrentPackageFullName</c> called with an empty buffer says "packaged":

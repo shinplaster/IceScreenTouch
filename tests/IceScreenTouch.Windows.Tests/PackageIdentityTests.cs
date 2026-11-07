@@ -1,4 +1,5 @@
 using IceScreenTouch.Platform.Windows;
+using Windows.ApplicationModel;
 
 namespace IceScreenTouch.Windows.Tests;
 
@@ -11,6 +12,24 @@ public class PackageIdentityTests
     [InlineData(87, false)]      // any other error
     public void OnlyASuccessOrATooSmallBufferMeansPackaged(int result, bool packaged) =>
         Assert.Equal(packaged, PackageIdentity.IndicatesPackage(result));
+
+    [Fact]
+    public void OnlyAStoreSignedPackageChecksTheStoreLicense()
+    {
+        Assert.True(PackageIdentity.IsStoreSigned(PackageSignatureKind.Store));
+        Assert.False(PackageIdentity.IsStoreSigned(PackageSignatureKind.Developer));
+        Assert.False(PackageIdentity.IsStoreSigned(PackageSignatureKind.Enterprise));
+        Assert.False(PackageIdentity.IsStoreSigned(PackageSignatureKind.None));
+        Assert.False(PackageIdentity.IsStoreSigned(PackageSignatureKind.System));
+        Assert.False(PackageIdentity.IsStoreSigned(null)); // not packaged, or unreadable
+    }
+
+    [Fact]
+    public void ThePlainTestHostHasNoSignatureAndNoLicenseCheck()
+    {
+        Assert.Null(PackageIdentity.SignatureKind);
+        Assert.False(PackageIdentity.UsesStoreLicense);
+    }
 
     [Fact]
     public void TheTestHostHasNoPackageIdentity()

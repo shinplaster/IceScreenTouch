@@ -42,6 +42,9 @@ The source code is public since 2026-11-08. No build has been released yet; the 
 - Microsoft Store package (MSIX): manifest and logos under `packaging/msix`, built by `tools/publish.ps1 -Msix`
   (unsigned; the Store signs it). In the packaged build the test page's firewall rule comes from the package, so the
   Test tab accepts it as it is and never shows the "Set up the firewall" button; the exe you build yourself is unchanged.
+- Free 24-hour trial in the Microsoft Store version: the app checks its Store license at start and every few minutes,
+  shows the time left and a Buy button on the Status tab, stops the session when the trial ends, and starts it again
+  right after the purchase. The About tab shows the license. Builds you make yourself have no license check.
 
 ### Security
 

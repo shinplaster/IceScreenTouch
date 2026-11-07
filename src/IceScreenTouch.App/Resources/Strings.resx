@@ -316,4 +316,22 @@
   <data name="FormatSettingsVersion" xml:space="preserve"><value>Settings file: version {0}</value></data>
   <data name="Trademarks" xml:space="preserve"><value>Apple®, iPhone®, iPad®, AirPlay® and Safari® are trademarks of Apple Inc., registered in the U.S. and other countries. IceScreen Touch is not affiliated with or endorsed by Apple Inc. Other product names are trademarks of their owners.</value></data>
   <data name="FormatComponents" xml:space="preserve"><value>{0} components</value></data>
+
+  <!-- Store license (trial) -->
+  <data name="FormatTrialHoursLeft" xml:space="preserve"><value>Trial: {0} hours left (until {1})</value></data>
+  <data name="FormatTrialMinutesLeft" xml:space="preserve"><value>Trial: {0} minutes left (until {1})</value></data>
+  <data name="FormatTrialHourLeft" xml:space="preserve"><value>Trial: 1 hour left (until {0})</value></data>
+  <data name="FormatTrialMinuteLeft" xml:space="preserve"><value>Trial: 1 minute left (until {0})</value></data>
+  <data name="ButtonBuy" xml:space="preserve"><value>Buy</value></data>
+  <data name="PurchaseFailed" xml:space="preserve"><value>Could not open the Microsoft Store purchase. Try again later.</value></data>
+  <data name="PurchaseChecking" xml:space="preserve"><value>Checking the purchase…</value></data>
+  <data name="LicenseChecking" xml:space="preserve"><value>Checking the license…</value></data>
+  <data name="LicenseCheckingHint" xml:space="preserve"><value>IceScreen Touch starts as soon as the license is confirmed.</value></data>
+  <data name="TrialEndedTitle" xml:space="preserve"><value>The trial has ended</value></data>
+  <data name="TrialEndedBody" xml:space="preserve"><value>To keep using IceScreen Touch, buy it in the Microsoft Store. It works again right away.</value></data>
+  <data name="AboutLicensePurchased" xml:space="preserve"><value>License: Purchased</value></data>
+  <data name="FormatAboutLicenseTrial" xml:space="preserve"><value>License: Trial (until {0})</value></data>
+  <data name="AboutLicenseTrialEnded" xml:space="preserve"><value>License: Trial ended</value></data>
+  <data name="AboutLicenseNotPackaged" xml:space="preserve"><value>License: Self-built (no license check)</value></data>
+  <data name="AboutLicenseUnknown" xml:space="preserve"><value>License: Could not be checked</value></data>
 </root>

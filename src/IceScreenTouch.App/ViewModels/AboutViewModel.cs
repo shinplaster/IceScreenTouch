@@ -1,4 +1,6 @@
+using System.Globalization;
 using IceScreenTouch.App.Resources;
+using IceScreenTouch.App.Services;
 using IceScreenTouch.App.Settings;
 using IceScreenTouch.Core;
 
@@ -12,6 +14,7 @@ namespace IceScreenTouch.App.ViewModels;
 public sealed class AboutViewModel : ObservableObject
 {
     private bool _copied;
+    private string _licenseStatusText = LicenseLines.About(LicenseState.NotPackaged, TimeZoneInfo.Local, CultureInfo.CurrentUICulture);
 
     /// <summary>The product name.</summary>
     public string ProductName { get; } = AppInfo.ProductName;
@@ -41,6 +44,13 @@ public sealed class AboutViewModel : ObservableObject
 
     /// <summary>The settings file's format version.</summary>
     public string SettingsVersionText { get; } = Loc.Format(Strings.FormatSettingsVersion, AppSettings.CurrentVersion);
+
+    /// <summary>"License: Purchased" and the like: the Store license of this copy (not the MIT license text).</summary>
+    public string LicenseStatusText { get => _licenseStatusText; private set => Set(ref _licenseStatusText, value); }
+
+    /// <summary>Shows the current Store license.</summary>
+    public void ShowLicense(LicenseState state, TimeZoneInfo zone) =>
+        LicenseStatusText = LicenseLines.About(state, zone, CultureInfo.CurrentUICulture);
 
     /// <summary>What "copy version info" puts on the clipboard (English, for a problem report).</summary>
     public string Diagnostics { get; } = AppInfo.Diagnostics;

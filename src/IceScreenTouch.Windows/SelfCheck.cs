@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Net;
 using IceScreenTouch.App;
 using IceScreenTouch.App.Resources;
+using IceScreenTouch.App.Services;
 using IceScreenTouch.App.Settings;
 using IceScreenTouch.Ble;
 using IceScreenTouch.Core;
@@ -47,6 +48,30 @@ internal static class SelfCheck
             // Packaged (Microsoft Store / MSIX build) or a plain executable (a build of your own); either is fine here, the
             // firewall check below judges the rule accordingly.
             return Task.FromResult(PackageIdentity.IsPackaged ? $"packaged: {PackageIdentity.FullName}" : "not packaged (plain executable)");
+        }).ConfigureAwait(false);
+
+        await Check("license", async () =>
+        {
+            // A plain executable has no license check, and neither has a package that was not signed by the Store (a
+            // local test package). A Store package reads the Store license (no UI, no window). A read that fails is not
+            // a fault here (offline): the app treats it as usable too.
+            if (!PackageIdentity.IsPackaged)
+            {
+                return "not packaged (no license check)";
+            }
+
+            if (!PackageIdentity.UsesStoreLicense)
+            {
+                return $"packaged, signature kind {PackageIdentity.SignatureKind?.ToString() ?? "unreadable"} (not the Store: no license check)";
+            }
+
+            var read = new StoreLicenseSource().ReadAsync();
+            var state = await Task.WhenAny(read, Task.Delay(TimeSpan.FromSeconds(20))).ConfigureAwait(false) == read
+                ? await read.ConfigureAwait(false)
+                : LicenseState.Unknown;
+            return state.Kind == LicenseKind.Unknown
+                ? "Store license could not be read (the app runs anyway)"
+                : $"signature kind Store; Store license: {state.Kind}{(state.Expiration is { } end ? $" until {end:u}" : string.Empty)}";
         }).ConfigureAwait(false);
 
         await Check("settings", () =>
