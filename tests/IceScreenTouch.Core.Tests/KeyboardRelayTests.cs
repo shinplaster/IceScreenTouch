@@ -135,11 +135,18 @@ public class KeyboardRelayTests
         Assert.Empty(sink.Reports);
     }
 
+    // Polls in real time and fails loudly instead of giving up quietly.
     private static async Task WaitAsync(Func<bool> condition)
     {
-        for (var i = 0; i < 200 && !condition(); i++)
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (!condition())
         {
-            await Task.Delay(10);
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new TimeoutException("Timed out after 10 s waiting for the condition.");
+            }
+
+            await Task.Delay(5);
         }
     }
 

@@ -364,6 +364,20 @@ public sealed class UxPlayVideoSource : IVideoSource, IAsyncDisposable
                     _deviceModel = d.Model;
                     message = $"[video] connection from {d.Name} ({d.Model})";
                     break;
+                case MirroringEndedEvent:
+                    // Older AirPlay versions make uxplay print this twice (video TEARDOWN, then the final one),
+                    // newer ones once: say it, and forget the session, only the first time. Without this the old size and phone name outlive the
+                    // session (Status tab, input target "Mirrored").
+                    if (_sinkSize is not null || _logSize is not null || _deviceName is not null)
+                    {
+                        message = "[video] mirroring ended";
+                    }
+
+                    _sinkSize = null;
+                    _logSize = null;
+                    _deviceName = null;
+                    _deviceModel = null;
+                    break;
             }
         }
 

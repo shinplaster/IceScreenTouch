@@ -187,6 +187,7 @@ public sealed class KeyboardProbeTests
 
         public ValueTask SendKeyboardAsync(byte modifiers, ReadOnlyMemory<byte> keys, CancellationToken cancellationToken)
         {
+            RepeatHello();
             var key = keys.Length > 0 ? keys.Span[^1] : (byte)0;
             if (key == 0 && _lastKey == 0 && (modifiers & HidModifiers.LeftShift) != 0)
             {
@@ -200,6 +201,18 @@ public sealed class KeyboardProbeTests
 
             _lastKey = key;
             return ValueTask.CompletedTask;
+        }
+
+        // The real page says hello every 2 s while it is in front (ProbeReadiness.KeysPageFreshSeconds is 6 s). A full
+        // probe run takes about 5 s on an idle machine, so a single hello at the start goes stale on a slow runner and
+        // the probe rightly stops with "no longer in front". Repeat it like the page does, while the page is visible.
+        private void RepeatHello()
+        {
+            var hello = server.HelloFor(ProbePage.Keys);
+            if (hello is { State: "visible" } && ProbeClock.Now() - hello.T >= 1.0)
+            {
+                server.Add(JsonSerializer.Serialize(new Dictionary<string, object?> { ["type"] = "hello", ["pg"] = "keys", ["state"] = "visible", ["f"] = true, ["v"] = Text }));
+            }
         }
 
         private void Press(HidKey key)

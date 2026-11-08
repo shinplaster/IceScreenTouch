@@ -40,10 +40,20 @@ public class ReleaseSendTests
     {
         var sink = new CancelAwareTouchSink();
         var player = new TouchPlayer(sink);
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        using var cts = new CancellationTokenSource();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => player.TapAsync(new AxisPoint(5000, 5000), TimeSpan.FromSeconds(30), cts.Token).AsTask());
+        // Cancel only once the touch-down frame is out (a fixed delay can fire before it on a loaded machine).
+        var tap = player.TapAsync(new AxisPoint(5000, 5000), TimeSpan.FromSeconds(30), cts.Token).AsTask();
+        // An early exception from the operation surfaces at once instead of after the 30 s bound.
+        await Task.WhenAny(sink.FirstFrame, tap).WaitAsync(TimeSpan.FromSeconds(30));
+        if (tap.IsFaulted)
+        {
+            await tap;
+        }
+
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tap);
 
         Assert.True(sink.Frames[0].All(c => c.Tip));
         Assert.True(sink.Frames[^2].All(c => !c.Tip)); // lifted where it was
@@ -56,11 +66,21 @@ public class ReleaseSendTests
     public async Task ACancelledKeyPressStillReleasesTheKey()
     {
         var sink = new CancelAwareKeyboardSink();
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        using var cts = new CancellationTokenSource();
         var key = new HidKey(0x2A, HidModifiers.LeftGui); // ⌘ + Backspace, held long
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => sink.PressAsync(key, TimeSpan.FromSeconds(30), cancellationToken: cts.Token).AsTask());
+        // Cancel only once the key-down report is out (a fixed delay can fire before it on a loaded machine).
+        var press = sink.PressAsync(key, TimeSpan.FromSeconds(30), cancellationToken: cts.Token).AsTask();
+        // An early exception from the operation surfaces at once instead of after the 30 s bound.
+        await Task.WhenAny(sink.KeyDown, press).WaitAsync(TimeSpan.FromSeconds(30));
+        if (press.IsFaulted)
+        {
+            await press;
+        }
+
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => press);
 
         Assert.Contains(sink.Reports, r => r.Keys.Contains((byte)0x2A));
         Assert.Equal(KeyboardReport.Released, sink.Reports[^1]);
@@ -71,12 +91,18 @@ public class ReleaseSendTests
     {
         public bool IsSubscribed => true;
 
+        private readonly TaskCompletionSource _firstFrame = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public List<TouchContact[]> Frames { get; } = [];
+
+        /// <summary>Completes when the first frame has been recorded.</summary>
+        public Task FirstFrame => _firstFrame.Task;
 
         public ValueTask SendAsync(ReadOnlyMemory<TouchContact> contacts, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             Frames.Add(contacts.ToArray());
+            _firstFrame.TrySetResult();
             return ValueTask.CompletedTask;
         }
     }
@@ -85,12 +111,22 @@ public class ReleaseSendTests
     {
         public bool HasKeyboard => true;
 
+        private readonly TaskCompletionSource _keyDown = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public List<KeyboardReport> Reports { get; } = [];
+
+        /// <summary>Completes when a report with a key in it (not only a modifier) has been recorded.</summary>
+        public Task KeyDown => _keyDown.Task;
 
         public ValueTask SendKeyboardAsync(byte modifiers, ReadOnlyMemory<byte> keys, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             Reports.Add(new KeyboardReport(modifiers, keys.ToArray()));
+            if (keys.Length > 0)
+            {
+                _keyDown.TrySetResult();
+            }
+
             return ValueTask.CompletedTask;
         }
     }

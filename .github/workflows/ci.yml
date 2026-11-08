@@ -1,0 +1,90 @@
+# Build and test only. Official binaries are shipped through the Microsoft Store, so this workflow must
+# never publish, package or upload the app (no `dotnet publish`, no upload-artifact, no release steps).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# On a pull request a newer push cancels the older run. On main a run that has started is never cancelled
+# (cancel-in-progress is false), but GitHub keeps only one pending run per group, so a pending older run can
+# still be replaced by a newer one.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+  # Make Python's output encoding independent of the runner's console code page.
+  PYTHONUTF8: "1"
+
+jobs:
+  build-and-test:
+    # The solution targets Windows (WinRT, Win32, WinForms test host), so a Windows runner is required.
+    # windows-latest is Windows Server 2025. The Windows SDK projection (WindowsSdkPackageVersion in
+    # Directory.Build.props) comes from NuGet, not from the installed Windows SDK.
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          # No global.json in the repo. Pinned to the SDK the project is developed with (already on the runner
+          # image); with TreatWarningsAsErrors, a newer SDK's analyzers could fail the build unannounced.
+          dotnet-version: 10.0.403
+
+      - name: Restore
+        run: dotnet restore IceScreenTouch.slnx
+
+      - name: Build (Release)
+        run: dotnet build IceScreenTouch.slnx --configuration Release --no-restore
+
+      # ICESCREENTOUCH_INPUT_TESTS is not set, so the 8 real-input tests (cursor and clicks) are skipped.
+      # The three excluded classes need a real interactive desktop and a compositor (screen BitBlt, PrintWindow,
+      # WindowFromPoint) and ScreenSamplerTests asserts a 25 ms per-sample time. They run in the next step.
+      - name: Test
+        run: >-
+          dotnet test IceScreenTouch.slnx --configuration Release --no-build
+          --filter "FullyQualifiedName!~ScreenSamplerTests&FullyQualifiedName!~WindowCaptureTests&FullyQualifiedName!~Win32WindowsTests"
+
+      # Informational: a hosted runner has no guaranteed GPU or physical display, so a failure here does not
+      # fail the job. Make this step blocking (or fold it into the one above) once it has proven stable.
+      - name: Test (desktop-dependent, informational)
+        id: desktop-tests
+        continue-on-error: true
+        timeout-minutes: 5
+        run: >-
+          dotnet test tests/IceScreenTouch.Windows.Tests --configuration Release --no-build
+          --filter "FullyQualifiedName~ScreenSamplerTests|FullyQualifiedName~WindowCaptureTests|FullyQualifiedName~Win32WindowsTests"
+
+      - name: Report desktop-dependent test failure
+        if: steps.desktop-tests.outcome == 'failure'
+        shell: bash
+        run: echo "::warning title=Desktop-dependent tests failed::ScreenSamplerTests, WindowCaptureTests or Win32WindowsTests failed on the hosted runner (informational, the job still passes)."
+
+      # The PoC tests below are pure (standard library only). poc3-integrated/test_bridge.py is not run: it
+      # moves the real cursor.
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: PoC 3 tests (Python)
+        working-directory: poc/poc3-integrated
+        # bash runs with -e, so a failure in the first script is not hidden by the second one's exit code.
+        shell: bash
+        run: |
+          python test_geometry.py
+          python test_analyze.py

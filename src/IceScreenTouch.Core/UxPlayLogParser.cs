@@ -18,6 +18,13 @@ public sealed record VideoSizeEvent(SizeD Size) : UxPlayLogEvent;
 /// <summary>A phone asked to connect.</summary>
 public sealed record DeviceConnectedEvent(string Name, string Model) : UxPlayLogEvent;
 
+/// <summary>
+/// The mirroring session ended because the phone stopped mirroring: uxplay shut down the video renderer. The picture
+/// size and the phone it was showing no longer apply. A dropped connection is not reported (uxplay's "lost
+/// connection with client" path does not call video_reset), so the old name stays until the next session.
+/// </summary>
+public sealed record MirroringEndedEvent : UxPlayLogEvent;
+
 /// <summary>Parses uxplay's console output, ported from poc/poc3-integrated/geometry.py.</summary>
 public static partial class UxPlayLogParser
 {
@@ -32,6 +39,14 @@ public static partial class UxPlayLogParser
 
     [GeneratedRegex(@"connection request from (.+?) \((.+?)\) with deviceID", RegexOptions.CultureInvariant)]
     private static partial Regex DeviceRegex();
+
+    // uxplay -d prints this when TEARDOWN stops the mirror stream. Older AirPlay versions send a video TEARDOWN
+    // (110=1) first and the final TEARDOWN after it, so this can appear twice; newer ones (seen with AirPlay/1005.x)
+    // send only the final TEARDOWN. The video_reset types of HLS playback are not matched. Known limitation: a
+    // dropped connection ("lost connection with client") does not reach video_reset in uxplay, so nothing is
+    // printed and the last session stays until the next one starts.
+    [GeneratedRegex(@"video_reset: type = RTP_(?:to_HLS_)?Shutdown", RegexOptions.CultureInvariant)]
+    private static partial Regex MirroringEndedRegex();
 
     [GeneratedRegex(@"^\s*([0-9a-fA-F]{2}\s+)*[0-9a-fA-F]{2}\s*$", RegexOptions.CultureInvariant)]
     private static partial Regex HexDumpRegex();
@@ -87,7 +102,12 @@ public static partial class UxPlayLogParser
         }
 
         m = DeviceRegex().Match(line);
-        return m.Success ? new DeviceConnectedEvent(m.Groups[1].Value, m.Groups[2].Value) : null;
+        if (m.Success)
+        {
+            return new DeviceConnectedEvent(m.Groups[1].Value, m.Groups[2].Value);
+        }
+
+        return MirroringEndedRegex().IsMatch(line) ? new MirroringEndedEvent() : null;
     }
 
     private static bool TryInt(string s, out int value) =>

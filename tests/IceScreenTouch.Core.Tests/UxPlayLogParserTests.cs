@@ -41,6 +41,25 @@ public class UxPlayLogParserTests
     public void IdentifiersAreMaskedForTheLogFile(string line, string expected) =>
         Assert.Equal(expected, UxPlayLogParser.Mask(line));
 
+    [Theory]
+    [InlineData("21:36:12.327 video_reset: type = RTP_Shutdown")]
+    [InlineData("21:36:12.327 video_reset: type = RTP_to_HLS_Shutdown")]
+    public void MirroringEnd(string line)
+    {
+        Assert.Equal(new MirroringEndedEvent(), UxPlayLogParser.Parse(line));
+    }
+
+    [Theory]
+    [InlineData("21:36:12.327 video_reset: type = NoHold")]
+    [InlineData("21:36:12.327 video_reset: type = HLS_Shutdown")]
+    [InlineData("21:36:12.327 video_reset: type = on_video_play")]
+    [InlineData("21:36:12.327 TEARDOWN request,  96=0, 110=1")]
+    [InlineData("21:35:10.574 This packet indicates video stream is stopping")] // a pause, not the end
+    public void OtherResetsAreNotTheEndOfMirroring(string line)
+    {
+        Assert.Null(UxPlayLogParser.Parse(line));
+    }
+
     [Fact]
     public void UnrelatedLineIsNull()
     {

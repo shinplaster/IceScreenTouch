@@ -8,6 +8,24 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace IceScreenTouch.App.Tests;
 
+/// <summary>Polls a condition in real time; throws instead of giving up quietly.</summary>
+internal static class TestWait
+{
+    public static async Task UntilAsync(Func<bool> condition, string what)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (!condition())
+        {
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new TimeoutException($"Timed out after 10 s waiting for: {what}");
+            }
+
+            await Task.Delay(5);
+        }
+    }
+}
+
 internal sealed class FakeLicenseSource : ILicenseSource
 {
     public LicenseState Next { get; set; } = LicenseState.Purchased;
@@ -182,13 +200,7 @@ public sealed class LicenseServiceTests
     private LicenseService Service() => new(_source, _time);
 
     // The source's event starts a read on the thread pool: wait for its effect (real time, not the fake clock).
-    private static async Task WaitAsync(Func<bool> condition)
-    {
-        for (var i = 0; i < 200 && !condition(); i++)
-        {
-            await Task.Delay(10);
-        }
-    }
+    private static Task WaitAsync(Func<bool> condition, string what) => TestWait.UntilAsync(condition, what);
 
     [Fact]
     public async Task WithoutASourceTheBuildIsNotPackagedForGood()
@@ -328,7 +340,7 @@ public sealed class LicenseServiceTests
         _source.Next = LicenseState.Expired;
 
         _source.RaiseChanged();
-        await WaitAsync(() => service.Current == LicenseState.Expired);
+        await WaitAsync(() => service.Current == LicenseState.Expired, "the license to become Expired");
 
         Assert.Equal(1, _source.Reads);
         Assert.Equal(LicenseState.Expired, service.Current);
@@ -469,13 +481,14 @@ public sealed class LicenseServiceTests
         _source.ReadFails = new InvalidOperationException("no store");
         service.StartMonitoring();
 
-        for (var i = 0; i < 3; i++)
-        {
-            _time.Advance(LicenseService.Tick);
-            await Task.Delay(30);
-        }
-
-        await WaitAsync(() => _source.Reads >= 3);
+        // Keep advancing the fake clock until enough reads happened: PeriodicTimer ticks can coalesce on a slow runner.
+        await WaitAsync(
+            () =>
+            {
+                _time.Advance(LicenseService.Tick);
+                return _source.Reads >= 3;
+            },
+            "three reads of the license despite failures");
         Assert.True(_source.Reads >= 3, $"only {_source.Reads} reads");
     }
 
@@ -752,7 +765,7 @@ public sealed class LicenseViewModelTests : IDisposable
         await EndTheTrialAsync();
 
         vm.Setup.Receivers[0].UseCommand.Execute(null);
-        await Task.Delay(100);
+        await TestWait.UntilAsync(() => _mirror.Calls.Count >= 2, "the session to be stopped");
         await RunPostedAsync(vm);
 
         Assert.Equal(["start", "stop"], _mirror.Calls);
