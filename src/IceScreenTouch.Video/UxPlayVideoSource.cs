@@ -366,17 +366,14 @@ public sealed class UxPlayVideoSource : IVideoSource, IAsyncDisposable
                     break;
                 case MirroringEndedEvent:
                     // Older AirPlay versions make uxplay print this twice (video TEARDOWN, then the final one),
-                    // newer ones once: say it, and forget the session, only the first time. Without this the old size and phone name outlive the
-                    // session (Status tab, input target "Mirrored").
-                    if (_sinkSize is not null || _logSize is not null || _deviceName is not null)
-                    {
-                        message = "[video] mirroring ended";
-                    }
-
-                    _sinkSize = null;
-                    _logSize = null;
-                    _deviceName = null;
-                    _deviceModel = null;
+                    // newer ones once: say it, and forget the session, only the first time. Without this the old
+                    // size and phone name outlive the session (Status tab, input target "Mirrored").
+                    message = ForgetSession("[video] mirroring ended");
+                    break;
+                case NoConnectionsEvent:
+                    // Also covers a dropped connection, which never reaches video_reset. After a normal stop the
+                    // session is already forgotten, so nothing is logged again.
+                    message = ForgetSession("[video] no AirPlay connection left");
                     break;
             }
         }
@@ -385,6 +382,17 @@ public sealed class UxPlayVideoSource : IVideoSource, IAsyncDisposable
         {
             _log(message);
         }
+    }
+
+    /// <summary>Clears the session's size and phone (call under the lock); returns <paramref name="ended"/> if any was set.</summary>
+    private string? ForgetSession(string ended)
+    {
+        var wasSet = _sinkSize is not null || _logSize is not null || _deviceName is not null;
+        _sinkSize = null;
+        _logSize = null;
+        _deviceName = null;
+        _deviceModel = null;
+        return wasSet ? ended : null;
     }
 
     private void StartProcess(UxPlayOptions options)

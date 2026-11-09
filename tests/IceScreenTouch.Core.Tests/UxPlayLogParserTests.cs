@@ -60,6 +60,28 @@ public class UxPlayLogParserTests
         Assert.Null(UxPlayLogParser.Parse(line));
     }
 
+    [Theory]
+    [InlineData("Open connections: 0")]
+    [InlineData("00:00:11.445 Open connections: 0")]
+    [InlineData("  Open connections: 0  ")]
+    public void NoConnectionsLeft(string line)
+    {
+        Assert.Equal(new NoConnectionsEvent(), UxPlayLogParser.Parse(line));
+    }
+
+    [Theory]
+    [InlineData("Open connections: 1")]
+    [InlineData("Open connections: 2")]
+    [InlineData("Open connections: 10")]
+    [InlineData("Open connections: 00")]
+    [InlineData("Open connections: 0x")]
+    [InlineData("Open connections: 0 more")]
+    [InlineData("Open connections:")]
+    public void OtherConnectionCountsAreNotTheEnd(string line)
+    {
+        Assert.Null(UxPlayLogParser.Parse(line));
+    }
+
     [Fact]
     public void UnrelatedLineIsNull()
     {

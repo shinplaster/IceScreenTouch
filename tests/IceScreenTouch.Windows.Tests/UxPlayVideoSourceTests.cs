@@ -87,6 +87,91 @@ public sealed class UxPlayVideoSourceTests
     }
 
     [Fact]
+    public void AfterANormalStopTheNoConnectionsLineAddsNothing()
+    {
+        var logged = new List<string>();
+        var ux = new UxPlayVideoSource(logged.Add, verbose: false);
+        ux.OnLine("connection request from Alex's iPhone (iPhone16,1) with deviceID = 12:34");
+        ux.OnLine("iScrMirror: sink-caps 498x1080 par 1/1");
+
+        ux.OnLine("video_reset: type = RTP_Shutdown");
+        ux.OnLine("Open connections: 0");
+
+        Assert.Null(ux.DeviceName);
+        Assert.Null(ux.VideoSize);
+        Assert.Single(logged, "[video] mirroring ended");
+        Assert.DoesNotContain("[video] no AirPlay connection left", logged);
+    }
+
+    [Fact]
+    public void ADroppedConnectionForgetsTheSizeAndThePhone()
+    {
+        var logged = new List<string>();
+        var ux = new UxPlayVideoSource(logged.Add, verbose: false);
+        ux.OnLine("connection request from Alex's iPhone (iPhone16,1) with deviceID = 12:34");
+        ux.OnLine("raop_rtp_mirror width_source = 498.000000 height_source = 1080.000000 x_offset = 711.000000 y_offset = 0.000000 width = 498.000000 height = 1080.000000");
+        ux.OnLine("iScrMirror: sink-caps 498x1080 par 1/1");
+
+        ux.OnLine("***ERROR lost connection with client (network problem?)");
+        ux.OnLine("Removing connection for socket 7416");
+        ux.OnLine("Open connections: 0");
+        ux.OnLine("Open connections: 0");
+
+        Assert.Null(ux.VideoSize);
+        Assert.Null(ux.SinkSize);
+        Assert.Equal("-", ux.SizeSource);
+        Assert.Null(ux.DeviceName);
+        Assert.Null(ux.DeviceModel);
+        Assert.Single(logged, "[video] no AirPlay connection left");
+        Assert.DoesNotContain("[video] mirroring ended", logged);
+    }
+
+    [Fact]
+    public void ANewSessionAfterADroppedConnectionIsKept()
+    {
+        var ux = new UxPlayVideoSource(null, verbose: false);
+        ux.OnLine("connection request from Alex's iPhone (iPhone16,1) with deviceID = 12:34");
+        ux.OnLine("iScrMirror: sink-caps 498x1080 par 1/1");
+        ux.OnLine("***ERROR lost connection with client (network problem?)");
+        ux.OnLine("Open connections: 0");
+
+        // The order uxplay prints for the next session (seen in real logs): count, request, then the sink size.
+        ux.OnLine("Open connections: 1");
+        ux.OnLine("connection request from iPad (iPad13,1) with deviceID = 56:78");
+        ux.OnLine("iScrMirror: sink-caps 1554x1080 par 1/1");
+
+        Assert.Equal("iPad", ux.DeviceName);
+        Assert.Equal("iPad13,1", ux.DeviceModel);
+        Assert.Equal(new SizeD(1554, 1080), ux.VideoSize);
+    }
+
+    [Fact]
+    public void ARejectedSecondPhoneKeepsTheSession()
+    {
+        var ux = new UxPlayVideoSource(null, verbose: false);
+        ux.OnLine("connection request from Alex's iPhone (iPhone16,1) with deviceID = 12:34");
+        ux.OnLine("iScrMirror: sink-caps 498x1080 par 1/1");
+
+        ux.OnLine("Open connections: 2");
+        ux.OnLine("Open connections: 1");
+
+        Assert.Equal("Alex's iPhone", ux.DeviceName);
+        Assert.Equal(new SizeD(498, 1080), ux.VideoSize);
+    }
+
+    [Fact]
+    public void NoConnectionsBeforeAnySessionLogsNothing()
+    {
+        var logged = new List<string>();
+        var ux = new UxPlayVideoSource(logged.Add, verbose: false);
+
+        ux.OnLine("Open connections: 0");
+
+        Assert.Empty(logged);
+        Assert.Null(ux.DeviceName);
+    }
+
+    [Fact]
     public void APauseOrAnAudioTeardownKeepsTheSession()
     {
         var ux = new UxPlayVideoSource(null, verbose: false);
