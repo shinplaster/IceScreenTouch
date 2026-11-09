@@ -321,10 +321,10 @@
   <data name="FormatComponents" xml:space="preserve"><value>部品の一覧（{0} 個）</value></data>
 
   <!-- Store license (trial) -->
-  <data name="FormatTrialHoursLeft" xml:space="preserve"><value>試用版: あと {0} 時間（{1} まで）</value></data>
-  <data name="FormatTrialMinutesLeft" xml:space="preserve"><value>試用版: あと {0} 分（{1} まで）</value></data>
-  <data name="FormatTrialHourLeft" xml:space="preserve"><value>試用版: あと 1 時間（{0} まで）</value></data>
-  <data name="FormatTrialMinuteLeft" xml:space="preserve"><value>試用版: あと 1 分（{0} まで）</value></data>
+  <data name="FormatTrialHoursLeft" xml:space="preserve"><value>試用中: あと {0} 時間（{1} まで）</value></data>
+  <data name="FormatTrialMinutesLeft" xml:space="preserve"><value>試用中: あと {0} 分（{1} まで）</value></data>
+  <data name="FormatTrialHourLeft" xml:space="preserve"><value>試用中: あと 1 時間（{0} まで）</value></data>
+  <data name="FormatTrialMinuteLeft" xml:space="preserve"><value>試用中: あと 1 分（{0} まで）</value></data>
   <data name="ButtonBuy" xml:space="preserve"><value>購入</value></data>
   <data name="PurchaseFailed" xml:space="preserve"><value>Microsoft Store の購入を開けませんでした。しばらくしてから、もう一度試してください。</value></data>
   <data name="PurchaseChecking" xml:space="preserve"><value>購入を確認しています…</value></data>
@@ -333,7 +333,7 @@
   <data name="TrialEndedTitle" xml:space="preserve"><value>試用期間が終わりました</value></data>
   <data name="TrialEndedBody" xml:space="preserve"><value>引き続き使うには、Microsoft Store で購入してください。購入すると、すぐに使えるようになります。</value></data>
   <data name="AboutLicensePurchased" xml:space="preserve"><value>ライセンス: 購入済み</value></data>
-  <data name="FormatAboutLicenseTrial" xml:space="preserve"><value>ライセンス: 試用版（{0} まで）</value></data>
+  <data name="FormatAboutLicenseTrial" xml:space="preserve"><value>ライセンス: 試用中（{0} まで）</value></data>
   <data name="AboutLicenseTrialEnded" xml:space="preserve"><value>ライセンス: 試用期間の終了</value></data>
   <data name="AboutLicenseNotPackaged" xml:space="preserve"><value>ライセンス: 自分でビルドしたもの（ライセンスの確認なし）</value></data>
   <data name="AboutLicenseUnknown" xml:space="preserve"><value>ライセンス: 確認できませんでした</value></data>

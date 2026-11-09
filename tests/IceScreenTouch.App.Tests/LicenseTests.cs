@@ -126,7 +126,7 @@ public sealed class LicenseLinesTests
     {
         var text = LicenseLines.TrialRemaining(Now.AddMinutes(minutesLeft), Now, Tokyo, Ja);
 
-        Assert.StartsWith("試用版: " + expected, text, StringComparison.Ordinal);
+        Assert.StartsWith("試用中: " + expected, text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -178,7 +178,7 @@ public sealed class LicenseLinesTests
         var end = new DateTimeOffset(2026, 11, 9, 5, 0, 0, TimeSpan.Zero);
 
         Assert.Equal("ライセンス: 購入済み", LicenseLines.About(LicenseState.Purchased, Tokyo, Ja));
-        Assert.Equal("ライセンス: 試用版（11月9日 14:00 まで）", LicenseLines.About(LicenseState.Trial(end), Tokyo, Ja));
+        Assert.Equal("ライセンス: 試用中（11月9日 14:00 まで）", LicenseLines.About(LicenseState.Trial(end), Tokyo, Ja));
         Assert.Equal("ライセンス: 試用期間の終了", LicenseLines.About(LicenseState.Expired, Tokyo, Ja));
         Assert.Equal("ライセンス: 自分でビルドしたもの（ライセンスの確認なし）", LicenseLines.About(LicenseState.NotPackaged, Tokyo, Ja));
         Assert.Equal("ライセンス: 確認できませんでした", LicenseLines.About(LicenseState.Unknown, Tokyo, Ja));
@@ -884,21 +884,21 @@ public sealed class LicenseViewModelTests : IDisposable
 
         Assert.Equal(["start"], _mirror.Calls);
         Assert.True(vm.IsTrial);
-        Assert.StartsWith("試用版: あと 23 時間（", vm.TrialText, StringComparison.Ordinal);
+        Assert.StartsWith("試用中: あと 23 時間（", vm.TrialText, StringComparison.Ordinal);
         Assert.True(vm.BuyCommand.CanExecute(null));
-        Assert.StartsWith("ライセンス: 試用版（", vm.About.LicenseStatusText, StringComparison.Ordinal);
+        Assert.StartsWith("ライセンス: 試用中（", vm.About.LicenseStatusText, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task TheTrialLineCountsDownEachMinuteAndSwitchesToMinutes()
     {
         var vm = await CreateAsync(LicenseState.Trial(Start.AddMinutes(61)));
-        Assert.StartsWith("試用版: あと 1 時間（", vm.TrialText, StringComparison.Ordinal);
+        Assert.StartsWith("試用中: あと 1 時間（", vm.TrialText, StringComparison.Ordinal);
 
         _time.Advance(TimeSpan.FromMinutes(2));
         vm.Refresh();
 
-        Assert.StartsWith("試用版: あと 59 分（", vm.TrialText, StringComparison.Ordinal);
+        Assert.StartsWith("試用中: あと 59 分（", vm.TrialText, StringComparison.Ordinal);
     }
 
     [Fact]
