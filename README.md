@@ -11,7 +11,7 @@ It does in software what "wireless monitor with touch control" gadgets for iPhon
 ## How it works
 
 ```
- iPhone ──AirPlay (Wi-Fi)──▶ AirPlay receiver window on the PC (AirServer, UxPlay, ...)
+ iPhone ──AirPlay (Wi-Fi)──▶ AirPlay receiver window on the PC
    ▲                                   │ mouse clicks and drags on the picture
    │                                   ▼
    └──Bluetooth LE HID touch ◀── IceScreen Touch (finds the picture, turns clicks into touches)
@@ -28,7 +28,7 @@ It does in software what "wireless monitor with touch control" gadgets for iPhon
 - Typing: keys typed in the mirror window reach the iPhone as a Bluetooth keyboard (Ctrl = ⌘; Japanese is converted on the iPhone, Ctrl+Space switches the input source)
 - Portrait and landscape (the two landscape directions, and an iPad held upside down, cannot be told apart automatically: press Ctrl+R if touches land on the opposite side)
 - iPhone and iPad: the screen shape comes from the model the device reports over Bluetooth
-- Follows the window of an AirPlay receiver. Tested with UxPlay (self-built; the app can start it), AirServer and LonelyScreen. Other receivers can be followed by their process name, but they are not tested or supported yet
+- Follows the window of an AirPlay receiver. Tested with 5KPlayer, AirServer, LonelyScreen, Reflector 4 and UxPlay (self-built; the app can start it). Other receivers can be followed by their process name, but they are not tested or supported yet
 - Several devices connected: touches and keys go to the one the mirror window shows (or the one you choose)
 - A setup checklist, and built-in tests that measure touch accuracy, scrolling and latency through a page in Safari on the iPhone
 - English and Japanese user interface
@@ -38,13 +38,13 @@ It does in software what "wireless monitor with touch control" gadgets for iPhon
 
 - Windows 10 (2004 or later) or Windows 11, 64-bit
 - A Bluetooth adapter that supports the **LE peripheral role** (the app checks it in its setup steps)
-- An **AirPlay receiver** on the PC, such as [AirServer](https://www.airserver.com/) (commercial) or [UxPlay](https://github.com/FDH2/UxPlay) (GPLv3, build it yourself; see [poc/poc1-uxplay](poc/poc1-uxplay/README.md))
+- An **AirPlay receiver** on the PC. Tested with 5KPlayer, AirServer, LonelyScreen, Reflector 4 and UxPlay; how to get each one is in [Installing an AirPlay receiver](docs/USER-GUIDE.md#installing-an-airplay-receiver). IceScreen Touch has no relationship with these developers and receives no referral fees; the guide links to their official sites only. Run only one receiver at a time
 - An iPhone or iPad on the same network, with **Zoom** turned on in Accessibility. Tested with an iPhone 15 Pro (iOS 26.6.1) and an iPad Air 4th generation (iPadOS 18.6.2)
 
 ## Getting started
 
 1. Install IceScreen Touch from the Microsoft Store (coming soon) <!-- TODO: Store URL -->, or build it yourself (see [Building from source](#building-from-source)). No official builds are published on GitHub.
-2. Start your AirPlay receiver, then IceScreen Touch, and follow the setup steps in the **Status** tab.
+2. Install and start an AirPlay receiver (see [Installing an AirPlay receiver](docs/USER-GUIDE.md#installing-an-airplay-receiver)), then start IceScreen Touch and follow the setup steps in the **Status** tab.
 
 The full guide, including the controls and troubleshooting, is in [docs/USER-GUIDE.md](docs/USER-GUIDE.md).
 
@@ -91,6 +91,7 @@ The architecture is outlined in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ## License
 
 - IceScreen Touch is released under the [MIT License](LICENSE), without warranty.
+- UxPlay is a separate program under **GPLv3**; how to build it is in [docs/BUILD-UXPLAY.md](docs/BUILD-UXPLAY.md).
 - The UxPlay patch in [`poc/poc1-uxplay/patches/`](poc/poc1-uxplay/patches/README.md) is a derivative of UxPlay and is under **GPLv3**. The distributed `IceScreenTouch.exe` contains neither UxPlay nor any other AirPlay receiver code; the publish script checks this on every build.
 - The name "IceScreen Touch" and its icon are not covered by the MIT License: see [TRADEMARKS.md](TRADEMARKS.md). If you share a build, give it another name and icon.
 - Buying the Store version keeps the developer going. Spare the price of a coffee, kind soul!

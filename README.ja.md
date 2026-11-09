@@ -11,7 +11,7 @@ iPhone 用に売られている「ミラーリング + タッチ操作のワイ�
 ## 仕組み
 
 ```
- iPhone ──AirPlay（Wi-Fi）──▶ PC の AirPlay 受信ソフトのウィンドウ（AirServer、UxPlay など）
+ iPhone ──AirPlay（Wi-Fi）──▶ PC の AirPlay 受信ソフトのウィンドウ
    ▲                                   │ 映像の上のクリックとドラッグ
    │                                   ▼
    └──Bluetooth LE の HID（タッチ）◀── IceScreen Touch（映像の位置を探し、クリックをタッチに変える）
@@ -28,7 +28,7 @@ iPhone 用に売られている「ミラーリング + タッチ操作のワイ�
 - 文字入力: ミラー画面で打ったキーが Bluetooth キーボードとして iPhone に届きます（Ctrl は ⌘。日本語は iPhone 側で変換し、Ctrl+Space で入力を切り替え）
 - 縦向きと横向き（2 つの横向きと、上下逆にした iPad の縦向きは自動では区別できません。タッチの位置が反対になったら Ctrl+R）
 - iPhone と iPad: 画面の形は、端末が Bluetooth で知らせる機種から判別します
-- AirPlay 受信ソフトのウィンドウを追います。確認しているのは UxPlay（自前でビルドしたもの。アプリから起動もできます）、AirServer、LonelyScreen の 3 つです。ほかの受信ソフトもプロセス名を指定すれば追えますが、今のところ未確認のため、サポートの対象外です
+- AirPlay 受信ソフトのウィンドウを追います。確認しているのは 5KPlayer、AirServer、LonelyScreen、Reflector 4、UxPlay（自前でビルドしたもの。アプリから起動もできます）の 5 つです。ほかの受信ソフトもプロセス名を指定すれば追えますが、今のところ未確認のため、サポートの対象外です
 - 複数の端末がつながっているときは、ミラー画面に映っている端末（または選んだ端末）にだけタッチとキーを送ります
 - セットアップの手順の表示と、iPhone の Safari に開いたページで、タッチの精度・スクロール・遅延を測る検証の機能
 - 画面は英語と日本語
@@ -38,13 +38,13 @@ iPhone 用に売られている「ミラーリング + タッチ操作のワイ�
 
 - Windows 10（2004 以降）または Windows 11、64 ビット
 - **LE のペリフェラル役**に対応した Bluetooth アダプタ（アプリが準備の手順の中で確かめます）
-- PC の **AirPlay 受信ソフト**: [AirServer](https://www.airserver.com/)（有料）や [UxPlay](https://github.com/FDH2/UxPlay)（GPLv3。自分でビルドします。[poc/poc1-uxplay](poc/poc1-uxplay/README.md) を参照）など
+- PC の **AirPlay 受信ソフト**: 5KPlayer、AirServer、LonelyScreen、Reflector 4、UxPlay で確認しています。それぞれの入れ方は [docs/USER-GUIDE.ja.md](docs/USER-GUIDE.ja.md#受信ソフトを入れる) にあります。IceScreen Touch はこれらの開発元とは関係がなく、紹介料も受け取っていません。使い方の文書では、各受信ソフトの公式サイトにだけリンクしています。受信ソフトは 1 つだけ起動してください
 - 同じネットワークにつないだ iPhone か iPad。アクセシビリティの**ズーム**をオンにします。iPhone 15 Pro（iOS 26.6.1）と iPad Air 第 4 世代（iPadOS 18.6.2）で確認しています
 
 ## 使い始める
 
 1. Microsoft Store（近日公開）<!-- TODO: Store URL --> から入れるか、自分でビルドします（[ソースからビルドする](#ソースからビルドする)）。GitHub では公式のビルドを配っていません。
-2. AirPlay 受信ソフトを起動してから IceScreen Touch を起動し、「状態」タブの「準備」の手順に従います。
+2. AirPlay 受信ソフトを入れて起動し（[受信ソフトを入れる](docs/USER-GUIDE.ja.md#受信ソフトを入れる)を見てください）、IceScreen Touch を起動して、「状態」タブの「準備」の手順に従います。
 
 操作の一覧と、困ったときの対処は [docs/USER-GUIDE.ja.md](docs/USER-GUIDE.ja.md) にあります。
 
@@ -91,6 +91,7 @@ dotnet run --project src\IceScreenTouch.Windows      # アプリ
 ## ライセンス
 
 - IceScreen Touch は [MIT ライセンス](LICENSE)です。無保証です。
+- UxPlay は別のプログラムで **GPLv3** です。ビルドの手順は [docs/BUILD-UXPLAY.ja.md](docs/BUILD-UXPLAY.ja.md) にあります。
 - [`poc/poc1-uxplay/patches/`](poc/poc1-uxplay/patches/README.md) の UxPlay へのパッチは UxPlay の派生物なので **GPLv3** です。配布する `IceScreenTouch.exe` には、UxPlay もほかの AirPlay 受信機能のコードも入っていません。発行のたびにスクリプトで確かめています。
 - 「IceScreen Touch」の名前とアイコンは MIT ライセンスの対象外です（[TRADEMARKS.md](TRADEMARKS.md)）。自分のビルドを人に配るときは、別の名前とアイコンにしてください。
 - Store のバージョンを買ってくださると、開発の励みになります。どうかコーヒー一杯分のお恵みを！

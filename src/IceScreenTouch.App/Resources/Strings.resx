@@ -101,7 +101,7 @@
   <data name="SectionReceivers" xml:space="preserve"><value>AirPlay receivers on this PC</value></data>
   <data name="ReceiversIntro" xml:space="preserve"><value>IceScreen Touch does not receive the video itself. It follows the window of an AirPlay receiver and turns clicks on it into touches on the iPhone.</value></data>
   <data name="ButtonLaunch" xml:space="preserve"><value>Start</value></data>
-  <data name="NoReceivers" xml:space="preserve"><value>None found. Install and start an AirPlay receiver such as AirServer, then press "Search again". A receiver that is not listed can be followed by entering its process name in the Settings tab.</value></data>
+  <data name="NoReceivers" xml:space="preserve"><value>None found. Install and start an AirPlay receiver (the user guide lists the tested ones and how to install them), then press "Search again". A receiver that is not listed can be followed by entering its process name in the Settings tab.</value></data>
   <data name="ButtonSearch" xml:space="preserve"><value>Search again</value></data>
   <data name="ReceiverRunning" xml:space="preserve"><value>Running</value></data>
   <data name="ReceiverInstalled" xml:space="preserve"><value>Installed (not running)</value></data>
@@ -144,7 +144,7 @@
   <data name="OptionStartUxPlay" xml:space="preserve"><value>Start UxPlay</value></data>
   <data name="OptionAttach" xml:space="preserve"><value>Follow the window of a running receiver</value></data>
   <data name="LabelAirPlayName" xml:space="preserve"><value>AirPlay name (shown in Screen Mirroring on the iPhone)</value></data>
-  <data name="LabelUxPlayPath" xml:space="preserve"><value>uxplay.exe (empty = find it automatically)</value></data>
+  <data name="LabelUxPlayPath" xml:space="preserve"><value>Location of uxplay.exe</value></data>
   <data name="ButtonBrowse" xml:space="preserve"><value>Browse…</value></data>
   <data name="LabelMsysBin" xml:space="preserve"><value>MSYS2 ucrt64\bin (empty = the default scoop location)</value></data>
   <data name="LabelProcessName" xml:space="preserve"><value>Process name (without .exe)</value></data>
@@ -310,7 +310,7 @@
   <data name="LicenseIntro" xml:space="preserve"><value>The source code of IceScreen Touch is published under the MIT License.</value></data>
   <data name="LicenseFullText" xml:space="preserve"><value>MIT License (show the full text)</value></data>
   <data name="SectionThirdParty" xml:space="preserve"><value>Third-party software</value></data>
-  <data name="ThirdPartyIntro" xml:space="preserve"><value>IceScreenTouch.exe includes these components. It does not include an AirPlay receiver: the receiver (AirServer, UxPlay, …) is a separate program.</value></data>
+  <data name="ThirdPartyIntro" xml:space="preserve"><value>IceScreenTouch.exe includes these components. It does not include an AirPlay receiver: the AirPlay receiver you install is a separate program.</value></data>
   <data name="ButtonShowNotices" xml:space="preserve"><value>Show the license texts</value></data>
   <data name="NoticesTitle" xml:space="preserve"><value>Third-party notices</value></data>
   <data name="SectionData" xml:space="preserve"><value>Data folder</value></data>

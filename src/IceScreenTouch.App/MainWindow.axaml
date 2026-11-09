@@ -234,13 +234,13 @@
               <TextBlock Classes="label" Text="{x:Static res:Strings.LabelUxPlayPath}" />
               <DockPanel>
                 <Button DockPanel.Dock="Right" Content="{x:Static res:Strings.ButtonBrowse}" Margin="6,0,0,0" Click="BrowseUxPlay" />
-                <TextBox Text="{Binding UxPlayPath}" PlaceholderText="poc\poc1-uxplay\UxPlay\build-isr\uxplay.exe" />
+                <TextBox Text="{Binding UxPlayPath}" />
               </DockPanel>
             </StackPanel>
 
             <StackPanel Spacing="6" IsVisible="{Binding AttachToProcess}">
               <TextBlock Classes="label" Text="{x:Static res:Strings.LabelProcessName}" />
-              <TextBox Text="{Binding AttachProcessName}" PlaceholderText="AirServer" />
+              <TextBox Text="{Binding AttachProcessName}" />
             </StackPanel>
 
             <TextBlock Classes="section" Text="{x:Static res:Strings.SectionVideo}" />

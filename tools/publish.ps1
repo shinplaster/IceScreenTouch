@@ -154,7 +154,7 @@ for ($attempt = 1; ; $attempt++) {
     [void]$notices.AppendLine('IceScreen Touch - third-party notices')
     [void]$notices.AppendLine('')
     [void]$notices.AppendLine('IceScreenTouch.exe bundles the following components. IceScreen Touch does not include an AirPlay receiver;')
-    [void]$notices.AppendLine('the receiver (AirServer, UxPlay, ...) is a separate program that you install yourself.')
+    [void]$notices.AppendLine('the AirPlay receiver that you install yourself is a separate program.')
     [void]$notices.AppendLine('')
     foreach ($p in $packages) {
         $info = $knownPackages[$p.Id]
@@ -234,8 +234,8 @@ if (-not $NoZip) {
     # The user guides become README.md (English) and README.ja.md (Japanese); their links to each other follow.
     foreach ($guide in @(@{ From = 'USER-GUIDE.md'; To = 'README.md' }, @{ From = 'USER-GUIDE.ja.md'; To = 'README.ja.md' })) {
         $text = [System.IO.File]::ReadAllText((Join-Path $root "docs\$($guide.From)"))
-        # TRADEMARKS.md sits in docs\.. on GitHub ("../TRADEMARKS.md") and next to the guide in the zip.
-        $text = $text.Replace('(USER-GUIDE.ja.md)', '(README.ja.md)').Replace('(USER-GUIDE.md)', '(README.md)').Replace('(../TRADEMARKS.md)', '(TRADEMARKS.md)')
+        # TRADEMARKS.md sits in docs\.. on GitHub ("../TRADEMARKS.md") and next to the guide in the zip. The build guides are not in the zip: their links go to GitHub.
+        $text = $text.Replace('(USER-GUIDE.ja.md)', '(README.ja.md)').Replace('(USER-GUIDE.md)', '(README.md)').Replace('(../TRADEMARKS.md)', '(TRADEMARKS.md)').Replace('(BUILD-UXPLAY.md)', '(https://github.com/shinplaster/IceScreenTouch/blob/main/docs/BUILD-UXPLAY.md)').Replace('(BUILD-UXPLAY.ja.md)', '(https://github.com/shinplaster/IceScreenTouch/blob/main/docs/BUILD-UXPLAY.ja.md)')
         [System.IO.File]::WriteAllText((Join-Path $staging $guide.To), $text, [System.Text.UTF8Encoding]::new($false))
     }
     Copy-Item (Join-Path $root 'LICENSE') (Join-Path $staging 'LICENSE.txt')

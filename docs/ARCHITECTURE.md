@@ -35,10 +35,10 @@ IceScreen Touch lets you control an iPhone or iPad from a Windows PC: you click 
 
 ## Video: following the receiver window
 
-- **UxPlay started by the app**: a small patch (`poc/poc1-uxplay/patches/`, GPLv3) makes UxPlay print the size it draws the picture at. UxPlay does not crop the picture, so this gives the exact rectangle.
+- **UxPlay started by the app**: a small patch (`poc/poc1-uxplay/patches/`, GPLv3) makes UxPlay print the size it draws the picture at. UxPlay does not crop the picture, so this gives the exact rectangle. The patch is optional: without it the app reads the picture size from UxPlay's standard debug output (the codec packet lines; the app starts UxPlay with `-d` for this). An unpatched build was verified on a device on 2026-11-09.
 - **A receiver that is already running**: the app captures the window and finds the picture by its black borders (`PictureLocator`). It reads the screen directly when the window is visible, and uses `PrintWindow` when it is covered.
-- **Tested receivers**: only UxPlay, AirServer and LonelyScreen have been tested. The app can follow any other receiver by its process name, but such receivers are not tested or supported yet.
-- **Receiver quirks** (`ReceiverQuirks`): AirServer resizes its own window to the picture; LonelyScreen draws a band along the bottom edge and uneven margins, and flickers on every `PrintWindow`. LonelyScreen counts as mirroring only while a device has a TCP connection to it, so its idle screen is never mistaken for a phone.
+- **Tested receivers**: only 5KPlayer, AirServer, LonelyScreen, Reflector 4 and UxPlay have been tested. The app can follow any other receiver by its process name, but such receivers are not tested or supported yet.
+- **Receiver quirks** (`ReceiverQuirks`): AirServer resizes its own window to the picture; LonelyScreen draws a band along the bottom edge and uneven margins, and flickers on every `PrintWindow`. LonelyScreen counts as mirroring only while a device has a TCP connection to it, so its idle screen is never mistaken for a phone. Reflector 4 and 5KPlayer (its `Airplay.exe`) move their window when the picture is dragged (`MovesWindowOnDrag`): the app keeps the button presses over the picture from them, and Alt + click or drag goes through to the receiver instead of the phone. A receiver hosted by the Windows app frame (AirServer from the Microsoft Store) is followed by the `CoreWindow` inside its `ApplicationFrameWindow`.
 - **Window shape**: for a UxPlay window that is already running, the app reshapes the window to the picture (`WindowShapeFollower`).
 
 ## Keyboard
@@ -72,4 +72,4 @@ The app sends nothing to the internet. The test pages are served on TCP port 800
 
 - The touch path depends on iOS's Zoom accepting digitizer input; an iOS update could change it.
 - The two landscape orientations cannot be told apart automatically.
-- You need a separate AirPlay receiver. Only UxPlay, AirServer and LonelyScreen are tested and supported so far.
+- You need a separate AirPlay receiver. Only 5KPlayer, AirServer, LonelyScreen, Reflector 4 and UxPlay are tested and supported so far.

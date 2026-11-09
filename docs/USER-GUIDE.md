@@ -4,7 +4,7 @@
 
 IceScreen Touch lets you control an iPhone from its mirrored screen on a Windows PC, with the mouse and the keyboard. The PC poses as a Bluetooth touch input device and keyboard: clicks and drags on the mirrored screen go to the iPhone as touches, and the keys you type go to it as keyboard input.
 
-**IceScreen Touch does not receive the video itself.** To show the iPhone's screen on the PC you need a separate AirPlay receiver (AirServer, for example). IceScreen Touch follows that program's window.
+**IceScreen Touch does not receive the video itself.** To show the iPhone's screen on the PC you need a separate AirPlay receiver (see [Installing an AirPlay receiver](#installing-an-airplay-receiver)). IceScreen Touch follows that program's window.
 
 ## What you need
 
@@ -13,7 +13,7 @@ IceScreen Touch lets you control an iPhone from its mirrored screen on a Windows
 | PC | Windows 10 (version 2004 or later) or Windows 11, 64-bit |
 | Bluetooth | An adapter that can act as a BLE peripheral (the accessory role). The setup steps in IceScreen Touch's Status tab tell you whether yours can |
 | iPhone / iPad | Tested with an iPhone (iOS 26) and an iPad Air (iPadOS 18). Connect it to the same network (Wi-Fi) as the PC |
-| AirPlay receiver | A program that receives AirPlay and shows it on the PC (tested with UxPlay, AirServer and LonelyScreen; another receiver can be followed by its process name, but it is not tested or supported yet). Run only one receiver at a time: with two, the iPhone may end up in the other one |
+| AirPlay receiver | A program that receives AirPlay and shows it on the PC. Tested: 5KPlayer, AirServer, LonelyScreen, Reflector 4 and UxPlay (how to get each one: [Installing an AirPlay receiver](#installing-an-airplay-receiver)). Another receiver can be followed by its process name, but it is not tested or supported yet. Run only one receiver at a time: with several running, an entry can be missing from the iPhone's list or the iPhone may end up in another one |
 
 Nothing else needs to be installed, not even .NET.
 
@@ -31,13 +31,114 @@ You can also build it yourself from the source code (see the README of the GitHu
 
 The Store version and a build of your own keep separate settings.
 
+## Installing an AirPlay receiver
+
+IceScreen Touch does not receive the video. A separate program, an AirPlay receiver, shows the iPhone's screen on the PC, and IceScreen Touch follows its window. Install one receiver before the setup steps below.
+
+**About this list**
+
+- IceScreen Touch has no relationship whatsoever with the developers of these programs. It receives no referral fees or any other payments from them.
+- The programs are listed in name order. The order implies no ranking.
+- The links go to the developers' official sites only. Prices and terms are the ones shown on the official sites in November 2026. They can change, so check the official site before you download or buy.
+- Each program is a separate product with its own license, terms and support. The names are trademarks of their owners.
+- They were tested on Windows 11 with an iPhone 15 Pro. Other setups were not tested.
+
+**What applies to all of them**
+
+- Run **only one** receiver at a time. Several receivers running together can get in each other's way, and it is not guaranteed to work. In a test, with UxPlay running together with LonelyScreen and Reflector 4, the iPhone's Screen Mirroring list showed only "LonelyScreen" and the PC's name; UxPlay's name was missing until the other two were closed.
+- The iPhone and the PC must be on the same network.
+- Each receiver shows its own entry in the iPhone's list (Control Center > Screen Mirroring). The name is given in its section below.
+- In IceScreen Touch, the **Status** tab lists the receivers on this PC under "AirPlay receivers on this PC": the ones installed in their usual folders and the ones that are running. Press **Start** to start one, then **Use** so that IceScreen Touch follows it (IceScreen Touch restarts its session). The list updates by itself, or press **Search again**. A receiver installed in another folder appears only while it is running.
+- AirServer from the Microsoft Store can be followed only by IceScreen Touch **0.2.0 or later**. From 0.2.0, 5KPlayer and Reflector 4 are in the receiver list, and dragging over the picture does not move their window.
+
+**At a glance**
+
+| Receiver | Cost (official site, November 2026) | Trial | How to install | Notes |
+|---|---|---|---|---|
+| 5KPlayer | Free | Not applicable (free) | Installer from the official site | Shows a free-registration dialog on start; mirroring worked without registering (the dialog was closed) |
+| AirServer | US$19.99 per PC (consumer license) | The Microsoft Store edition shows "Your AirServer trial will expire in 31 days" on first start | Microsoft Store edition, or the installer edition with winget | Two editions (Store and installer); IceScreen Touch lists them as one "AirServer" |
+| LonelyScreen | US$19.95 per year (Personal Use, subscription) | A free trial can be downloaded | Small downloader from the official site | A firewall prompt appears on first start |
+| Reflector 4 | Not shown on the official product page | 7 days, with a "TRIAL MODE" watermark over the picture until you buy it | Installer from the official site, or winget | Turn off "Show Frame" once (see below) |
+| UxPlay | Free (open source, GPLv3) | Not applicable | Build it yourself from the source code | For those who can build it themselves |
+
+### 5KPlayer
+
+- Developer: DearMob / Digiarty
+- Official site: <https://www.5kplayer.com/>
+- Cost: Free
+- Trial: Not applicable
+- Tested version: 6.11
+
+1. Open the Windows download page, <https://www.5kplayer.com/5kplayer-download-windows.htm>, and download the installer (`5kplayer-64bit.exe`, signed by Digiarty Software, Inc.). Run it.
+2. On first start, 5KPlayer shows a free-registration dialog that asks for a country, a name and an e-mail address. Mirroring worked without registering: the dialog was closed.
+3. On the iPhone, the entry in Screen Mirroring is "5KPlayer-" followed by the PC's name.
+4. In IceScreen Touch, "5KPlayer" appears in the **Status** tab list. **Start** starts 5KPlayer. The picture is shown by a separate program, `Airplay.exe`, which 5KPlayer starts (closing 5KPlayer ends it). The mirror window opens when you start mirroring and closes when mirroring stops. Press **Use**.
+5. The mirror window has no title bar. While IceScreen Touch is in control, dragging the picture does not move it: IceScreen Touch sends the drag to the iPhone, so swipes work. If you want to move the window, hold **Alt** and drag.
+
+### AirServer
+
+- Developer: App Dynamic
+- Official site: <https://www.airserver.com/>
+- Cost: US$19.99 per PC (consumer license: <https://airserver.com/Buy/Consumer>)
+- Trial: The Microsoft Store edition shows "Your AirServer trial will expire in 31 days" with a "Continue Trial" button on first start
+- Tested versions: Microsoft Store edition: 2025.2.20; installer edition (AirServer Universal): 5.7.2
+
+1. Install one of the two editions. Both were tested.
+   - **Microsoft Store edition**: search for "AirServer Windows Desktop Edition" (Store product ID 9NBLGGH52639). The official download page, <https://www.airserver.com/download>, sends Windows 10 users to the Microsoft Store. This edition needs IceScreen Touch 0.2.0 or later.
+   - **Installer edition** (AirServer Universal): install it with `winget install --id AppDynamic.AirServer -e`.
+2. On first start, the Microsoft Store edition shows a trial screen with a "Continue Trial" button. Choose it to try AirServer.
+3. On the iPhone, the entry in Screen Mirroring is the PC's name.
+4. In IceScreen Touch, both editions appear as one row, "AirServer". Press **Use**.
+
+### LonelyScreen
+
+- Developer: IMTIGER Technologies
+- Official site: <https://www.lonelyscreen.com/>
+- Cost: US$19.95 per year (Personal Use, a yearly subscription)
+- Trial: A free trial can be downloaded from <https://www.lonelyscreen.com/download.html>
+- Tested version: 1.2.16
+
+1. Download `lonelyscreen-win-installer.exe` from the download page (a small downloader) and run it. LonelyScreen is installed in `C:\Program Files (x86)\LonelyScreen`.
+2. On first start, Windows shows a firewall prompt that asks whether to allow access. Allow it.
+3. On the iPhone, the entry in Screen Mirroring is "LonelyScreen".
+4. In IceScreen Touch, "LonelyScreen" appears in the **Status** tab list. Press **Start**, then **Use**.
+5. Two LonelyScreen messages are covered in [Troubleshooting](#troubleshooting): flicker, and "blocked by the firewall".
+
+### Reflector 4
+
+- Developer: Squirrels
+- Official site: <https://www.airsquirrels.com/reflector>
+- Cost: Not shown on the official product page
+- Trial: 7 days, with a "TRIAL MODE" watermark over the picture until you buy it. Get it at <https://www.airsquirrels.com/reflector/try>
+- Tested version: 4.1.3
+
+1. Download the trial from the trial page and run the installer. It can also be installed with `winget install --id Squirrels.Reflector.4 -e`.
+2. The installer creates its own firewall rule. No prompt appeared on first start.
+3. On the iPhone, the entry in Screen Mirroring is the PC's name.
+4. In IceScreen Touch, "Reflector 4" appears in the **Status** tab list. Press **Start**, then **Use**. The mirror window opens separately (its title is "Reflector 4 - " followed by the device name) and closes when mirroring stops.
+5. **Turn off the device frame once.** By default Reflector 4 draws a frame around the picture. With the frame shown, IceScreen Touch takes the frame as part of the picture, so taps can land away from where you click. While mirroring, open the settings from the gear icon on the bar under the mirror window (or from the device row's drop-down in the small Reflector window), choose "Frame" and uncheck "Show Frame". The setting is saved.
+6. Reflector 4 moves its mirror window when it is dragged. IceScreen Touch (0.2.0 or later) keeps drags over the picture from Reflector 4 and sends them to the iPhone, so the window stays put and swipes work. If you want to move the window, hold **Alt** and drag.
+
+### UxPlay (for those who can build it themselves)
+
+- Developer: the UxPlay project (open source, GPLv3)
+- Official site: <https://github.com/FDH2/UxPlay>
+- Cost: Free
+- Trial: Not applicable
+- Tested version: the source at commit `b1be2bd` (UxPlay 1.74)
+
+1. You build UxPlay yourself from the source code. The steps are in [Building UxPlay on Windows](BUILD-UXPLAY.md).
+2. On first start, Windows shows a firewall prompt for `uxplay.exe`. Allow it. If you do not, Windows creates a block rule, and the iPhone cannot connect.
+3. On the iPhone, the entry in Screen Mirroring is the **AirPlay name** set in IceScreen Touch's **Settings** tab (the default is "IceScreen Touch").
+4. IceScreen Touch can start UxPlay itself: in the **Settings** tab choose "Start UxPlay" and set the location of `uxplay.exe` (details in the building guide). It then adds the decoder options for low latency by itself.
+
 ## First-time setup
 
-1. Install and start an AirPlay receiver.
-2. Start IceScreen Touch. The **Status** tab shows the state at the top (for example "Ready" or "Waiting for the iPhone"), what to do next, and the numbered **Setup** steps. Work through the steps from the top until each has a green dot. The AirPlay receivers found on this PC are listed under "AirPlay receivers on this PC" (it opens by itself when the receiver needs you).
+1. Install an AirPlay receiver and start it (see [Installing an AirPlay receiver](#installing-an-airplay-receiver)). Run only one.
+2. Start IceScreen Touch. The **Status** tab shows the state at the top (for example "Ready" or "Waiting for the iPhone"), what to do next, and the numbered **Setup** steps. Work through the steps from the top until each has a green dot. The AirPlay receivers found on this PC are listed under "AirPlay receivers on this PC" (it opens by itself when the receiver needs you). Press **Use** on the one you installed.
 3. **Bluetooth**: on the iPhone, open Settings > Bluetooth and choose this PC's name. The first time, confirm the pairing. After that it connects by itself. The list may show this PC's name twice. Pairing only one of them does not bring touches through, so choose and pair both.
 4. **Zoom**: on the iPhone, turn on Settings > Accessibility > Zoom (there is no need to zoom in). **Without Zoom, touches do not arrive.**
-5. **Screen Mirroring**: open Control Center on the iPhone, tap Screen Mirroring and choose the receiver's entry.
+5. **Screen Mirroring**: open Control Center on the iPhone, tap Screen Mirroring and choose the receiver's entry (the name each receiver shows is in its section above).
 6. Click the mirrored screen. If the iPhone responds, you are done.
 
 If touches do not arrive, check with **Test touches** in the **Test** tab (the Zoom step has a button that takes you there). Press the button first, then open the URL it shows in Safari on the iPhone.
@@ -52,6 +153,7 @@ If touches do not arrive, check with **Test touches** in the **Test** tab (the Z
 |---|---|
 | Left click, left drag | Tap, swipe (one finger) |
 | Ctrl + left drag | Pinch (the second finger mirrors the first around the center of the screen) |
+| Alt + click or drag | Passed to the receiver, not sent to the iPhone (to move its window, for example). Works with any receiver (IceScreen Touch 0.2.0 or later) |
 | Right click | Long press (you can keep dragging) |
 | Wheel | Scroll (Shift for sideways) |
 | Home key | Home (sends the Home button key) |
@@ -59,6 +161,8 @@ If touches do not arrive, check with **Test touches** in the **Test** tab (the Z
 | Other keys | Typed on the iPhone (next section) |
 
 The keys work only while the mirror window is in front. When the iPhone is turned sideways, IceScreen Touch cannot tell which of the two landscape orientations it is. If touches land on the opposite side, press Ctrl + R (or "Switch rotation" in the **Status** tab). Touches are reversed as well when an iPad is held upside down in portrait: pressing it in portrait switches 0° ⇄ 180° (180° is not saved; it goes back to 0° when the session starts again).
+
+Reflector 4 and 5KPlayer move their window when you drag the picture. IceScreen Touch keeps those drags for the iPhone, so to move the window of those receivers, hold Alt and drag it.
 
 ## Typing
 
@@ -109,6 +213,10 @@ With a test page opened in Safari on the iPhone, IceScreen Touch can measure the
 | LonelyScreen says it is blocked by the firewall | If mirroring works, it is not: LonelyScreen also says so after its firewall rule was narrowed to the local network |
 | It worked before but no longer connects | On the iPhone, open Settings > Bluetooth, forget this PC and pair again |
 | After an update, neither touches nor Home work | Versions of IceScreen Touch may present a different input device to the iPhone (a Home key and a keyboard were added during 0.1.0). On the iPhone, forget this PC and pair again. If that does not help, also remove the iPhone in Windows Settings > Bluetooth & devices, then pair again |
+| The receiver does not appear in the iPhone's Screen Mirroring list | Is the receiver running, and is it the only one? With several receivers running, an entry can be missing (in a test, UxPlay's name was missing while LonelyScreen and Reflector 4 were running, and appeared after they were closed). Are the iPhone and the PC on the same network? If Windows asked to allow the receiver through the firewall, was it allowed? (For UxPlay, not allowing it creates a block rule, and the iPhone cannot connect: see [Building UxPlay on Windows](BUILD-UXPLAY.md).) |
+| Taps land away from where I click (Reflector 4) | Reflector 4 draws a device frame around the picture by default, and with it taps can land away from where you click. Turn off "Show Frame" in its settings (see [Reflector 4](#reflector-4)) |
+| I cannot move the receiver's window by dragging the picture (Reflector 4, 5KPlayer) | Hold **Alt** and drag. A drag without Alt goes to the iPhone |
+| The Status tab says "a device is connected, but its window was not found" | The mirror window may be minimized. Restore it. This message needs IceScreen Touch 0.2.0 or later |
 
 ## License and notes
 

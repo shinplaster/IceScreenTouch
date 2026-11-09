@@ -1,7 +1,7 @@
 IceScreen Touch - third-party notices
 
 IceScreenTouch.exe bundles the following components. IceScreen Touch does not include an AirPlay receiver;
-the receiver (AirServer, UxPlay, ...) is a separate program that you install yourself.
+the AirPlay receiver that you install yourself is a separate program.
 
 - Avalonia (Avalonia 12.1.5): MIT - https://github.com/AvaloniaUI/Avalonia
 - ANGLE (Avalonia build) (Avalonia.Angle.Windows.Natives 2.1.27548.20260419): BSD-3-Clause - https://chromium.googlesource.com/angle/angle
