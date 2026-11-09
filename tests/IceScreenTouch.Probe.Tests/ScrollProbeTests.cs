@@ -59,7 +59,10 @@ public sealed class ScrollProbeTests
 
         Assert.False(engine.IsScrolling);
         Assert.Equal(1, engine.Stats.Scrolls);
-        Assert.True(sink.Reports > 10, $"{sink.Reports} reports");
+        // The playback runs on the real clock with 4 ms delays, which Windows rounds up to its timer tick (about
+        // 15.6 ms), so the number of reports depends on the machine (a CI runner once sent exactly 10). Only the
+        // minimum is fixed: the finger goes down, moves with the wheel and lifts.
+        Assert.True(sink.Reports >= 3, $"{sink.Reports} reports");
     }
 
     private sealed class CountingSink : Core.ITouchSink
