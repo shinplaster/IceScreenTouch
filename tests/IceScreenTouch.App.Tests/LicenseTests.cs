@@ -120,7 +120,7 @@ public sealed class LicenseLinesTests
     private static readonly CultureInfo Ja = CultureInfo.GetCultureInfo("ja-JP");
 
     [Theory]
-    [InlineData(24 * 60, "あと 24 時間")]
+    [InlineData((24 * 60) - 1, "あと 23 時間")] // 23h59m: still hours
     [InlineData((23 * 60) + 24, "あと 23 時間")] // 23.4 hours: rounded down
     [InlineData(60, "あと 1 時間")]
     [InlineData(59, "あと 59 分")] // under an hour: minutes, never "0 hours"
@@ -130,6 +130,32 @@ public sealed class LicenseLinesTests
         var text = LicenseLines.TrialRemaining(Now.AddMinutes(minutesLeft), Now, Tokyo, Ja);
 
         Assert.StartsWith("試用中: " + expected, text, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(7 * 24 * 60, "あと 7 日")]
+    [InlineData((6 * 24 * 60) + (23 * 60), "あと 6 日")] // 6 days 23 hours: rounded down
+    [InlineData(48 * 60, "あと 2 日")]
+    [InlineData((48 * 60) - 1, "あと 1 日")] // 47h59m: singular
+    [InlineData(24 * 60, "あと 1 日")]
+    public void FromADayOnDaysAreCountedAndRoundedDown(int minutesLeft, string expected)
+    {
+        var text = LicenseLines.TrialRemaining(Now.AddMinutes(minutesLeft), Now, Tokyo, Ja);
+
+        Assert.StartsWith("試用中: " + expected + "（", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DaysUseTheSingularInEnglishAndHoursTakeOverUnderADay()
+    {
+        using var _ = new UiCulture("en-US");
+
+        Assert.StartsWith("Trial: 7 days left (until Nov 15, ", LicenseLines.TrialRemaining(Now.AddDays(7), Now, Tokyo, En), StringComparison.Ordinal);
+        Assert.StartsWith("Trial: 6 days left (until ", LicenseLines.TrialRemaining(Now.AddMinutes((6 * 24 * 60) + (23 * 60)), Now, Tokyo, En), StringComparison.Ordinal);
+        Assert.StartsWith("Trial: 2 days left (until ", LicenseLines.TrialRemaining(Now.AddHours(48), Now, Tokyo, En), StringComparison.Ordinal);
+        Assert.StartsWith("Trial: 1 day left (until ", LicenseLines.TrialRemaining(Now.AddMinutes((48 * 60) - 1), Now, Tokyo, En), StringComparison.Ordinal);
+        Assert.StartsWith("Trial: 1 day left (until ", LicenseLines.TrialRemaining(Now.AddHours(24), Now, Tokyo, En), StringComparison.Ordinal);
+        Assert.StartsWith("Trial: 23 hours left (until ", LicenseLines.TrialRemaining(Now.AddMinutes((24 * 60) - 1), Now, Tokyo, En), StringComparison.Ordinal);
     }
 
     [Fact]
