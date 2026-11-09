@@ -228,15 +228,19 @@ public sealed class ApiController : IDisposable
         IInputLease? lease = null;
         try
         {
-            lease = await _host.AcquireInputAsync(cancellationToken).ConfigureAwait(false);
+            lease = await AcquireInputAsync(handle, cancellationToken).ConfigureAwait(false);
             var session = new ApiSession(this, handle, lease, started, cancellationToken);
             lease = null; // owned by the session now
             handle = null;
             return Finish(ApiResult.Ok<ApiSession>(session));
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || handle?.Token.IsCancellationRequested == true)
         {
             return Finish(ApiResult.Fail<ApiSession>(ApiError.Create(ApiErrorCodes.Cancelled, "the request was cancelled")));
+        }
+        catch (InputRefusedException ex)
+        {
+            return Finish(ApiResult.Fail<ApiSession>(ApiError.Create(ex.Code, ex.Message)));
         }
         finally
         {
@@ -691,7 +695,7 @@ LimitTotal(EstimateTypingMs(text, interval), "split the text into several reques
 
             if ((spec.Needs & Needs.Input) != 0)
             {
-                lease = await _host.AcquireInputAsync(cancellationToken).ConfigureAwait(false);
+                lease = await AcquireInputAsync(handle, cancellationToken).ConfigureAwait(false);
             }
 
             // The caller's token and the user's input fire on whatever thread cancels them (Kestrel, the mouse hook,
@@ -722,10 +726,15 @@ LimitTotal(EstimateTypingMs(text, interval), "split the text into several reques
                 return ApiResult.Fail<T>(ex.Error);
             }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || handle.Token.IsCancellationRequested)
         {
             // The caller went away while the lease was being taken.
             return ApiResult.Fail<T>(ApiError.Create(ApiErrorCodes.Cancelled, "the request was cancelled"));
+        }
+        catch (InputRefusedException ex)
+        {
+            // The bridge refused the input: the user is in the middle of a gesture, or the bridge is suspended or busy.
+            return ApiResult.Fail<T>(ApiError.Create(ex.Code, ex.Message));
         }
         finally
         {
@@ -744,6 +753,14 @@ LimitTotal(EstimateTypingMs(text, interval), "split the text into several reques
                 Release(handle);
             }
         }
+    }
+
+    // The handle's token joins the caller's: POST /v1/cancel or a server stop (CancelCurrent, Dispose) also ends a
+    // wait for the bridge's answer, so the gate always opens again.
+    private async ValueTask<IInputLease> AcquireInputAsync(Handle handle, CancellationToken cancellationToken)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, handle.Token);
+        return await _host.AcquireInputAsync(linked.Token).ConfigureAwait(false);
     }
 
     /// <summary>Why a cancelled operation stopped: the user wins over a cancel.</summary>

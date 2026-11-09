@@ -50,7 +50,8 @@ public sealed class KeyboardInput : IAsyncDisposable
     /// <param name="layout">The device's hardware keyboard layout.</param>
     /// <param name="log">Problems and, with <paramref name="verbose"/>, every report (without the keys).</param>
     /// <param name="verbose">Log every report sent (how many keys are held, never which ones).</param>
-    public static KeyboardInput Start(IKeyboardSink? sink, Func<bool> mirrorFocused, bool forward, HidKeyboardLayout layout, Action<string> log, bool verbose = false)
+    /// <param name="arbiter">Gives the keyboard to the external API on request and keeps the user's keys back meanwhile (see <see cref="KeyboardRelay.RunAsync"/>); null = no API.</param>
+    public static KeyboardInput Start(IKeyboardSink? sink, Func<bool> mirrorFocused, bool forward, HidKeyboardLayout layout, Action<string> log, bool verbose = false, ApiInputArbiter? arbiter = null)
     {
         ArgumentNullException.ThrowIfNull(log);
         var input = new KeyboardInput(mirrorFocused);
@@ -74,7 +75,7 @@ public sealed class KeyboardInput : IAsyncDisposable
         {
             var relay = new KeyboardRelay();
             var token = input._stop.Token;
-            input._relay = Task.Run(() => relay.RunAsync(input._events.Reader, sink!, verbose ? log : null, log, token), CancellationToken.None);
+            input._relay = Task.Run(() => relay.RunAsync(input._events.Reader, sink!, verbose ? log : null, log, arbiter, token), CancellationToken.None);
         }
 
         return input;

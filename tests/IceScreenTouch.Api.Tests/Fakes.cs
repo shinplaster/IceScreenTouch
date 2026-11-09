@@ -149,6 +149,12 @@ internal sealed class FakeHost : IApiHost
 
     public bool LeaseDisposeThrows { get; set; }
 
+    /// <summary>When set, <see cref="AcquireInputAsync"/> refuses with it (the bridge says the user is active).</summary>
+    public InputRefusedException? RefuseInput { get; set; }
+
+    /// <summary>When true, <see cref="AcquireInputAsync"/> never answers (the bridge loop is gone) until its token is cancelled.</summary>
+    public bool AcquireBlocks { get; set; }
+
     public SyncList<FakeLease> Leases { get; } = [];
 
     public FakeLease? Lease => Leases.Count == 0 ? null : Leases[^1];
@@ -174,10 +180,26 @@ internal sealed class FakeHost : IApiHost
     public ValueTask<IInputLease> AcquireInputAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (RefuseInput is { } refusal)
+        {
+            throw refusal;
+        }
+
+        if (AcquireBlocks)
+        {
+            return new ValueTask<IInputLease>(Block(cancellationToken));
+        }
+
         var lease = new FakeLease(Journal) { ThrowOnDispose = LeaseDisposeThrows };
         Leases.Add(lease);
         Journal.Add("lease:acquired");
         return ValueTask.FromResult<IInputLease>(lease);
+    }
+
+    private static async Task<IInputLease> Block(CancellationToken cancellationToken)
+    {
+        await Task.Delay(Timeout.Infinite, cancellationToken);
+        throw new InvalidOperationException("unreachable");
     }
 
     public void SetRotation(Rotation? landscape, Rotation? portrait)

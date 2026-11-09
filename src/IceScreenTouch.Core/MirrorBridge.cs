@@ -45,7 +45,11 @@ public enum BridgeCommandKind
 /// <summary>A request to the bridge loop.</summary>
 /// <param name="Kind">What to do.</param>
 /// <param name="Rotation">The rotation for <see cref="BridgeCommandKind.SetRotation"/>.</param>
-public readonly record struct BridgeCommand(BridgeCommandKind Kind, Rotation Rotation = Rotation.R0);
+/// <param name="FromApi">
+/// The command comes from the external API, not from the user: it is applied at once even while the API holds the
+/// input (see <see cref="ApiInputArbiter"/>), and it does not count as user input.
+/// </param>
+public readonly record struct BridgeCommand(BridgeCommandKind Kind, Rotation Rotation = Rotation.R0, bool FromApi = false);
 
 /// <summary>What the bridge saw in its last tick (immutable; safe to read from any thread).</summary>
 /// <param name="Window">The mirror window (0 = none).</param>
@@ -112,8 +116,19 @@ public sealed class MirrorBridge
     private TaskCompletionSource? _suspendAck;
     private bool _suspended;
     private bool _publishFailureLogged;
+    private readonly ApiInputArbiter? _arbiter;
 
-    /// <summary>Creates a bridge. <paramref name="input"/> is written by the OS hook.</summary>
+    // What the user did while the external API held the input; processed in order once it is given back.
+    private readonly Queue<MouseInputEvent> _replay = new();
+    private readonly List<BridgeCommand> _heldCommands = [];
+    private int _heldHome;
+    private int _heldRotate;
+
+    /// <summary>
+    /// Creates a bridge. <paramref name="input"/> is written by the OS hook. With an <paramref name="arbiter"/>, the
+    /// bridge gives the input to the external API on request (and keeps the user's input back meanwhile); without one it
+    /// behaves as before.
+    /// </summary>
     public MirrorBridge(
         TouchGestureEngine engine,
         IVideoSource video,
@@ -121,7 +136,8 @@ public sealed class MirrorBridge
         ChannelReader<MouseInputEvent> input,
         BridgeOptions? options = null,
         TimeProvider? time = null,
-        Action<string>? log = null)
+        Action<string>? log = null,
+        ApiInputArbiter? arbiter = null)
     {
         ArgumentNullException.ThrowIfNull(engine);
         ArgumentNullException.ThrowIfNull(video);
@@ -134,6 +150,7 @@ public sealed class MirrorBridge
         _options = options ?? new BridgeOptions();
         _time = time ?? TimeProvider.System;
         _log = log ?? (_ => { });
+        _arbiter = arbiter;
     }
 
     /// <summary>The engine that turns presses and moves into touch reports. Use it from the bridge loop only.</summary>
@@ -173,6 +190,7 @@ public sealed class MirrorBridge
         lock (_suspendLock)
         {
             _suspendRequests++;
+            _arbiter?.SetSuspendWanted(true);
             if (_suspended && _suspendAck is null)
             {
                 return Task.CompletedTask;
@@ -191,6 +209,7 @@ public sealed class MirrorBridge
             if (_suspendRequests > 0)
             {
                 _suspendRequests--;
+                _arbiter?.SetSuspendWanted(_suspendRequests > 0 || _suspended);
             }
         }
     }
@@ -209,6 +228,11 @@ public sealed class MirrorBridge
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // Normal shutdown. The caller lifts a finger still down with Engine.AbortAsync.
+        }
+        finally
+        {
+            // Nobody answers the external API any more (stopped or failed): refuse it, interrupt a lease it holds.
+            _arbiter?.Close();
         }
     }
 
@@ -242,6 +266,11 @@ public sealed class MirrorBridge
 
         var picture = window == 0 ? null : MeasurePicture(window);
         Picture = picture;
+        if (_arbiter is not null && await ApiStageAsync(window, picture, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
         if (picture is not { } rect)
         {
             // Nothing to click on: lift a finger that is down and drop the pending clicks.
@@ -255,13 +284,15 @@ public sealed class MirrorBridge
             {
             }
 
+            _replay.Clear();
+            _heldHome = _heldRotate = 0;
             _prevHome = _prevRotate = false;
             DrainShortcutPresses();
             await RunCommandsAsync(null, cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        while (_input.TryRead(out var e))
+        while (TryReadEvent(out var e))
         {
             switch (e.Kind)
             {
@@ -269,6 +300,7 @@ public sealed class MirrorBridge
                     await OnPressAsync(window, rect, e, cancellationToken).ConfigureAwait(false);
                     break;
                 case MouseInputKind.Release when Engine.IsDown && e.Button == _activeButton:
+                    _arbiter?.StampUserInput();
                     await Engine.ReleaseAsync(e.Position, rect, cancellationToken).ConfigureAwait(false);
                     Verbose(string.Create(CultureInfo.InvariantCulture, $"[touch] up    held {Engine.Stats.LastHold.TotalMilliseconds:0} ms"));
                     break;
@@ -308,6 +340,7 @@ public sealed class MirrorBridge
             {
                 _suspended = false;
                 resumed = true;
+                _arbiter?.SetSuspendWanted(false);
             }
         }
 
@@ -332,6 +365,14 @@ public sealed class MirrorBridge
 
         if (!_suspended)
         {
+            if (_arbiter is { HoldsInput: true })
+            {
+                // The probe wants the phone while the external API has it: interrupt the API like a user would, and
+                // suspend once it has given the input back (the tick goes on as a normal one).
+                _arbiter.InterruptForProbe();
+                return false;
+            }
+
             if (Engine.IsDown || Engine.IsScrolling)
             {
                 await Engine.AbortAsync(cancellationToken).ConfigureAwait(false);
@@ -344,6 +385,8 @@ public sealed class MirrorBridge
         while (_input.TryRead(out _))
         {
         }
+
+        DropHeldInput();
 
         while (_commands.TryDequeue(out var dropped))
         {
@@ -368,24 +411,13 @@ public sealed class MirrorBridge
 
     private async ValueTask OnPressAsync(nint window, RectD picture, MouseInputEvent e, CancellationToken cancellationToken)
     {
-        // A press made with Alt held is for the receiver (the hook lets it through): not a touch, a long press or a pinch.
-        if (e.Alt)
+        if (!PressCounts(window, picture, e))
         {
             return;
         }
 
+        _arbiter?.StampUserInput();
         var longPress = e.Button == MouseButton.Right;
-        if (longPress && !_options.RightButtonLongPress)
-        {
-            return;
-        }
-
-        // A press over the picture only counts if no other window covers it there.
-        if (!picture.Contains(e.Position) || !_desktop.IsVisibleAt(window, e.Position))
-        {
-            return;
-        }
-
         if (Engine.IsScrolling)
         {
             // A click ends the wheel scroll at once.
@@ -419,7 +451,7 @@ public sealed class MirrorBridge
         // nothing else came between.
         double x = 0, y = 0;
         Add(first);
-        while (_input.TryPeek(out var next) && next.Kind == MouseInputKind.Wheel && _input.TryRead(out next))
+        while (TryPeekEvent(out var next) && next.Kind == MouseInputKind.Wheel && TryReadEvent(out next))
         {
             Add(next);
         }
@@ -428,6 +460,8 @@ public sealed class MirrorBridge
         {
             return;
         }
+
+        _arbiter?.StampUserInput();
 
         var started = !Engine.IsScrolling;
         var result = await Engine.WheelAsync(first.Position, picture, x, y, cancellationToken).ConfigureAwait(false);
@@ -468,7 +502,13 @@ public sealed class MirrorBridge
         // and a press the desktop saw as held a tick before it was counted must not fire on both ticks (review,
         // 2026-11-07).
         var home = _desktop.IsKeyDown(ShortcutKey.Home) && focused;
-        var homeFires = Fires(homePresses, focused, home, _prevHome);
+        var homeFires = Fires(homePresses, focused, home, _prevHome) + _heldHome; // held: pressed while the API had the input
+        _heldHome = 0;
+        if (homeFires > 0)
+        {
+            _arbiter?.StampUserInput();
+        }
+
         for (var i = 0; i < homeFires; i++)
         {
             if (await Engine.HomeAsync(picture, cancellationToken).ConfigureAwait(false))
@@ -480,7 +520,13 @@ public sealed class MirrorBridge
         _prevHome = home;
 
         var rotate = _desktop.IsKeyDown(ShortcutKey.Rotate) && focused;
-        var rotateFires = Fires(rotatePresses, focused, rotate, _prevRotate);
+        var rotateFires = Fires(rotatePresses, focused, rotate, _prevRotate) + _heldRotate;
+        _heldRotate = 0;
+        if (rotateFires > 0)
+        {
+            _arbiter?.StampUserInput();
+        }
+
         for (var i = 0; i < rotateFires; i++)
         {
             ToggleRotation(picture, "Ctrl+R");
@@ -503,26 +549,184 @@ public sealed class MirrorBridge
 
     private async ValueTask RunCommandsAsync(RectD? picture, CancellationToken cancellationToken)
     {
-        while (_commands.TryDequeue(out var command))
+        if (_heldCommands.Count > 0)
         {
-            switch (command.Kind)
+            // The user's commands from while the API had the input come first.
+            var held = _heldCommands.ToArray();
+            _heldCommands.Clear();
+            foreach (var command in held)
             {
-                case BridgeCommandKind.Home:
-                    // Without a window, the reported picture size still tells portrait from landscape.
-                    var size = _video.VideoSize ?? _options.FallbackVideoSize;
-                    var rect = picture ?? new RectD(0, 0, size.Width, size.Height);
-                    var sent = await Engine.HomeAsync(rect, cancellationToken).ConfigureAwait(false);
-                    _log(string.Create(CultureInfo.InvariantCulture, $"[cmd ] home {(Engine.HomeIsKey ? "key" : "swipe")} {(sent ? "sent" : "not sent (touch in progress or iPhone not subscribed)")} rot={(int)Engine.RotationFor(rect)}"));
-                    break;
-                case BridgeCommandKind.ToggleRotation:
-                    ToggleRotation(picture, "command");
-                    break;
-                case BridgeCommandKind.SetRotation when Enum.IsDefined(command.Rotation):
-                    Engine.LandscapeRotation = command.Rotation;
-                    SetRotation(command.Rotation, "command");
-                    break;
+                await ApplyCommandAsync(command, picture, cancellationToken).ConfigureAwait(false);
             }
         }
+
+        while (_commands.TryDequeue(out var command))
+        {
+            await ApplyCommandAsync(command, picture, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async ValueTask ApplyCommandAsync(BridgeCommand command, RectD? picture, CancellationToken cancellationToken)
+    {
+        if (!command.FromApi)
+        {
+            _arbiter?.StampUserInput();
+        }
+
+        switch (command.Kind)
+        {
+            case BridgeCommandKind.Home:
+                // Without a window, the reported picture size still tells portrait from landscape.
+                var size = _video.VideoSize ?? _options.FallbackVideoSize;
+                var rect = picture ?? new RectD(0, 0, size.Width, size.Height);
+                var sent = await Engine.HomeAsync(rect, cancellationToken).ConfigureAwait(false);
+                _log(string.Create(CultureInfo.InvariantCulture, $"[cmd ] home {(Engine.HomeIsKey ? "key" : "swipe")} {(sent ? "sent" : "not sent (touch in progress or iPhone not subscribed)")} rot={(int)Engine.RotationFor(rect)}"));
+                break;
+            case BridgeCommandKind.ToggleRotation:
+                ToggleRotation(picture, "command");
+                break;
+            case BridgeCommandKind.SetRotation when Enum.IsDefined(command.Rotation):
+                Engine.LandscapeRotation = command.Rotation;
+                SetRotation(command.Rotation, "command");
+                break;
+        }
+    }
+
+    // ---- the external API holds the input ----------------------------------------------------------------------
+
+    // The user's input is held back while the API has the input: it waits in _replay (mouse), _heldHome / _heldRotate
+    // (shortcuts) and _heldCommands (UI commands) and is processed, in this order, by the first normal tick.
+    private bool Holding => _replay.Count > 0 || _heldHome > 0 || _heldRotate > 0 || _heldCommands.Count > 0;
+
+    // Answers a pending acquisition, or, while the API holds the input, keeps the user's input back and reports it.
+    // Returns true when this tick must do nothing else.
+    private async ValueTask<bool> ApiStageAsync(nint window, RectD? picture, CancellationToken cancellationToken)
+    {
+        var arbiter = _arbiter!;
+        var phase = arbiter.Phase;
+        if (phase == ApiInputArbiter.ApiPhase.Idle)
+        {
+            return false;
+        }
+
+        if (phase == ApiInputArbiter.ApiPhase.Acquiring)
+        {
+            // The bridge must be idle: no gesture of the user, nothing of theirs waiting. A refused acquisition leaves
+            // what was read in the queues for the normal tick that follows.
+            if (Engine.IsDown || Engine.IsScrolling || Holding)
+            {
+                return arbiter.CompleteAcquire(false);
+            }
+
+            CollectUserInput(window, picture);
+            var idle = !Holding && _commands.All(c => c.FromApi);
+            if (arbiter.CompleteAcquire(idle))
+            {
+                Verbose("[api  ] the external API has the input");
+                return true;
+            }
+
+            return false;
+        }
+
+        var userInput = CollectUserInput(window, picture);
+        while (_commands.TryDequeue(out var command))
+        {
+            if (command.FromApi)
+            {
+                await ApplyCommandAsync(command, picture, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                _heldCommands.Add(command);
+                userInput = true;
+            }
+        }
+
+        if (userInput)
+        {
+            Verbose("[api  ] user input while the external API has the input: held back");
+            arbiter.NotifyUserInput();
+        }
+
+        return true;
+    }
+
+    // Moves what the user did into the held queues: from the first user input that would reach the device on, every
+    // mouse event is kept (in order). Returns true when there is such input in this tick.
+    private bool CollectUserInput(nint window, RectD? picture)
+    {
+        if (picture is not { } rect)
+        {
+            // Nothing to click on: as in a normal tick, the pending clicks and shortcuts are dropped (the user's
+            // commands, which work without a window, stay).
+            while (_input.TryRead(out _))
+            {
+            }
+
+            _replay.Clear();
+            _heldHome = _heldRotate = 0;
+            _prevHome = _prevRotate = false;
+            DrainShortcutPresses();
+            return false;
+        }
+
+        var found = false;
+        while (_input.TryRead(out var e))
+        {
+            var counts = e.Kind switch
+            {
+                MouseInputKind.Press => PressCounts(window, rect, e),
+                MouseInputKind.Wheel => WheelCounts(window, rect, e),
+                _ => false,
+            };
+            found |= counts;
+            if (counts || Holding)
+            {
+                _replay.Enqueue(e);
+            }
+        }
+
+        var focused = _desktop.IsForeground(window);
+        var homePresses = _desktop.TakeShortcutPresses(ShortcutKey.Home);
+        var rotatePresses = _desktop.TakeShortcutPresses(ShortcutKey.Rotate);
+        var home = _desktop.IsKeyDown(ShortcutKey.Home) && focused;
+        var homeFires = Fires(homePresses, focused, home, _prevHome);
+        _prevHome = home;
+        var rotate = _desktop.IsKeyDown(ShortcutKey.Rotate) && focused;
+        var rotateFires = Fires(rotatePresses, focused, rotate, _prevRotate);
+        _prevRotate = rotate;
+        _heldHome += homeFires;
+        _heldRotate += rotateFires;
+        return found || homeFires > 0 || rotateFires > 0;
+    }
+
+    // A press the bridge turns into a touch: not one made with Alt (that is for the receiver), not a right press when the
+    // long press is off, and over the picture where no other window covers it.
+    private bool PressCounts(nint window, RectD picture, MouseInputEvent e)
+    {
+        if (e.Alt || (e.Button == MouseButton.Right && !_options.RightButtonLongPress))
+        {
+            return false;
+        }
+
+        return picture.Contains(e.Position) && _desktop.IsVisibleAt(window, e.Position);
+    }
+
+    private bool WheelCounts(nint window, RectD picture, MouseInputEvent e) =>
+        _options.WheelScroll && picture.Contains(e.Position) && _desktop.IsVisibleAt(window, e.Position);
+
+    // The user's input that was held back, then the channel (the hook only ever writes to it).
+    private bool TryReadEvent(out MouseInputEvent e) => _replay.TryDequeue(out e) || _input.TryRead(out e);
+
+    private bool TryPeekEvent(out MouseInputEvent e) => _replay.TryPeek(out e) || _input.TryPeek(out e);
+
+    // The probe takes the phone: what was held back is dropped, like the rest of the input.
+    private void DropHeldInput()
+    {
+        _replay.Clear();
+        _heldCommands.Clear();
+        _heldHome = _heldRotate = 0;
     }
 
     // A portrait picture turns upside down (0 <-> 180; not saved: an iPad is rarely kept that way); a landscape one,
@@ -591,6 +795,7 @@ public sealed class MirrorBridge
 
     private void PublishStatus()
     {
+        _arbiter?.SetTouchActive(Engine.IsDown || Engine.IsScrolling || Holding);
         var stats = Engine.Stats;
         _status = new BridgeStatus(
             Window,

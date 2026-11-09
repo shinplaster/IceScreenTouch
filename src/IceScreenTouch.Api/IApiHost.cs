@@ -125,7 +125,9 @@ public interface IApiHost
     /// <para>
     /// If the user's gesture is in progress at this moment (a mouse button or key held, see
     /// <see cref="ApiHostSnapshot.UserInputActive"/>; the snapshot may be a moment old) the host must not start the
-    /// API's input on top of it: it either fails the call or ends the user's gesture first (lifts the user's finger).
+    /// API's input on top of it: it either fails the call with <see cref="InputRefusedException"/> (the controller turns
+    /// it into <c>user_active</c>, or <c>busy</c> for a suspended bridge) or ends the user's gesture first (lifts the
+    /// user's finger). <see cref="ArbiterInput"/> does the former.
     /// <see cref="IInputLease.UserInput"/> may be cancelled from any thread (the mouse hook, the UI thread); the
     /// controller only queues work from its callback.
     /// </para>

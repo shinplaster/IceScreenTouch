@@ -133,8 +133,13 @@ public sealed class KeyboardRelay
     /// <param name="sink">Where the reports go.</param>
     /// <param name="log">Every report sent, without the keys (the verbose log).</param>
     /// <param name="problems">Reports that could not be sent.</param>
+    /// <param name="arbiter">
+    /// Gives the keyboard to the external API on request. While it has it, nothing is sent: the first key press that
+    /// would reach the device interrupts the API, and that event and the ones after it wait (the loop waits, the hook is
+    /// never blocked) until the API gives the keyboard back; then they are applied and sent in order. Null = no API.
+    /// </param>
     /// <param name="cancellationToken">Stops the relay.</param>
-    public async Task RunAsync(ChannelReader<KeyboardInputEvent> input, IKeyboardSink sink, Action<string>? log = null, Action<string>? problems = null, CancellationToken cancellationToken = default)
+    public async Task RunAsync(ChannelReader<KeyboardInputEvent> input, IKeyboardSink sink, Action<string>? log = null, Action<string>? problems = null, ApiInputArbiter? arbiter = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(sink);
@@ -142,18 +147,38 @@ public sealed class KeyboardRelay
         {
             await foreach (var e in input.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
-                if (Apply(e) is { } report && sink.HasKeyboard)
+                var admission = arbiter is null
+                    ? ApiInputArbiter.KeyAdmission.Send
+                    : await arbiter.BeginKeyEventAsync(e.Down && e.Role != KeyRole.Modifier, cancellationToken).ConfigureAwait(false);
+                if (admission == ApiInputArbiter.KeyAdmission.Drop)
                 {
-                    log?.Invoke($"[keys] {report.Redacted()}");
-                    try
+                    continue; // a key pressed for the phone while the probe takes it: not applied, so nothing is left held
+                }
+
+                KeyboardReport? report = null;
+                try
+                {
+                    report = Apply(e);
+                    if (admission == ApiInputArbiter.KeyAdmission.Send && report is not null && sink.HasKeyboard)
                     {
-                        await sink.SendKeyboardAsync(report.Modifiers, report.Keys.ToArray(), cancellationToken).ConfigureAwait(false);
-                    }
+                        log?.Invoke($"[keys] {report.Redacted()}");
+                        try
+                        {
+                            await sink.SendKeyboardAsync(report.Modifiers, report.Keys.ToArray(), cancellationToken).ConfigureAwait(false);
+                        }
 #pragma warning disable CA1031 // The hook keeps taking the keys while the relay runs: one failed send must not end it.
-                    catch (Exception ex) when (ex is not OperationCanceledException)
+                        catch (Exception ex) when (ex is not OperationCanceledException)
 #pragma warning restore CA1031
+                        {
+                            problems?.Invoke($"[keys] cannot send a key report: {ex.GetType().Name}: {ex.Message}");
+                        }
+                    }
+                }
+                finally
+                {
+                    if (admission == ApiInputArbiter.KeyAdmission.Send)
                     {
-                        problems?.Invoke($"[keys] cannot send a key report: {ex.GetType().Name}: {ex.Message}");
+                        arbiter?.EndKeyEvent(HeldKeys > 0, report is not null);
                     }
                 }
             }
@@ -163,6 +188,7 @@ public sealed class KeyboardRelay
         }
         finally
         {
+            arbiter?.KeysReleased();
             if (ReleaseAll() is { } released && sink.HasKeyboard)
             {
                 using var timeout = new CancellationTokenSource(ReleaseSend.Grace);
