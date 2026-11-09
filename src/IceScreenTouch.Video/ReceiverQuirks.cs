@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 namespace IceScreenTouch.Video;
 
 /// <summary>What is known about particular receivers whose windows are followed (by process name, without .exe).</summary>

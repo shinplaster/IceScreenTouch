@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 namespace IceScreenTouch.Core;
 
 /// <summary>Keyboard shortcuts of the bridge. They only count while the mirror window has the focus.</summary>

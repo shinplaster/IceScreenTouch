@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 namespace IceScreenTouch.App.Services;
 
 /// <summary>How the app would use a receiver it found.</summary>

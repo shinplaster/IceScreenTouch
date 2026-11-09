@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 """PoC 2: Windows PC as a BLE HID peripheral that injects input into an iPhone.
 
 The PC advertises HID-over-GATT (service 0x1812) with two input reports:

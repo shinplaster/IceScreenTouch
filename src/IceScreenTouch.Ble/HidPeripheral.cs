@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
 using IceScreenTouch.Core;

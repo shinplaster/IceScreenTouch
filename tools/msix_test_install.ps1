@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 <#
 .SYNOPSIS
     TEST ONLY: installs the unsigned test MSIX of IceScreen Touch on this PC (or removes it again). Not part of any release.

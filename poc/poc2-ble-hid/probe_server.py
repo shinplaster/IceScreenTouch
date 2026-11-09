@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 """Tiny HTTP server that serves a touch-probe page and collects the events it reports.
 
 Open http://<PC-IP>:<port>/ in iPhone Safari. Every pointer event the page receives is

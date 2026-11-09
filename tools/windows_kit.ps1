@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 # Dot-sourced by tools/publish.ps1 (-Msix) and tools/msix_test_install.ps1: finds a tool of the Windows SDK
 # (makeappx.exe, makepri.exe, signtool.exe).
 

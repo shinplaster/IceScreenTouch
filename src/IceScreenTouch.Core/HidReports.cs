@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 namespace IceScreenTouch.Core;
 
 /// <summary>One finger in a touch report. X and Y are 0..<see cref="HidConstants.AxisMax"/>.</summary>

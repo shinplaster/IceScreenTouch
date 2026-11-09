@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 using System.Collections.ObjectModel;
 using System.Globalization;
 using IceScreenTouch.App.Logging;

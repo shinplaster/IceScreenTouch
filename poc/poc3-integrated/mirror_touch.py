@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 """PoC 3: mirror an iPhone with UxPlay and control it by clicking the video window.
 
   video : iPhone --AirPlay--> UxPlay (d3d11videosink window, resized to follow rotation)

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 namespace IceScreenTouch.Core;
 
 /// <summary>Timing rules of the mouse-to-touch bridge (all verified on a real iPhone in PoC 3).</summary>

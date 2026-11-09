@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 <#
 .SYNOPSIS
     Builds IceScreen Touch from the source: one self-contained IceScreenTouch.exe, checked and zipped (and, with

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 # Narrows existing inbound ALLOW rules for the given programs so that they only accept connections from the
 # local subnet. Rules are changed in place (names, ports and profiles stay), so an uninstaller that removes its
 # own rules by name still finds them. Rules that already restrict the remote address are left alone.

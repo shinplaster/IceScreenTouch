@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 """Minimal ctypes wrappers for the Win32 calls PoC 3 needs (no pywin32 dependency)."""
 
 from __future__ import annotations

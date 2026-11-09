@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 <#
 .SYNOPSIS
     Builds the app icon (IceScreenTouch.ico) from the SVG sources in docs/brand.

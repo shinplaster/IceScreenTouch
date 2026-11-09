@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 """End-to-end check of TouchBridge using real Win32 input against a stand-in window.
 
 A tkinter window plays the role of the UxPlay window. Synthetic mouse input is injected with

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 """Find what in a collected uxplay log depends on the phone's orientation.
 
 Record a log with:  .\\run.ps1 --collect -v   and type `mark <label>` in the console right after

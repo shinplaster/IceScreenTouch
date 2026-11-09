@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 namespace IceScreenTouch.Probe;
 
 /// <summary>Which probe page a measurement needs.</summary>

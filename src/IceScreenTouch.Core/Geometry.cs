@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 namespace IceScreenTouch.Core;
 
 /// <summary>A point in screen pixels, or in picture units (0..1) depending on context.</summary>

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 # Start PoC 3: UxPlay mirror window + BLE HID touch bridge.
 # Usage: .\run.ps1 [-v] [--dry-run] [--no-uxplay] ...   (all arguments are passed to mirror_touch.py)
 # Quit any running poc/poc2-ble-hid instance first; it would hold the same GATT services.

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 using System.Collections.Concurrent;
 using System.Drawing;
 using System.Threading.Channels;

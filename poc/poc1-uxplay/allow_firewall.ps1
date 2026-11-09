@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 # Run elevated. Replaces the auto-generated "Query User" BLOCK rules for the locally built uxplay.exe
 # with a single ALLOW rule that only accepts connections from the local subnet.
 param(

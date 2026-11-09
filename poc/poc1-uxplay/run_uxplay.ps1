@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 # Launch the locally built UxPlay (AirPlay mirroring receiver) with the MSYS2 UCRT64 runtime on PATH.
 # Usage: .\run_uxplay.ps1 [-Name iScrMirror] [-Sink d3d11videosink] [-Decoder ""] [-Debug] [-ExtraArgs "..."]
 param(

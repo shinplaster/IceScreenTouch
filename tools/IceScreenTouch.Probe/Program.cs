@@ -1,4 +1,7 @@
-﻿using System.Globalization;
+﻿// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
+using System.Globalization;
 using IceScreenTouch.Ble;
 using IceScreenTouch.Core;
 using IceScreenTouch.Probe;

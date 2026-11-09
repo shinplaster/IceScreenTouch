@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 namespace IceScreenTouch.Video;
 
 /// <summary>An AirPlay receiver the app knows how to find and start.</summary>

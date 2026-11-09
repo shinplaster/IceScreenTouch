@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 """Pure geometry / log-parsing helpers (no Windows or Bluetooth dependencies)."""
 
 from __future__ import annotations

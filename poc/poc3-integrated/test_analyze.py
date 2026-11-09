@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 """Check analyze_orientation_log.py against a synthetic log with a known orientation-dependent field."""
 
 import subprocess

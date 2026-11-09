@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 """Offline checks for geometry.py. Run: ..\\poc2-ble-hid\\.venv\\Scripts\\python.exe test_geometry.py"""
 
 from geometry import (

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 using IceScreenTouch.App.ViewModels;
 using IceScreenTouch.Core;
 

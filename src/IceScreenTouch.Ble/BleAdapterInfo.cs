@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 using Windows.Devices.Bluetooth;
 
 namespace IceScreenTouch.Ble;

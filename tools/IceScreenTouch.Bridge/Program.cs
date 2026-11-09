@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 using IceScreenTouch.Ble;
 using IceScreenTouch.Bridge;
 using IceScreenTouch.Platform.Windows;

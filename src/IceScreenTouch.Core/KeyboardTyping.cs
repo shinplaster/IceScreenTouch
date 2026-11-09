@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 namespace IceScreenTouch.Core;
 
 /// <summary>Pressing keys and typing text through an <see cref="IKeyboardSink"/> (the probe and the console tools).</summary>

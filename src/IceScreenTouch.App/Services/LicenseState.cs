@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 namespace IceScreenTouch.App.Services;
 
 /// <summary>Where the app stands with its Microsoft Store license.</summary>

@@ -1,4 +1,7 @@
-﻿using IceScreenTouch.Core;
+﻿// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
+using IceScreenTouch.Core;
 
 namespace IceScreenTouch.Core.Tests;
 

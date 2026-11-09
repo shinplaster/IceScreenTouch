@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 using System.Net;
 using System.Text;
 using IceScreenTouch.Probe;

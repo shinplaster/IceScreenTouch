@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Shin-plaster
+# SPDX-License-Identifier: MIT
+
 # Run elevated. Lets the probe page server (IceScreenTouch.Probe.exe by default, or IceScreenTouch.exe with -Exe;
 # TCP 8000 by default) accept connections from the local subnet only, and removes any other inbound rules
 # for the same program (for example the ones the "allow access" dialog creates, which allow every remote

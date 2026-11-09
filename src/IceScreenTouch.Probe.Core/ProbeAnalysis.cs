@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Shin-plaster
+// SPDX-License-Identifier: MIT
+
 namespace IceScreenTouch.Probe;
 
 /// <summary>A tap the PC sent: digitizer position and the send time (<see cref="ProbeClock"/>).</summary>
