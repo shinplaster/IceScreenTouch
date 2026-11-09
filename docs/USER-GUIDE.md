@@ -53,21 +53,17 @@ IceScreen Touch does not receive the video. A separate program, an AirPlay recei
 
 **At a glance**
 
-| Receiver | Cost (official site, November 2026) | Trial | How to install | Notes |
-|---|---|---|---|---|
-| 5KPlayer | Free | Not applicable (free) | Installer from the official site | Shows a free-registration dialog on start; mirroring worked without registering (the dialog was closed) |
-| AirServer | US$19.99 per PC (consumer license) | The Microsoft Store edition shows "Your AirServer trial will expire in 31 days" on first start | Microsoft Store edition, or the installer edition with winget | Two editions (Store and installer); IceScreen Touch lists them as one "AirServer" |
-| LonelyScreen | US$19.95 per year (Personal Use, subscription) | A free trial can be downloaded | Small downloader from the official site | A firewall prompt appears on first start |
-| Reflector 4 | Not shown on the official product page | 7 days, with a "TRIAL MODE" watermark over the picture until you buy it | Installer from the official site, or winget | Turn off "Show Frame" once (see below) |
-| UxPlay | Free (open source, GPLv3) | Not applicable | Build it yourself from the source code | For those who can build it themselves |
+Each receiver's name links to its developer's official site.
+
+| Receiver | Developer | Cost (official site, November 2026) | Trial | Tested version | How to install | Notes |
+|---|---|---|---|---|---|---|
+| [5KPlayer](https://www.5kplayer.com/) | DearMob / Digiarty | Free | Not applicable (free) | 6.11 | Installer from the official site | Shows a free-registration dialog on start; mirroring worked without registering (the dialog was closed) |
+| [AirServer](https://www.airserver.com/) | App Dynamic | US$19.99 per PC ([consumer license](https://airserver.com/Buy/Consumer)) | The Microsoft Store edition shows "Your AirServer trial will expire in 31 days" with a "Continue Trial" button on first start | Microsoft Store edition: 2025.2.20<br>Installer edition (AirServer Universal): 5.7.2 | Microsoft Store edition, or the installer edition with winget | Two editions (Store and installer); IceScreen Touch lists them as one "AirServer" |
+| [LonelyScreen](https://www.lonelyscreen.com/) | IMTIGER Technologies | US$19.95 per year (Personal Use, a yearly subscription) | A free trial can be downloaded from the [download page](https://www.lonelyscreen.com/download.html) | 1.2.16 | Small downloader from the official site | A firewall prompt appears on first start |
+| [Reflector 4](https://www.airsquirrels.com/reflector) | Squirrels | Not shown on the official product page | 7 days, with a "TRIAL MODE" watermark over the picture until you buy it ([trial page](https://www.airsquirrels.com/reflector/try)) | 4.1.3 | Installer from the official site, or winget | Turn off "Show Frame" once (see below) |
+| [UxPlay](https://github.com/FDH2/UxPlay) | The UxPlay project | Free (open source, GPLv3) | Not applicable | The source at commit `b1be2bd` (UxPlay 1.74) | Build it yourself from the source code | For those who can build it themselves |
 
 ### 5KPlayer
-
-- Developer: DearMob / Digiarty
-- Official site: <https://www.5kplayer.com/>
-- Cost: Free
-- Trial: Not applicable
-- Tested version: 6.11
 
 1. Open the Windows download page, <https://www.5kplayer.com/5kplayer-download-windows.htm>, and download the installer (`5kplayer-64bit.exe`, signed by Digiarty Software, Inc.). Run it.
 2. On first start, 5KPlayer shows a free-registration dialog that asks for a country, a name and an e-mail address. Mirroring worked without registering: the dialog was closed.
@@ -76,12 +72,6 @@ IceScreen Touch does not receive the video. A separate program, an AirPlay recei
 5. The mirror window has no title bar. While IceScreen Touch is in control, dragging the picture does not move it: IceScreen Touch sends the drag to the iPhone, so swipes work. If you want to move the window, hold **Alt** and drag.
 
 ### AirServer
-
-- Developer: App Dynamic
-- Official site: <https://www.airserver.com/>
-- Cost: US$19.99 per PC (consumer license: <https://airserver.com/Buy/Consumer>)
-- Trial: The Microsoft Store edition shows "Your AirServer trial will expire in 31 days" with a "Continue Trial" button on first start
-- Tested versions: Microsoft Store edition: 2025.2.20; installer edition (AirServer Universal): 5.7.2
 
 1. Install one of the two editions. Both were tested.
    - **Microsoft Store edition**: search for "AirServer Windows Desktop Edition" (Store product ID 9NBLGGH52639). The official download page, <https://www.airserver.com/download>, sends Windows 10 users to the Microsoft Store. This edition needs IceScreen Touch 0.2.0 or later.
@@ -92,13 +82,7 @@ IceScreen Touch does not receive the video. A separate program, an AirPlay recei
 
 ### LonelyScreen
 
-- Developer: IMTIGER Technologies
-- Official site: <https://www.lonelyscreen.com/>
-- Cost: US$19.95 per year (Personal Use, a yearly subscription)
-- Trial: A free trial can be downloaded from <https://www.lonelyscreen.com/download.html>
-- Tested version: 1.2.16
-
-1. Download `lonelyscreen-win-installer.exe` from the download page (a small downloader) and run it. LonelyScreen is installed in `C:\Program Files (x86)\LonelyScreen`.
+1. Download `lonelyscreen-win-installer.exe` from the [download page](https://www.lonelyscreen.com/download.html) (a small downloader) and run it. LonelyScreen is installed in `C:\Program Files (x86)\LonelyScreen`.
 2. On first start, Windows shows a firewall prompt that asks whether to allow access. Allow it.
 3. On the iPhone, the entry in Screen Mirroring is "LonelyScreen".
 4. In IceScreen Touch, "LonelyScreen" appears in the **Status** tab list. Press **Start**, then **Use**.
@@ -106,13 +90,7 @@ IceScreen Touch does not receive the video. A separate program, an AirPlay recei
 
 ### Reflector 4
 
-- Developer: Squirrels
-- Official site: <https://www.airsquirrels.com/reflector>
-- Cost: Not shown on the official product page
-- Trial: 7 days, with a "TRIAL MODE" watermark over the picture until you buy it. Get it at <https://www.airsquirrels.com/reflector/try>
-- Tested version: 4.1.3
-
-1. Download the trial from the trial page and run the installer. It can also be installed with `winget install --id Squirrels.Reflector.4 -e`.
+1. Download the trial from the [trial page](https://www.airsquirrels.com/reflector/try) and run the installer. It can also be installed with `winget install --id Squirrels.Reflector.4 -e`.
 2. The installer creates its own firewall rule. No prompt appeared on first start.
 3. On the iPhone, the entry in Screen Mirroring is the PC's name.
 4. In IceScreen Touch, "Reflector 4" appears in the **Status** tab list. Press **Start**, then **Use**. The mirror window opens separately (its title is "Reflector 4 - " followed by the device name) and closes when mirroring stops.
@@ -120,12 +98,6 @@ IceScreen Touch does not receive the video. A separate program, an AirPlay recei
 6. Reflector 4 moves its mirror window when it is dragged. IceScreen Touch (0.2.0 or later) keeps drags over the picture from Reflector 4 and sends them to the iPhone, so the window stays put and swipes work. If you want to move the window, hold **Alt** and drag.
 
 ### UxPlay (for those who can build it themselves)
-
-- Developer: the UxPlay project (open source, GPLv3)
-- Official site: <https://github.com/FDH2/UxPlay>
-- Cost: Free
-- Trial: Not applicable
-- Tested version: the source at commit `b1be2bd` (UxPlay 1.74)
 
 1. You build UxPlay yourself from the source code. The steps are in [Building UxPlay on Windows](BUILD-UXPLAY.md).
 2. On first start, Windows shows a firewall prompt for `uxplay.exe`. Allow it. If you do not, Windows creates a block rule, and the iPhone cannot connect.

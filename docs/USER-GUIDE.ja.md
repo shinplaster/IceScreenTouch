@@ -49,25 +49,21 @@ IceScreen Touch は映像を受信しません。iPhone の画面を PC に映�
 - iPhone と PC は、同じネットワークにつなぎます。
 - 受信ソフトごとに、iPhone の一覧（コントロールセンター > 画面ミラーリング）に出る名前が違います。下のそれぞれの項に書いてあります。
 - IceScreen Touch の「状態」タブの「この PC の受信ソフト（AirPlay）」に、この PC にある受信ソフトが並びます。通常のフォルダに入っているものと、動いているものです。「起動」で起動し、「使う」を押すと、IceScreen Touch がそのソフトを追うようになります（IceScreen Touch はセッションを始め直します）。一覧は自動で探し直します。「探し直す」でも探せます。ほかのフォルダに入れたソフトは、動いているあいだだけ一覧に出ます。
-- Microsoft Store から入れた AirServer を追えるのは、IceScreen Touch **0.2.0 以降**だけです。0.2.0 から、5KPlayer と Reflector 4 は受信ソフトの一覧に出て、映像の上のドラッグでウィンドウが動かなくなります。
+- Microsoft Store版の AirServer を追えるのは、IceScreen Touch **0.2.0 以降**だけです。0.2.0 から、5KPlayer と Reflector 4 は受信ソフトの一覧に出て、映像の上のドラッグでウィンドウが動かなくなります。
 
 **一覧**
 
-| 受信ソフト | 料金（公式サイト、2026 年 11 月） | 試用 | 入れ方 | 備考 |
-|---|---|---|---|---|
-| 5KPlayer | 無料 | なし（無料） | 公式サイトのインストーラー | 起動時に無料登録の画面が出ます。登録しなくてもミラーリングできました（画面は閉じました） |
-| AirServer | 1 台 19.99 ドル（個人向けのライセンス） | Microsoft Store から入れたものは、初回の起動で「Your AirServer trial will expire in 31 days」と出ます | Microsoft Store、または winget | 入れ方が 2 通りあります。IceScreen Touch では、どちらも 1 つの「AirServer」として並びます |
-| LonelyScreen | 年 19.95 ドル（Personal Use、年額のサブスクリプション） | 無料で試せるものをダウンロードできます | 公式サイトの小さなダウンローダー | 初回の起動でファイアウォールの確認が出ます |
-| Reflector 4 | 公式の製品ページには出ていません | 7 日間。購入するまで映像に「TRIAL MODE」の透かしが入ります | 公式サイトのインストーラー、または winget | 「Show Frame」を一度オフにします（下の項） |
-| UxPlay | 無料（オープンソース、GPLv3） | なし | ソースコードから自分でビルド | 自分でビルドできる人向け |
+受信ソフトの名前のリンクは、各開発元の公式サイトです。
+
+| 受信ソフト | 開発元 | 料金（公式サイト、2026 年 11 月） | 試用 | 確認したバージョン | 入れ方 | 備考 |
+|---|---|---|---|---|---|---|
+| [5KPlayer](https://www.5kplayer.com/) | DearMob / Digiarty | 無料 | なし（無料） | 6.11 | 公式サイトのインストーラー | 起動時に無料登録の画面が出ます。登録しなくてもミラーリングできました（画面は閉じました） |
+| [AirServer](https://www.airserver.com/) | App Dynamic | 1 台 19.99 ドル（[個人向けのライセンス](https://airserver.com/Buy/Consumer)） | Microsoft Store版は、初回の起動で「Your AirServer trial will expire in 31 days」と「Continue Trial」のボタンが出ます | Microsoft Store版: 2025.2.20<br>インストーラー版（AirServer Universal）: 5.7.2 | Microsoft Store版、または winget でインストーラー版 | Microsoft Store版とインストーラー版があります。IceScreen Touch では、どちらも 1 つの「AirServer」として並びます |
+| [LonelyScreen](https://www.lonelyscreen.com/) | IMTIGER Technologies | 年 19.95 ドル（Personal Use、年額のサブスクリプション） | 無料で試せるものを[ダウンロードページ](https://www.lonelyscreen.com/download.html)から入手できます | 1.2.16 | 公式サイトの小さなダウンローダー | 初回の起動でファイアウォールの確認が出ます |
+| [Reflector 4](https://www.airsquirrels.com/reflector) | Squirrels | 公式の製品ページには出ていません | 7 日間。購入するまで映像に「TRIAL MODE」の透かしが入ります（[試用のページ](https://www.airsquirrels.com/reflector/try)） | 4.1.3 | 公式サイトのインストーラー、または winget | 「Show Frame」を一度オフにします（下の項） |
+| [UxPlay](https://github.com/FDH2/UxPlay) | UxPlay のプロジェクト | 無料（オープンソース、GPLv3） | なし | コミット `b1be2bd`（UxPlay 1.74）のソース | ソースコードから自分でビルド | 自分でビルドできる人向け |
 
 ### 5KPlayer
-
-- 開発元: DearMob / Digiarty
-- 公式サイト: <https://www.5kplayer.com/>
-- 料金: 無料
-- 試用: なし
-- 確認したバージョン: 6.11
 
 1. Windows のダウンロードページ <https://www.5kplayer.com/5kplayer-download-windows.htm> を開き、インストーラー（`5kplayer-64bit.exe`。署名は Digiarty Software, Inc.）をダウンロードして実行します。
 2. 初回の起動で、5KPlayer が「無料登録」の画面を出します。国、名前、メールアドレスを求められますが、登録しなくてもミラーリングできました。画面は閉じてかまいません。
@@ -77,28 +73,16 @@ IceScreen Touch は映像を受信しません。iPhone の画面を PC に映�
 
 ### AirServer
 
-- 開発元: App Dynamic
-- 公式サイト: <https://www.airserver.com/>
-- 料金: 1 台 19.99 ドル（個人向けのライセンス: <https://airserver.com/Buy/Consumer>）
-- 試用: Microsoft Store から入れたものは、初回の起動の試用の画面に「Your AirServer trial will expire in 31 days」と「Continue Trial」のボタンが出ます
-- 確認したバージョン: Microsoft Store から入れたもの: 2025.2.20、インストーラーで入れたもの（AirServer Universal）: 5.7.2
-
-1. 入れ方は 2 通りあります。どちらも確認しました。
-   - **Microsoft Store から入れる**: 「AirServer Windows Desktop Edition」を探します（Store の製品 ID は 9NBLGGH52639）。公式のダウンロードページ <https://www.airserver.com/download> は、Windows 10 の利用者を Microsoft Store に案内しています。この入れ方は IceScreen Touch 0.2.0 以降が必要です。
-   - **インストーラーで入れる**（AirServer Universal）: `winget install --id AppDynamic.AirServer -e` で入れます。
-2. 初回の起動で、Microsoft Store から入れたものは、「Continue Trial」のボタンがある試用の画面を出します。試すときは、このボタンを押します。
+1. Microsoft Store版とインストーラー版があります。どちらも確認しました。
+   - **Microsoft Store版**: 「AirServer Windows Desktop Edition」を探します（Store の製品 ID は 9NBLGGH52639）。公式のダウンロードページ <https://www.airserver.com/download> は、Windows 10 の利用者を Microsoft Store に案内しています。この版は IceScreen Touch 0.2.0 以降が必要です。
+   - **インストーラー版**（AirServer Universal）: `winget install --id AppDynamic.AirServer -e` で入れます。
+2. 初回の起動で、Microsoft Store版は「Continue Trial」のボタンがある試用の画面を出します。試すときは、このボタンを押します。
 3. iPhone の画面ミラーリングの一覧には、PC の名前で出ます。
-4. IceScreen Touch では、どちらで入れても「AirServer」の 1 行にまとまります。「使う」を押します。
+4. IceScreen Touch では、どちらの版も「AirServer」の 1 行にまとまります。「使う」を押します。
 
 ### LonelyScreen
 
-- 開発元: IMTIGER Technologies
-- 公式サイト: <https://www.lonelyscreen.com/>
-- 料金: 年 19.95 ドル（Personal Use、年額のサブスクリプション）
-- 試用: <https://www.lonelyscreen.com/download.html> から無料で試せるものをダウンロードできます
-- 確認したバージョン: 1.2.16
-
-1. ダウンロードページから `lonelyscreen-win-installer.exe`（小さなダウンローダー）をダウンロードして実行します。LonelyScreen は `C:\Program Files (x86)\LonelyScreen` に入ります。
+1. [ダウンロードページ](https://www.lonelyscreen.com/download.html)から `lonelyscreen-win-installer.exe`（小さなダウンローダー）をダウンロードして実行します。LonelyScreen は `C:\Program Files (x86)\LonelyScreen` に入ります。
 2. 初回の起動で、Windows がファイアウォールの「アクセスを許可しますか」という確認を出します。許可してください。
 3. iPhone の画面ミラーリングの一覧には、「LonelyScreen」で出ます。
 4. IceScreen Touch の「状態」タブの一覧に「LonelyScreen」が出ます。「起動」を押し、次に「使う」を押します。
@@ -106,13 +90,7 @@ IceScreen Touch は映像を受信しません。iPhone の画面を PC に映�
 
 ### Reflector 4
 
-- 開発元: Squirrels
-- 公式サイト: <https://www.airsquirrels.com/reflector>
-- 料金: 公式の製品ページには出ていません
-- 試用: 7 日間。購入するまで映像に「TRIAL MODE」の透かしが入ります。<https://www.airsquirrels.com/reflector/try> から入手します
-- 確認したバージョン: 4.1.3
-
-1. 試用のページから試せるものをダウンロードして、インストーラーを実行します。`winget install --id Squirrels.Reflector.4 -e` でも入れられます。
+1. [試用のページ](https://www.airsquirrels.com/reflector/try)から試せるものをダウンロードして、インストーラーを実行します。`winget install --id Squirrels.Reflector.4 -e` でも入れられます。
 2. インストーラーが自分でファイアウォールの規則を作ります。初回の起動で確認は出ませんでした。
 3. iPhone の画面ミラーリングの一覧には、PC の名前で出ます。
 4. IceScreen Touch の「状態」タブの一覧に「Reflector 4」が出ます。「起動」を押し、次に「使う」を押します。ミラー画面は別のウィンドウで開き（タイトルは「Reflector 4 - 」の後に端末の名前）、ミラーリングを止めると閉じます。
@@ -120,12 +98,6 @@ IceScreen Touch は映像を受信しません。iPhone の画面を PC に映�
 6. Reflector 4 は、ミラー画面をドラッグするとウィンドウが動く作りです。IceScreen Touch（0.2.0 以降）は、映像の上のドラッグを Reflector 4 に渡さずに iPhone に送るので、ウィンドウは動かず、スワイプできます。ウィンドウを動かしたいときは、**Alt** を押しながらドラッグします。
 
 ### UxPlay（自分でビルドできる人向け）
-
-- 開発元: UxPlay のプロジェクト（オープンソース、GPLv3）
-- 公式サイト: <https://github.com/FDH2/UxPlay>
-- 料金: 無料
-- 試用: なし
-- 確認したバージョン: コミット `b1be2bd`（UxPlay 1.74）のソース
 
 1. UxPlay は、ソースコードから自分でビルドします。手順は[Windows で UxPlay をビルドする](BUILD-UXPLAY.ja.md)にあります。
 2. 初回の起動で、Windows が `uxplay.exe` のファイアウォールの確認を出します。許可してください。許可しないと、Windows がブロックの規則を作り、iPhone から接続できません。
