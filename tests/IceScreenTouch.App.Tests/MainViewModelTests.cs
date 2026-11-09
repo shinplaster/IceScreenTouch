@@ -513,10 +513,33 @@ public sealed class MainViewModelTests : IDisposable
     public void AMissingAttachedReceiverIsNamed()
     {
         var hint = MainViewModel.DescribeNextStep(
-            Ready with { Receiver = ReceiverState.NotFound },
-            new AppSettings { Receiver = ReceiverMode.AttachToProcess, AttachProcessName = "AirServer" });
+            Ready with { Receiver = ReceiverState.NotFound, ReceiverName = "5KPlayer" },
+            new AppSettings { Receiver = ReceiverMode.AttachToProcess, AttachProcessName = "Airplay" });
 
-        Assert.Contains("AirServer.exe が動いていません", hint, StringComparison.Ordinal);
+        Assert.Contains("5KPlayer が動いていません", hint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ADeviceWithoutAFoundWindowIsSaidTheSameInTheHeadlineTheReceiverLineAndTheHint()
+    {
+        var status = Ready with { Receiver = ReceiverState.Waiting, ReceiverName = "5KPlayer", DeviceWithoutWindow = true, Bridge = BridgeStatus.Initial };
+        var settings = new AppSettings { Receiver = ReceiverMode.AttachToProcess, AttachProcessName = "Airplay" };
+
+        var headline = MainViewModel.DescribeHeadline(status);
+        var receiver = MainViewModel.DescribeReceiver(status);
+        var hint = MainViewModel.DescribeNextStep(status, settings);
+
+        Assert.Equal(StatusLevel.Waiting, headline.Level);
+        Assert.Contains("見つかりません", headline.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("待って", headline.Text, StringComparison.Ordinal);
+        Assert.Contains("5KPlayer", receiver.Text, StringComparison.Ordinal);
+        Assert.Contains("見つかりません", receiver.Text, StringComparison.Ordinal);
+        Assert.Contains("機器がつながっていますが", hint, StringComparison.Ordinal);
+
+        // Without a connection it is the usual wait for the iPhone.
+        var waiting = status with { DeviceWithoutWindow = false };
+        Assert.Contains("待って", MainViewModel.DescribeHeadline(waiting).Text, StringComparison.Ordinal);
+        Assert.Contains("5KPlayer の項目", MainViewModel.DescribeNextStep(waiting, settings), StringComparison.Ordinal);
     }
 
     private sealed class ThrowingMirror : IMirrorService

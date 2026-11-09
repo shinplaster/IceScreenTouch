@@ -16,6 +16,7 @@
   <data name="HeadlineProblem" xml:space="preserve"><value>対応が必要です</value></data>
   <data name="HeadlineWaitingPhone" xml:space="preserve"><value>iPhone の接続を待っています</value></data>
   <data name="HeadlineWaitingMirroring" xml:space="preserve"><value>画面ミラーリングを待っています</value></data>
+  <data name="HeadlineDeviceWithoutWindow" xml:space="preserve"><value>ミラー画面のウィンドウが見つかりません</value></data>
   <data name="HeadlineReady" xml:space="preserve"><value>操作できます</value></data>
   <data name="FormatTrayTooltip" xml:space="preserve"><value>IceScreen Touch: {0}</value></data>
   <data name="ButtonOpenLogFolder" xml:space="preserve"><value>ログのフォルダを開く</value></data>
@@ -39,6 +40,8 @@
   <data name="ControlDrag" xml:space="preserve"><value>タッチ・スワイプ</value></data>
   <data name="ControlPinchKey" xml:space="preserve"><value>Ctrl + 左ドラッグ</value></data>
   <data name="ControlPinch" xml:space="preserve"><value>ピンチ（2 本指）</value></data>
+  <data name="ControlAltKey" xml:space="preserve"><value>Alt + クリック・ドラッグ</value></data>
+  <data name="ControlAlt" xml:space="preserve"><value>受信ソフトに渡す（ウィンドウの移動など）</value></data>
   <data name="ControlRightKey" xml:space="preserve"><value>右クリック</value></data>
   <data name="ControlRight" xml:space="preserve"><value>長押し</value></data>
   <data name="ControlWheelKey" xml:space="preserve"><value>ホイール</value></data>
@@ -67,6 +70,7 @@
   <data name="BleConnected" xml:space="preserve"><value>iPhone と接続済み</value></data>
   <data name="BleDryRun" xml:space="preserve"><value>テスト用（Bluetooth を使わない）</value></data>
   <data name="FormatReceiverWaiting" xml:space="preserve"><value>{0}: 画面ミラーリングの待ち</value></data>
+  <data name="FormatReceiverDeviceWithoutWindow" xml:space="preserve"><value>{0}: 機器はつながっていますが、ウィンドウが見つかりません</value></data>
   <data name="FormatReceiverShowingDevice" xml:space="preserve"><value>{0}: 表示中（{1}）</value></data>
   <data name="FormatReceiverShowing" xml:space="preserve"><value>{0}: 表示中</value></data>
   <data name="FormatReceiverNotFound" xml:space="preserve"><value>{0} が見つかりません</value></data>
@@ -83,7 +87,7 @@
   <data name="HintBleUnsupported" xml:space="preserve"><value>この PC の Bluetooth アダプタは BLE ペリフェラルとして動けません。対応するアダプタが必要です。</value></data>
   <data name="HintBleError" xml:space="preserve"><value>Bluetooth の HID サービスを公開できませんでした。PoC や IceScreenTouch.Probe / Bridge が動いていれば終了してから「再起動」を押してください。</value></data>
   <data name="HintUxPlayNotFound" xml:space="preserve"><value>uxplay.exe が見つかりません。下の一覧から受信ソフトを選ぶか、「設定」タブで場所を指定してください。</value></data>
-  <data name="FormatHintProcessNotRunning" xml:space="preserve"><value>{0}.exe が動いていません。受信ソフトを起動してください（下の一覧から起動できます）。</value></data>
+  <data name="FormatHintProcessNotRunning" xml:space="preserve"><value>{0} が動いていません。受信ソフトを起動してください（下の一覧から起動できます）。</value></data>
   <data name="HintReceiverStopped" xml:space="preserve"><value>受信ソフトが止まりました。「再起動」を押してください（詳しくは「ログ」タブ）。</value></data>
   <data name="HintPair" xml:space="preserve"><value>iPhone の「設定 &gt; Bluetooth」で、この PC を選んでください（初回はペアリング。2 回目からは自動で接続します）。</value></data>
   <data name="FormatHintMirrorUxPlay" xml:space="preserve"><value>iPhone のコントロールセンター &gt;「画面ミラーリング」で「{0}」を選んでください。</value></data>
@@ -121,7 +125,7 @@
   <data name="StepReceiver" xml:space="preserve"><value>受信ソフト（AirPlay）</value></data>
   <data name="FormatStepReceiverOk" xml:space="preserve"><value>{0} が動いています。</value></data>
   <data name="StepReceiverUxPlayNotFound" xml:space="preserve"><value>uxplay.exe が見つかりません。下の一覧から受信ソフトを選ぶか、「設定」タブで場所を指定してください。</value></data>
-  <data name="FormatStepReceiverNotRunning" xml:space="preserve"><value>{0}.exe が動いていません。受信ソフトを起動してください（下の一覧の「起動」）。</value></data>
+  <data name="FormatStepReceiverNotRunning" xml:space="preserve"><value>{0} が動いていません。受信ソフトを起動してください（下の一覧の「起動」）。</value></data>
   <data name="FormatStepReceiverStopped" xml:space="preserve"><value>{0} が止まりました（{1}）。「再起動」を押してください。</value></data>
   <data name="FormatMirrorItemUxPlay" xml:space="preserve"><value>「{0}」</value></data>
   <data name="FormatMirrorItemAttach" xml:space="preserve"><value>{0} の項目（ふつうは PC の名前）</value></data>
@@ -129,6 +133,7 @@
   <data name="FormatStepMirroringOkDevice" xml:space="preserve"><value>表示しています（{0}）。</value></data>
   <data name="StepMirroringOk" xml:space="preserve"><value>表示しています。</value></data>
   <data name="FormatStepMirroringWaiting" xml:space="preserve"><value>iPhone のコントロールセンターを開き、「画面ミラーリング」で{0}を選んでください。iPhone と PC は同じネットワークにつないでください。</value></data>
+  <data name="StepMirroringNoWindow" xml:space="preserve"><value>受信ソフトに機器がつながっていますが、ミラー画面のウィンドウが見つかりません。ウィンドウが最小化されていないか確かめてください。</value></data>
   <data name="StepMirroringIdle" xml:space="preserve"><value>受信ソフトが動いてからです。</value></data>
 
   <!-- Settings tab -->

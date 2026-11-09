@@ -77,6 +77,12 @@ public sealed record MirrorStatus
     /// <summary>The phone that connected to the receiver, e.g. "iPhone (iPhone16,1)".</summary>
     public string? Device { get; init; }
 
+    /// <summary>
+    /// The receiver runs and another machine is connected to it, but its mirror window was not found (minimized, or
+    /// a window this app cannot follow). False when the receiver shows its window or has no connection.
+    /// </summary>
+    public bool DeviceWithoutWindow { get; init; }
+
     /// <summary>Where the picture size comes from ("sink", "log" or null).</summary>
     public string? SizeSource { get; init; }
 

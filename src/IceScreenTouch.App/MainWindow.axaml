@@ -190,21 +190,23 @@
 
           <StackPanel Spacing="4">
             <TextBlock Text="{x:Static res:Strings.SectionControls}" FontWeight="SemiBold" Margin="0,4,0,0" />
-            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="2">
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="2">
               <TextBlock Grid.Row="0" Classes="label" Text="{x:Static res:Strings.ControlDragKey}" />
               <TextBlock Grid.Row="0" Grid.Column="1" Text="{x:Static res:Strings.ControlDrag}" />
               <TextBlock Grid.Row="1" Classes="label" Text="{x:Static res:Strings.ControlPinchKey}" />
               <TextBlock Grid.Row="1" Grid.Column="1" Text="{x:Static res:Strings.ControlPinch}" />
-              <TextBlock Grid.Row="2" Classes="label" Text="{x:Static res:Strings.ControlRightKey}" />
-              <TextBlock Grid.Row="2" Grid.Column="1" Text="{x:Static res:Strings.ControlRight}" />
-              <TextBlock Grid.Row="3" Classes="label" Text="{x:Static res:Strings.ControlWheelKey}" />
-              <TextBlock Grid.Row="3" Grid.Column="1" Text="{x:Static res:Strings.ControlWheel}" />
-              <TextBlock Grid.Row="4" Classes="label" Text="{x:Static res:Strings.ControlHomeKey}" />
-              <TextBlock Grid.Row="4" Grid.Column="1" Text="{x:Static res:Strings.ControlHome}" />
-              <TextBlock Grid.Row="5" Classes="label" Text="Ctrl + R" />
-              <TextBlock Grid.Row="5" Grid.Column="1" Text="{x:Static res:Strings.ControlRotate}" TextWrapping="Wrap" />
-              <TextBlock Grid.Row="6" Classes="label" Text="{x:Static res:Strings.ControlTypeKey}" />
-              <TextBlock Grid.Row="6" Grid.Column="1" Text="{x:Static res:Strings.ControlType}" TextWrapping="Wrap" />
+              <TextBlock Grid.Row="2" Classes="label" Text="{x:Static res:Strings.ControlAltKey}" />
+              <TextBlock Grid.Row="2" Grid.Column="1" Text="{x:Static res:Strings.ControlAlt}" TextWrapping="Wrap" />
+              <TextBlock Grid.Row="3" Classes="label" Text="{x:Static res:Strings.ControlRightKey}" />
+              <TextBlock Grid.Row="3" Grid.Column="1" Text="{x:Static res:Strings.ControlRight}" />
+              <TextBlock Grid.Row="4" Classes="label" Text="{x:Static res:Strings.ControlWheelKey}" />
+              <TextBlock Grid.Row="4" Grid.Column="1" Text="{x:Static res:Strings.ControlWheel}" />
+              <TextBlock Grid.Row="5" Classes="label" Text="{x:Static res:Strings.ControlHomeKey}" />
+              <TextBlock Grid.Row="5" Grid.Column="1" Text="{x:Static res:Strings.ControlHome}" />
+              <TextBlock Grid.Row="6" Classes="label" Text="Ctrl + R" />
+              <TextBlock Grid.Row="6" Grid.Column="1" Text="{x:Static res:Strings.ControlRotate}" TextWrapping="Wrap" />
+              <TextBlock Grid.Row="7" Classes="label" Text="{x:Static res:Strings.ControlTypeKey}" />
+              <TextBlock Grid.Row="7" Grid.Column="1" Text="{x:Static res:Strings.ControlType}" TextWrapping="Wrap" />
             </Grid>
             <TextBlock Classes="note" Text="{x:Static res:Strings.ControlsNote}" />
           </StackPanel>

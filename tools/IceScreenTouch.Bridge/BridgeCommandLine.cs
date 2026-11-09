@@ -45,6 +45,8 @@ internal static class BridgeCommandLine
         Mirror the iPhone with UxPlay and control it by clicking the UxPlay window (port of PoC 3).
           left drag         one-finger touch / swipe
           Ctrl + left drag  two-finger pinch (second finger mirrored through the screen center)
+          Alt + click       not a touch (this console tool does not keep presses from the receiver, so a
+                            receiver that moves its window on a drag will move it)
           right button      long press (held at least 600 ms; drag to move)
           wheel             scroll (a short swipe; Shift + wheel or tilt scrolls sideways)
           H                 home gesture (the UxPlay window must have the focus)

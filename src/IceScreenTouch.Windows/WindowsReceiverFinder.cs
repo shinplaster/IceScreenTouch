@@ -4,6 +4,7 @@ using IceScreenTouch.App.Logging;
 using IceScreenTouch.App.Resources;
 using IceScreenTouch.App.Services;
 using IceScreenTouch.Video;
+using Microsoft.Win32;
 
 namespace IceScreenTouch.Windows;
 
@@ -16,22 +17,17 @@ namespace IceScreenTouch.Windows;
 /// <param name="ownUxPlay">The uxplay.exe the app itself started (0 = none), left out of the running ones.</param>
 internal sealed class WindowsReceiverFinder(AppLog log, Func<int>? ownUxPlay = null) : IReceiverFinder
 {
-    private sealed record Known(string Name, string ProcessName, string[] RelativePaths);
-
-    // Paths relative to Program Files / Program Files (x86).
-    private static readonly Known[] KnownReceivers =
-    [
-        new("AirServer", "AirServer", [@"App Dynamic\AirServer\AirServer.exe"]),
-        new("LonelyScreen", "LonelyScreen", [@"LonelyScreen\LonelyScreen.exe", @"Lonely Screen\LonelyScreen.exe"]),
-    ];
+    private const string ShellPrefix = "shell:";
 
     public IReadOnlyList<ReceiverCandidate> Find()
     {
         var found = new List<ReceiverCandidate>();
-        foreach (var known in KnownReceivers)
+        foreach (var known in KnownReceivers.All)
         {
             var running = IsRunning(known.ProcessName);
-            var exe = InstalledPath(known.RelativePaths);
+
+            // The classic installer's program first; else a Store app, which Explorer starts by its shell address.
+            var exe = InstalledPath(known.InstallPaths) ?? (StoreAppInstalled(known.StoreFamily) ? known.StoreLaunchAddress : null);
             if (running || exe is not null)
             {
                 found.Add(new ReceiverCandidate(known.Name, ReceiverCandidateKind.Attach, known.ProcessName, exe, running));
@@ -57,7 +53,14 @@ internal sealed class WindowsReceiverFinder(AppLog log, Func<int>? ownUxPlay = n
     public bool Launch(ReceiverCandidate candidate)
     {
         ArgumentNullException.ThrowIfNull(candidate);
-        if (candidate.Kind != ReceiverCandidateKind.Attach || candidate.ExePath is not { } exe || !File.Exists(exe))
+        if (candidate.Kind != ReceiverCandidateKind.Attach || candidate.ExePath is not { } exe)
+        {
+            return false;
+        }
+
+        // A Store app: Explorer starts it (it does not always leave a process to hold on to).
+        var store = exe.StartsWith(ShellPrefix, StringComparison.OrdinalIgnoreCase);
+        if (store ? !IsKnownStoreAddress(exe) : !File.Exists(exe))
         {
             return false;
         }
@@ -65,8 +68,10 @@ internal sealed class WindowsReceiverFinder(AppLog log, Func<int>? ownUxPlay = n
         try
         {
             log.Write($"[app ] starting {candidate.Name}: {exe}");
-            using var process = Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(exe) });
-            return process is not null;
+            using var process = store
+                ? Process.Start(new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"), exe) { UseShellExecute = true })
+                : Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(exe) });
+            return store || process is not null;
         }
         catch (Win32Exception ex)
         {
@@ -88,7 +93,44 @@ internal sealed class WindowsReceiverFinder(AppLog log, Func<int>? ownUxPlay = n
         return any;
     }
 
-    private static string? InstalledPath(string[] relativePaths)
+    // Only the shell addresses of the known Store receivers are started this way, not an arbitrary shell: string.
+    private static bool IsKnownStoreAddress(string address) =>
+        KnownReceivers.All.Any(k => string.Equals(k.StoreLaunchAddress, address, StringComparison.OrdinalIgnoreCase));
+
+    // A Store app of this package family is installed for the user: its package is in the user's package repository
+    // (the registry), and its data folder is under %LOCALAPPDATA%\Packages. The program files are not listable.
+    private static bool StoreAppInstalled(string? family)
+    {
+        if (string.IsNullOrEmpty(family))
+        {
+            return false;
+        }
+
+        try
+        {
+            if (Directory.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages", family)))
+            {
+                return true;
+            }
+
+            // The repository's keys are full package names: Name_Version_Architecture_ResourceId_PublisherId.
+            var split = family.IndexOf('_', StringComparison.Ordinal);
+            if (split <= 0)
+            {
+                return false;
+            }
+
+            var (name, publisher) = (family[..(split + 1)], family[split..]);
+            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages");
+            return key?.GetSubKeyNames().Any(n => n.StartsWith(name, StringComparison.OrdinalIgnoreCase) && n.EndsWith(publisher, StringComparison.OrdinalIgnoreCase)) ?? false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return false;
+        }
+    }
+
+    private static string? InstalledPath(IReadOnlyList<string> relativePaths)
     {
         foreach (var root in (Environment.SpecialFolder[])[Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86])
         {

@@ -31,6 +31,7 @@ internal static partial class NativeMethods
     internal const uint MonitorDefaultToNearest = 2;
     internal const int VkShift = 0x10;
     internal const int VkControl = 0x11;
+    internal const int VkMenu = 0x12; // Alt, either one
     internal const int VkR = 0x52;
     internal static readonly nint DpiAwarenessContextPerMonitorAwareV2 = -4;
 
@@ -184,6 +185,24 @@ internal static partial class NativeMethods
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool IsIconic(nint hwnd);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetClassNameW")]
+    internal static unsafe partial int GetClassName(nint hwnd, char* buffer, int count);
+
+    [LibraryImport("user32.dll", EntryPoint = "FindWindowExW", StringMarshalling = StringMarshalling.Utf16)]
+    internal static partial nint FindWindowEx(nint parent, nint after, string? className, string? title);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SetForegroundWindow(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool BringWindowToTop(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool AttachThreadInput(uint attach, uint attachTo, [MarshalAs(UnmanagedType.Bool)] bool attachFlag);
 
     [LibraryImport("user32.dll")]
     internal static partial uint GetWindowThreadProcessId(nint hwnd, out uint processId);

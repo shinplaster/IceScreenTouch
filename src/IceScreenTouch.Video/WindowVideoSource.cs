@@ -80,6 +80,7 @@ public sealed class WindowVideoSource : IVideoSource, IDisposable
     private int _connectionPid;
     private bool _connected;
     private bool _connectionLogged;
+    private readonly Lock _connectionLock = new();
     private HashSet<IPAddress>? _ownAddresses;
     private long _ownAddressesAt;
 
@@ -150,7 +151,7 @@ public sealed class WindowVideoSource : IVideoSource, IDisposable
             window = _windows.Find(_processId);
         }
 
-        if (window != 0 && _options.OnlyWhileConnected && !DeviceConnected())
+        if (window != 0 && _options.OnlyWhileConnected && !HasConnectedDevice)
         {
             // The standby screen: no window to click on, nothing to capture. The picture is looked for afresh
             // once a device connects (the standby screen may have passed for a portrait picture).
@@ -279,9 +280,25 @@ public sealed class WindowVideoSource : IVideoSource, IDisposable
         }
     }
 
-    // Whether a device is connected to the receiver: a connection from another machine on a port the receiver
-    // listens on (its AirPlay port), leaving out this PC's own addresses. Looked at every ConnectionCheckInterval.
-    private bool DeviceConnected()
+    /// <summary>
+    /// Whether another machine is connected to the receiver: a connection on a port the receiver listens on (its
+    /// AirPlay port), leaving out this PC's own addresses. Looked at every
+    /// <see cref="WindowVideoSourceOptions.ConnectionCheckInterval"/>; any thread. A device that is connected while
+    /// no window is found means the picture is not where it can be seen (minimized, or a window this app cannot
+    /// follow).
+    /// </summary>
+    public bool HasConnectedDevice
+    {
+        get
+        {
+            lock (_connectionLock)
+            {
+                return CheckConnection();
+            }
+        }
+    }
+
+    private bool CheckConnection()
     {
         if (_connectionCheckedAt != 0 && _time.GetElapsedTime(_connectionCheckedAt) < _options.ConnectionCheckInterval && _connectionPid == _processId)
         {
@@ -311,7 +328,7 @@ public sealed class WindowVideoSource : IVideoSource, IDisposable
         var own = _ownAddresses;
         var peers = TcpPeers.IncomingAddresses(_processId).Where(a => !own.Contains(a)).ToList();
         var connected = peers.Count > 0;
-        if (connected != _connected || !_connectionLogged)
+        if (_options.OnlyWhileConnected && (connected != _connected || !_connectionLogged))
         {
             _connectionLogged = true;
             _log(connected

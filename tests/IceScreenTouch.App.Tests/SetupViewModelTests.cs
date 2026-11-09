@@ -132,7 +132,7 @@ public sealed class SetupViewModelTests : IDisposable
 
     [Theory]
     [InlineData(ReceiverMode.StartUxPlay, "uxplay.exe が見つかりません")]
-    [InlineData(ReceiverMode.AttachToProcess, "AirServer.exe が動いていません")]
+    [InlineData(ReceiverMode.AttachToProcess, "AirServer が動いていません")]
     public void AMissingReceiverPointsAtTheList(ReceiverMode mode, string expected)
     {
         var settings = new AppSettings { Receiver = mode, AttachProcessName = "AirServer" };
@@ -152,6 +152,43 @@ public sealed class SetupViewModelTests : IDisposable
         Assert.Equal(StatusLevel.Waiting, uxplay.Level);
         Assert.Contains("「Desk」", uxplay.Detail, StringComparison.Ordinal);
         Assert.Contains("AirServer の項目", attached.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ADeviceConnectedWithoutAFoundWindowSaysSoInsteadOfAskingToSelectTheReceiver()
+    {
+        var settings = new AppSettings { Receiver = ReceiverMode.AttachToProcess };
+        var step = Steps(Working with { Receiver = ReceiverState.Waiting, DeviceWithoutWindow = true }, settings)[4];
+
+        Assert.Equal(StatusLevel.Waiting, step.Level);
+        Assert.Contains("機器がつながっていますが", step.Detail, StringComparison.Ordinal);
+        Assert.Contains("最小化", step.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("コントロールセンター", step.Detail, StringComparison.Ordinal);
+
+        // A window that shows is not "without a window".
+        Assert.Equal(StatusLevel.Ok, Steps(Working with { DeviceWithoutWindow = true }, settings)[4].Level);
+    }
+
+    [Fact]
+    public void ReceiverShownUnderItsOwnNameIsFollowedByItsProcess()
+    {
+        // 5KPlayer: the list says "5KPlayer", the process that shows the picture is Airplay.exe.
+        var fiveK = new ReceiverCandidate("5KPlayer", ReceiverCandidateKind.Attach, "Airplay", @"C:Program Files (x86)DearMobKPlayerKPlayer.exe", true);
+
+        var settings = SetupViewModel.Apply(new AppSettings(), fiveK);
+
+        Assert.Equal((ReceiverMode.AttachToProcess, "Airplay"), (settings.Receiver, settings.AttachProcessName));
+        Assert.True(SetupViewModel.Uses(settings, fiveK));
+        Assert.False(SetupViewModel.Uses(settings, AirServerRunning));
+    }
+
+    [Fact]
+    public void TheNotRunningStepNamesTheReceiverAsTheListDoes()
+    {
+        var step = Steps(Working with { Receiver = ReceiverState.NotFound, ReceiverName = "5KPlayer" }, new AppSettings { Receiver = ReceiverMode.AttachToProcess, AttachProcessName = "Airplay" })[3];
+
+        Assert.Contains("5KPlayer が動いていません", step.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("Airplay", step.Detail, StringComparison.Ordinal);
     }
 
     [Fact]

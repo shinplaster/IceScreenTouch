@@ -108,6 +108,7 @@ public sealed class MirrorBridge
     private int _suspendRequests;
     private TaskCompletionSource? _suspendAck;
     private bool _suspended;
+    private bool _publishFailureLogged;
 
     /// <summary>Creates a bridge. <paramref name="input"/> is written by the OS hook.</summary>
     public MirrorBridge(
@@ -149,6 +150,12 @@ public sealed class MirrorBridge
 
     /// <summary>Raised (on the bridge loop) after Ctrl+R or a command changed the landscape rotation.</summary>
     public event EventHandler<Rotation>? LandscapeRotationChanged;
+
+    /// <summary>
+    /// Raised (on the bridge loop) at the end of every tick with the new <see cref="Status"/>, for a listener that
+    /// must keep a copy of it up to date for another thread (the mouse hook's swallow zone). Keep the handler tiny.
+    /// </summary>
+    public event Action<BridgeStatus>? StatusPublished;
 
     /// <summary>Queues a command for the next tick (any thread).</summary>
     public void Post(BridgeCommand command) => _commands.Enqueue(command);
@@ -358,6 +365,12 @@ public sealed class MirrorBridge
 
     private async ValueTask OnPressAsync(nint window, RectD picture, MouseInputEvent e, CancellationToken cancellationToken)
     {
+        // A press made with Alt held is for the receiver (the hook lets it through): not a touch, a long press or a pinch.
+        if (e.Alt)
+        {
+            return;
+        }
+
         var longPress = e.Button == MouseButton.Right;
         if (longPress && !_options.RightButtonLongPress)
         {
@@ -589,6 +602,20 @@ public sealed class MirrorBridge
             stats.MaxSend,
             _suspended,
             Engine.PortraitRotation);
+        try
+        {
+            StatusPublished?.Invoke(_status);
+        }
+#pragma warning disable CA1031 // A listener must not replace the tick's own exception nor end the loop.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            if (!_publishFailureLogged)
+            {
+                _publishFailureLogged = true;
+                _log($"[bridge] a status listener failed (logged once): {ex.GetType().Name}: {ex.Message}");
+            }
+        }
     }
 
     private void Verbose(string message)

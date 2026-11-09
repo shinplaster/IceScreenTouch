@@ -18,6 +18,7 @@
   <data name="HeadlineProblem" xml:space="preserve"><value>Needs attention</value></data>
   <data name="HeadlineWaitingPhone" xml:space="preserve"><value>Waiting for the iPhone (Bluetooth)</value></data>
   <data name="HeadlineWaitingMirroring" xml:space="preserve"><value>Waiting for Screen Mirroring</value></data>
+  <data name="HeadlineDeviceWithoutWindow" xml:space="preserve"><value>The mirror window was not found</value></data>
   <data name="HeadlineReady" xml:space="preserve"><value>Ready</value></data>
   <data name="FormatTrayTooltip" xml:space="preserve"><value>IceScreen Touch: {0}</value></data>
   <data name="ButtonOpenLogFolder" xml:space="preserve"><value>Open the log folder</value></data>
@@ -41,6 +42,8 @@
   <data name="ControlDrag" xml:space="preserve"><value>Touch, swipe</value></data>
   <data name="ControlPinchKey" xml:space="preserve"><value>Ctrl + left drag</value></data>
   <data name="ControlPinch" xml:space="preserve"><value>Pinch (two fingers)</value></data>
+  <data name="ControlAltKey" xml:space="preserve"><value>Alt + click or drag</value></data>
+  <data name="ControlAlt" xml:space="preserve"><value>Passed to the receiver (to move its window, for example)</value></data>
   <data name="ControlRightKey" xml:space="preserve"><value>Right click</value></data>
   <data name="ControlRight" xml:space="preserve"><value>Long press</value></data>
   <data name="ControlWheelKey" xml:space="preserve"><value>Wheel</value></data>
@@ -69,6 +72,7 @@
   <data name="BleConnected" xml:space="preserve"><value>Connected to the iPhone</value></data>
   <data name="BleDryRun" xml:space="preserve"><value>Test mode (no Bluetooth)</value></data>
   <data name="FormatReceiverWaiting" xml:space="preserve"><value>{0}: waiting for Screen Mirroring</value></data>
+  <data name="FormatReceiverDeviceWithoutWindow" xml:space="preserve"><value>{0}: a device is connected, but its window was not found</value></data>
   <data name="FormatReceiverShowingDevice" xml:space="preserve"><value>{0}: showing ({1})</value></data>
   <data name="FormatReceiverShowing" xml:space="preserve"><value>{0}: showing</value></data>
   <data name="FormatReceiverNotFound" xml:space="preserve"><value>{0} not found</value></data>
@@ -85,7 +89,7 @@
   <data name="HintBleUnsupported" xml:space="preserve"><value>This PC's Bluetooth adapter cannot act as a BLE peripheral. An adapter that can is needed.</value></data>
   <data name="HintBleError" xml:space="preserve"><value>Could not publish the Bluetooth HID service. If a PoC or IceScreenTouch.Probe / Bridge is running, quit it, then press "Restart".</value></data>
   <data name="HintUxPlayNotFound" xml:space="preserve"><value>uxplay.exe was not found. Pick a receiver in the list below, or enter its location in the Settings tab.</value></data>
-  <data name="FormatHintProcessNotRunning" xml:space="preserve"><value>{0}.exe is not running. Start the receiver (you can start it from the list below).</value></data>
+  <data name="FormatHintProcessNotRunning" xml:space="preserve"><value>{0} is not running. Start the receiver (you can start it from the list below).</value></data>
   <data name="HintReceiverStopped" xml:space="preserve"><value>The receiver stopped. Press "Restart" (details in the Log tab).</value></data>
   <data name="HintPair" xml:space="preserve"><value>On the iPhone, open Settings &gt; Bluetooth and choose this PC (pair the first time; after that it connects by itself).</value></data>
   <data name="FormatHintMirrorUxPlay" xml:space="preserve"><value>On the iPhone, open Control Center &gt; Screen Mirroring and choose "{0}".</value></data>
@@ -123,7 +127,7 @@
   <data name="StepReceiver" xml:space="preserve"><value>AirPlay receiver</value></data>
   <data name="FormatStepReceiverOk" xml:space="preserve"><value>{0} is running.</value></data>
   <data name="StepReceiverUxPlayNotFound" xml:space="preserve"><value>uxplay.exe was not found. Pick a receiver from the list below, or enter its location in the Settings tab.</value></data>
-  <data name="FormatStepReceiverNotRunning" xml:space="preserve"><value>{0}.exe is not running. Start the receiver ("Start" in the list below).</value></data>
+  <data name="FormatStepReceiverNotRunning" xml:space="preserve"><value>{0} is not running. Start the receiver ("Start" in the list below).</value></data>
   <data name="FormatStepReceiverStopped" xml:space="preserve"><value>{0} stopped ({1}). Press "Restart".</value></data>
   <data name="FormatMirrorItemUxPlay" xml:space="preserve"><value>"{0}"</value></data>
   <data name="FormatMirrorItemAttach" xml:space="preserve"><value>the {0} entry (usually the PC's name)</value></data>
@@ -131,6 +135,7 @@
   <data name="FormatStepMirroringOkDevice" xml:space="preserve"><value>Showing ({0}).</value></data>
   <data name="StepMirroringOk" xml:space="preserve"><value>Showing.</value></data>
   <data name="FormatStepMirroringWaiting" xml:space="preserve"><value>Open Control Center on the iPhone, tap Screen Mirroring and choose {0}. The iPhone and the PC must be on the same network.</value></data>
+  <data name="StepMirroringNoWindow" xml:space="preserve"><value>A device is connected to the receiver, but its mirror window was not found. Check that the window is not minimized.</value></data>
   <data name="StepMirroringIdle" xml:space="preserve"><value>Once the receiver is running.</value></data>
 
   <!-- Settings tab -->

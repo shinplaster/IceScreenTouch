@@ -196,6 +196,50 @@ public class MirrorBridgeTests
         Assert.Equal(Geometry.ScreenToAxis(new PointD(400, 300), new RectD(300, 250, 400, 184.5), Rotation.R90), _sink.Frames[0].First);
     }
 
+    [Theory]
+    [InlineData(MouseButton.Left)]
+    [InlineData(MouseButton.Right)]
+    public async Task APressMadeWithAltHeldIsNotATouch(MouseButton button)
+    {
+        var p = At(ExpectedPortrait, 0.5, 0.5);
+        _desktop.CursorPosition = p;
+        _buttons.Writer.TryWrite(MouseInputEvent.Press(button, p, alt: true));
+        await Tick();
+        _buttons.Writer.TryWrite(MouseInputEvent.Release(button, p));
+        await Tick();
+
+        Assert.False(_bridge.Engine.IsDown);
+        Assert.Empty(_sink.Frames);
+        Assert.Equal(0, _bridge.Status.Gestures);
+    }
+
+    [Fact]
+    public async Task AListenerThatThrowsDoesNotEndTheTickNorFloodTheLog()
+    {
+        _bridge.StatusPublished += _ => throw new InvalidOperationException("listener");
+
+        await Tick();
+        await Tick();
+
+        Assert.Single(_log, l => l.Contains("status listener failed", StringComparison.Ordinal));
+        Assert.Equal(FakeDesktop.MirrorWindow, _bridge.Status.Window);
+    }
+
+    [Fact]
+    public async Task EveryTickPublishesItsStatusToAListener()
+    {
+        var seen = new List<BridgeStatus>();
+        _bridge.StatusPublished += seen.Add;
+
+        await Tick();
+        await Tick();
+
+        Assert.Equal(2, seen.Count);
+        Assert.Equal(FakeDesktop.MirrorWindow, seen[0].Window);
+        Assert.Equal(ExpectedPortrait, seen[0].Picture);
+        Assert.Same(_bridge.Status, seen[1]);
+    }
+
     [Fact]
     public async Task TapInTheMiddleOfThePictureIsDownLiftEmptyAtTheCenter()
     {

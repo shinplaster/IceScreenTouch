@@ -14,7 +14,11 @@ public enum ReceiverCandidateKind
 /// <param name="Name">Name for the user ("AirServer").</param>
 /// <param name="Kind">Start it or follow it.</param>
 /// <param name="ProcessName">The process to follow (without .exe).</param>
-/// <param name="ExePath">The program, if known (to start it, or the uxplay.exe to use).</param>
+/// <param name="ExePath">
+/// The program, if known (to start it, or the uxplay.exe to use); for a receiver that is not a plain program, what
+/// the platform starts it with (Windows: a <c>shell:AppsFolder\...</c> address for a Store app). It may start a
+/// different process from <paramref name="ProcessName"/> (5KPlayer.exe starts Airplay.exe, which shows the picture).
+/// </param>
 /// <param name="Running">It runs now.</param>
 public sealed record ReceiverCandidate(string Name, ReceiverCandidateKind Kind, string ProcessName, string? ExePath, bool Running);
 

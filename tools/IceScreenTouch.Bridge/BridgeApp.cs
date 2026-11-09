@@ -127,6 +127,7 @@ internal static class BridgeApp
         }
 
         Log("Zoom must be ON on the iPhone (Settings > Accessibility > Zoom).");
+        Log("Alt + click is never a touch. This console tool does not keep presses from receivers: one that moves its window on a drag will move it.");
         Log("Left drag = touch, Ctrl + left drag = pinch, right button = long press, wheel = scroll, Home = home, Ctrl+R = landscape rotation 90 <-> 270, other keys = typed on the device.");
         Log("Type `help` here for console commands. Ctrl+C to quit.");
 

@@ -678,6 +678,7 @@ public sealed class MainViewModel : ObservableObject
             (BleState.Unsupported or BleState.Error, _) => (Strings.HeadlineProblem, StatusLevel.Error),
             (_, ReceiverState.NotFound or ReceiverState.Exited or ReceiverState.Error) => (Strings.HeadlineProblem, StatusLevel.Error),
             (BleState.Advertising, _) => (Strings.HeadlineWaitingPhone, StatusLevel.Waiting),
+            (_, ReceiverState.Waiting) when s.DeviceWithoutWindow => (Strings.HeadlineDeviceWithoutWindow, StatusLevel.Waiting),
             (_, ReceiverState.Waiting or ReceiverState.Off) => (Strings.HeadlineWaitingMirroring, StatusLevel.Waiting),
             (BleState.DryRun, _) => (Strings.BleDryRun, StatusLevel.Ok),
             _ => (Strings.HeadlineReady, StatusLevel.Ok),
@@ -691,6 +692,7 @@ public sealed class MainViewModel : ObservableObject
         var name = s.ReceiverName;
         return s.Receiver switch
         {
+            ReceiverState.Waiting when s.DeviceWithoutWindow => (Loc.Format(Strings.FormatReceiverDeviceWithoutWindow, name), StatusLevel.Waiting),
             ReceiverState.Waiting => (Loc.Format(Strings.FormatReceiverWaiting, name), StatusLevel.Waiting),
             ReceiverState.Showing => (s.Device is { } d ? Loc.Format(Strings.FormatReceiverShowingDevice, name, d) : Loc.Format(Strings.FormatReceiverShowing, name), StatusLevel.Ok),
             ReceiverState.NotFound => (Loc.Format(Strings.FormatReceiverNotFound, name), StatusLevel.Error),
@@ -721,12 +723,13 @@ public sealed class MainViewModel : ObservableObject
             (BleState.Unsupported, _) => Strings.HintBleUnsupported,
             (BleState.Error, _) => Strings.HintBleError,
             (_, ReceiverState.NotFound) when settings.Receiver == ReceiverMode.StartUxPlay => Strings.HintUxPlayNotFound,
-            (_, ReceiverState.NotFound) => Loc.Format(Strings.FormatHintProcessNotRunning, settings.AttachProcessName),
+            (_, ReceiverState.NotFound) => Loc.Format(Strings.FormatHintProcessNotRunning, s.ReceiverName),
             (_, ReceiverState.Exited or ReceiverState.Error) => Strings.HintReceiverStopped,
             (BleState.Advertising, _) => Strings.HintPair,
+            (_, ReceiverState.Waiting) when s.DeviceWithoutWindow => Strings.StepMirroringNoWindow,
             (_, ReceiverState.Waiting) when settings.Receiver == ReceiverMode.StartUxPlay =>
                 Loc.Format(Strings.FormatHintMirrorUxPlay, settings.AirPlayName),
-            (_, ReceiverState.Waiting) => Loc.Format(Strings.FormatHintMirrorAttach, settings.AttachProcessName),
+            (_, ReceiverState.Waiting) => Loc.Format(Strings.FormatHintMirrorAttach, s.ReceiverName),
             _ when s.Bridge.IsLandscape => Strings.HintReadyLandscape,
             _ => Strings.HintReady,
         };

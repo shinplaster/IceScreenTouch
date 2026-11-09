@@ -107,6 +107,7 @@ internal sealed class WindowsMirrorService(AppLog log) : IMirrorService
         public int UxPlayProcessId => _uxplay?.ProcessId ?? 0;
         private WindowVideoSource? _attached;
         private MouseHook? _hook;
+        private SwallowZonePublisher? _zones;
         private KeyboardInput? _keyboard;
         private volatile MirrorBridge? _bridge;
         private Task? _loop;
@@ -275,10 +276,19 @@ internal sealed class WindowsMirrorService(AppLog log) : IMirrorService
                 _targetLoop = Task.Run(() => FollowTargetAsync(targetHid, _stop.Token), CancellationToken.None);
             }
 
+            // A receiver that moves its own window when the picture is dragged does not get the presses over the
+            // picture (2026-11-09): swipes would carry the window along. The window is brought to the front instead,
+            // as the click that was kept from it would have done (keys go to the device only while it is in front).
+            var swallowPresses = settings.Receiver == ReceiverMode.AttachToProcess && ReceiverQuirks.MovesWindowOnDrag(settings.AttachProcessName);
             try
             {
-                _hook = new MouseHook(e => _input.Writer.TryWrite(e));
+                var activator = swallowPresses ? new ForegroundActivator(log.Write) : null;
+                _hook = new MouseHook(e => _input.Writer.TryWrite(e), activator is null ? null : activator.RequestAsync);
                 _hook.Start();
+                if (swallowPresses)
+                {
+                    log.Write($"[hook] {settings.AttachProcessName} moves its window when the picture is dragged: left and right button presses over the picture are kept from it (hold Alt while dragging to move the window)");
+                }
             }
             catch (Win32Exception ex)
             {
@@ -325,11 +335,20 @@ internal sealed class WindowsMirrorService(AppLog log) : IMirrorService
                 _uxplay?.Mark(string.Create(CultureInfo.InvariantCulture, $"bridge landscape_rot={(int)r}"));
                 rotationChanged(r);
             };
+            if (swallowPresses && _hook is { } swallowingHook)
+            {
+                var zones = new SwallowZonePublisher(zone => swallowingHook.SwallowZone = zone);
+                _zones = zones;
+                bridge.StatusPublished += zones.Publish;
+            }
+
             _bridge = bridge;
             _loop = Task.Run(() => bridge.RunAsync(_stop.Token), CancellationToken.None);
             _ = _loop.ContinueWith(
                 t =>
                 {
+                    _zones?.Stop(); // nothing handles the presses any more: give them back
+
                     _receiverProblem = ReceiverState.Error;
                     _receiverProblemDetail = Loc.Format(Strings.FormatBridgeStopped, t.Exception?.GetBaseException().Message);
                     log.Write($"[app ] the bridge loop failed: {t.Exception?.GetBaseException()}");
@@ -337,7 +356,7 @@ internal sealed class WindowsMirrorService(AppLog log) : IMirrorService
                 CancellationToken.None,
                 TaskContinuationOptions.OnlyOnFaulted,
                 TaskScheduler.Default);
-            log.Write("[app ] running. Left drag = touch, Ctrl + left drag = pinch, right button = long press, wheel = scroll, Home = home, Ctrl+R = rotation 90 <-> 270, other keys = typed on the device");
+            log.Write("[app ] running. Left drag = touch, Ctrl + left drag = pinch, Alt + drag = left to the receiver (e.g. to move its window), right button = long press, wheel = scroll, Home = home, Ctrl+R = rotation 90 <-> 270, other keys = typed on the device");
         }
 
         public MirrorStatus GetStatus()
@@ -364,9 +383,10 @@ internal sealed class WindowsMirrorService(AppLog log) : IMirrorService
                 Ble = ble,
                 BleDetail = _bleDetail,
                 Receiver = receiver,
-                ReceiverName = settings.Receiver == ReceiverMode.StartUxPlay ? "UxPlay" : settings.AttachProcessName,
+                ReceiverName = settings.Receiver == ReceiverMode.StartUxPlay ? "UxPlay" : KnownReceivers.DisplayName(settings.AttachProcessName),
                 ReceiverDetail = detail,
                 Device = device,
+                DeviceWithoutWindow = receiver == ReceiverState.Waiting && _attached is { ProcessId: > 0 } followed && followed.HasConnectedDevice,
                 SizeSource = uxplay?.SizeSource,
                 Bridge = bridgeStatus,
                 Devices = _devices,
@@ -378,6 +398,7 @@ internal sealed class WindowsMirrorService(AppLog log) : IMirrorService
         {
             log.Write("[app ] stopping the session");
             await _stop.CancelAsync().ConfigureAwait(false);
+            _zones?.Stop(); // the presses over the picture go back to the windows before anything is torn down
             if (_targetLoop is { } targetLoop)
             {
                 await Step("the input target loop", () => targetLoop).ConfigureAwait(false);

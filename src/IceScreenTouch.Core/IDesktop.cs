@@ -38,6 +38,7 @@ public enum MouseInputKind
 /// <param name="Button">The button (press and release only).</param>
 /// <param name="Position">Cursor position in physical screen pixels.</param>
 /// <param name="Control">Ctrl was held at the press (pinch).</param>
+/// <param name="Alt">Alt (either one) was held at the press: the press belongs to the receiver, not to the phone.</param>
 /// <param name="WheelDelta">Wheel movement; 120 is one notch. Positive = away from the user (up) or to the right.</param>
 /// <param name="Horizontal">A horizontal wheel (tilt, or Shift + wheel).</param>
 public readonly record struct MouseInputEvent(
@@ -46,14 +47,15 @@ public readonly record struct MouseInputEvent(
     PointD Position,
     bool Control = false,
     int WheelDelta = 0,
-    bool Horizontal = false)
+    bool Horizontal = false,
+    bool Alt = false)
 {
     /// <summary>One notch of a standard wheel.</summary>
     public const int WheelNotch = 120;
 
     /// <summary>A button went down at <paramref name="position"/>.</summary>
-    public static MouseInputEvent Press(MouseButton button, PointD position, bool control = false) =>
-        new(MouseInputKind.Press, button, position, control);
+    public static MouseInputEvent Press(MouseButton button, PointD position, bool control = false, bool alt = false) =>
+        new(MouseInputKind.Press, button, position, control, Alt: alt);
 
     /// <summary>A button went up at <paramref name="position"/>.</summary>
     public static MouseInputEvent Release(MouseButton button, PointD position) =>
@@ -125,7 +127,10 @@ public interface IVideoSource
     /// </summary>
     SizeD? VideoSize { get; }
 
-    /// <summary>The top-level window that shows the picture, or 0 if there is none (not running, minimized).</summary>
+    /// <summary>
+    /// The window that shows the picture, or 0 if there is none (not running, minimized). A top-level window, or
+    /// the content window inside the frame of a UWP app (<see cref="IDesktop"/> then answers for its top-level window).
+    /// </summary>
     nint FindWindow();
 
     /// <summary>

@@ -28,6 +28,14 @@ public static class ReceiverQuirks
     /// </summary>
     public static bool ShowsStandbyScreen(string processName) => Is(processName, "LonelyScreen");
 
+    /// <summary>
+    /// A left-button drag on the picture moves the receiver's own window (Reflector 4 and 5KPlayer's Airplay.exe,
+    /// 2026-11-09), so a swipe or a drag-scroll would carry the window along. The app keeps the button presses over
+    /// the picture from such a receiver (<see cref="Platform.Windows.ClickSwallower"/>). The window can still be
+    /// moved by its title bar or border, where there is one.
+    /// </summary>
+    public static bool MovesWindowOnDrag(string processName) => Is(processName, "Reflector4") || Is(processName, "Airplay");
+
     private static bool Is(string processName, string name)
     {
         ArgumentNullException.ThrowIfNull(processName);

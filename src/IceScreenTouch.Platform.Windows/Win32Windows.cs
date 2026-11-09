@@ -73,23 +73,24 @@ public static partial class Win32Windows
     /// </summary>
     public static bool IsMaximizedOrFullScreen(nint window)
     {
-        if (window == 0)
+        var root = RootOf(window);
+        if (root == 0)
         {
             return false;
         }
 
-        if (IsZoomed(window))
+        if (IsZoomed(root))
         {
             return true;
         }
 
-        if (!GetWindowRect(window, out var r))
+        if (!GetWindowRect(root, out var r))
         {
             return false;
         }
 
         var info = new MonitorInfo { Size = (uint)Marshal.SizeOf<MonitorInfo>() };
-        if (!GetMonitorInfo(MonitorFromWindow(window, MonitorDefaultToNearest), ref info))
+        if (!GetMonitorInfo(MonitorFromWindow(root, MonitorDefaultToNearest), ref info))
         {
             return false;
         }
@@ -98,11 +99,15 @@ public static partial class Win32Windows
         return r.Left <= m.Left && r.Top <= m.Top && r.Right >= m.Right && r.Bottom >= m.Bottom;
     }
 
-    /// <summary>Frame size and work area of the top-level window of <paramref name="window"/>, or null.</summary>
+    /// <summary>
+    /// Frame size and work area of the top-level window of <paramref name="window"/>, or null. The frame is what
+    /// the top-level window has around the client area of <paramref name="window"/> itself: for a window hosted by
+    /// a UWP frame (<see cref="HostedWindows"/>) that includes the frame's title bar.
+    /// </summary>
     public static WindowMetrics? GetMetrics(nint window)
     {
         var root = RootOf(window);
-        if (WindowRectOnScreen(root) is not { } wr || ClientRectOnScreen(root) is not { } client)
+        if (WindowRectOnScreen(root) is not { } wr || ClientRectOnScreen(window) is not { } client)
         {
             return null;
         }
@@ -118,7 +123,7 @@ public static partial class Win32Windows
     public static bool SetClientSize(nint window, int width, int height)
     {
         var root = RootOf(window);
-        if (GetMetrics(root) is not { } m || WindowRectOnScreen(root) is not { } wr)
+        if (GetMetrics(window) is not { } m || WindowRectOnScreen(root) is not { } wr)
         {
             return false;
         }
@@ -133,8 +138,11 @@ public static partial class Win32Windows
     public static bool SetTopMost(nint window, bool topMost) =>
         SetWindowPos(RootOf(window), topMost ? HwndTopMost : HwndNoTopMost, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpNoActivate);
 
-    /// <summary>True if <paramref name="window"/> exists, is visible and is not minimized.</summary>
-    public static bool IsShown(nint window) => window != 0 && IsWindow(window) && IsWindowVisible(window) && !IsIconic(window);
+    /// <summary>
+    /// True if <paramref name="window"/> exists, is visible and is not minimized. A child window is minimized with
+    /// its top-level window (IsIconic is false for the child itself).
+    /// </summary>
+    public static bool IsShown(nint window) => window != 0 && IsWindow(window) && IsWindowVisible(window) && !IsIconic(RootOf(window));
 
     /// <summary>The process that owns <paramref name="window"/>, or 0.</summary>
     public static int ProcessIdOf(nint window)
@@ -160,7 +168,11 @@ public static partial class Win32Windows
         return list;
     }
 
-    /// <summary>The biggest visible, non-minimized top-level window owned by process <paramref name="processId"/>, or 0.</summary>
+    /// <summary>
+    /// The biggest visible, non-minimized top-level window owned by process <paramref name="processId"/>, or 0. A
+    /// UWP app has no top-level window of its own (ApplicationFrameHost owns the frame): without one, the window
+    /// it draws inside a frame is returned instead (see <see cref="HostedWindows"/>).
+    /// </summary>
     public static nint LargestVisibleWindowOf(int processId)
     {
         nint best = 0;
@@ -179,7 +191,7 @@ public static partial class Win32Windows
             }
         }
 
-        return best;
+        return best != 0 ? best : HostedWindows.LargestOf(processId);
     }
 
     [LibraryImport("shcore.dll")]

@@ -209,7 +209,7 @@ public sealed class SetupViewModel : ObservableObject
             ReceiverState.NotFound when settings.Receiver == ReceiverMode.StartUxPlay =>
                 new SetupStep(receiverTitle, StatusLevel.Error, Strings.StepReceiverUxPlayNotFound),
             ReceiverState.NotFound =>
-                new SetupStep(receiverTitle, StatusLevel.Error, Loc.Format(Strings.FormatStepReceiverNotRunning, settings.AttachProcessName)),
+                new SetupStep(receiverTitle, StatusLevel.Error, Loc.Format(Strings.FormatStepReceiverNotRunning, name)),
             ReceiverState.Exited or ReceiverState.Error =>
                 new SetupStep(receiverTitle, StatusLevel.Error, Loc.Format(Strings.FormatStepReceiverStopped, name, s.ReceiverDetail)),
             _ => new SetupStep(receiverTitle, StatusLevel.Idle, Strings.StepStopped),
@@ -222,6 +222,7 @@ public sealed class SetupViewModel : ObservableObject
         {
             ReceiverState.Showing => new SetupStep(mirroringTitle, StatusLevel.Ok,
                 s.Device is { } d ? Loc.Format(Strings.FormatStepMirroringOkDevice, d) : Strings.StepMirroringOk),
+            ReceiverState.Waiting when s.DeviceWithoutWindow => new SetupStep(mirroringTitle, StatusLevel.Waiting, Strings.StepMirroringNoWindow),
             ReceiverState.Waiting => new SetupStep(mirroringTitle, StatusLevel.Waiting, Loc.Format(Strings.FormatStepMirroringWaiting, item)),
             _ => new SetupStep(mirroringTitle, StatusLevel.Idle, Strings.StepMirroringIdle),
         };
