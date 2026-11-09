@@ -22,7 +22,40 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 
 ## [Unreleased]
 
-The source code is public since 2026-11-08. No build has been released yet; the first release will be 0.1.0.
+## [0.2.0] - 2026-11-10
+
+### Added
+
+- More AirPlay receivers can be followed: AirServer from the Microsoft Store (its window is hosted by Windows' app
+  frame), Reflector 4 and 5KPlayer (whose mirror window belongs to `Airplay.exe`). The Status tab lists them and can
+  start them.
+- Reflector 4 and 5KPlayer move their window when it is dragged. IceScreen Touch now keeps button presses over the
+  picture from these receivers and brings their window to the front, so swipes and drags reach the phone.
+  **Alt + click or drag** goes to the receiver instead (to move its window, for example) and is not sent to the
+  phone, with any receiver.
+
+### Changed
+
+- The free trial of the Microsoft Store version is 7 days (it was 24 hours). The Status tab counts the time left in
+  days from one day up ("Trial: 6 days left"), then in hours and minutes as before.
+- The Status tab says when a device is connected to the receiver but its mirror window cannot be found (for
+  example, when it is minimized), instead of asking to choose the receiver in Screen Mirroring.
+- The Status tab names receivers as the receiver list does (5KPlayer, Reflector 4), not by their process name.
+- Settings: the UxPlay field is now "Location of uxplay.exe" (the old "empty = find it automatically" only found a
+  build inside the source repository).
+- The user guide has a chapter on installing an AirPlay receiver (the five tested receivers, in name order), and
+  `docs/BUILD-UXPLAY.md` explains how to build UxPlay on Windows. App texts no longer name one receiver as the
+  example.
+
+### Fixed
+
+- With UxPlay, the Status tab kept the last picture size and device after the phone stopped mirroring or the
+  connection was lost, and that device stayed the "mirrored" target for touches and keys. Both are now cleared when
+  the session ends.
+
+## [0.1.0] - 2026-11-08
+
+The first release, in the Microsoft Store. The source code is public since 2026-11-08.
 
 ### Added
 

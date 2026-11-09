@@ -18,7 +18,7 @@
     <!-- Product version: the one place for it (Semantic Versioning, 0.x until stable; rules in CHANGELOG.md). The
          .NET SDK appends the git commit to the informational version (shown on the About tab); tools/publish.ps1
          names the zip after it; a vX.Y.Z tag must match it. -->
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Copyright>Copyright (c) 2026 Shin-plaster</Copyright>
   </PropertyGroup>
 </Project>

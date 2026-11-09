@@ -21,7 +21,11 @@ Nothing else needs to be installed, not even .NET.
 
 Install IceScreen Touch from the Microsoft Store. The Store version is signed and updates itself.
 
-The Store version has a free 24-hour trial, so you can check that your PC's Bluetooth works with it. The **Status** tab shows how much time is left. When the trial ends, the app stops working until you buy it in the Store; use the **Buy** button in the Status tab. It works again right away.
+The Store version has a free 7-day trial, so you can check that your PC's Bluetooth works with it before you buy. During the trial you can also try AirPlay receivers and choose the one to use with it (see [Installing an AirPlay receiver](#installing-an-airplay-receiver)). IceScreen Touch is a paid app in the Store (the Store page shows the price).
+
+- **During the trial**: the top of the **Status** tab shows how long is left, for example "Trial: 6 days left (until Nov 16, 9:24 PM)", with a **Buy** button. The **About** tab shows "License: Trial (until …)".
+- **When the trial ends**: IceScreen Touch stops the connection and the **Status** tab shows "The trial has ended" with a **Buy** button.
+- **Buying**: press **Buy**. The purchase takes place in a Microsoft Store dialog. After you buy, IceScreen Touch works again right away, without restarting, and the **About** tab shows "License: Purchased".
 
 You can also build it yourself from the source code (see the README of the GitHub repository). A build of your own is a single file, `IceScreenTouch.exe`, and it is not code-signed:
 
@@ -29,7 +33,7 @@ You can also build it yourself from the source code (see the README of the GitHu
 - On a Windows 11 PC with **Smart App Control turned on**, unsigned programs cannot start (see Windows Security > App & browser control > Smart App Control).
 - On a company PC, the administrator's policies may block it.
 
-The Store version and a build of your own keep separate settings.
+A build of your own has no license check and no trial (its **About** tab shows "License: Self-built (no license check)").
 
 ## Installing an AirPlay receiver
 
@@ -163,11 +167,11 @@ With a test page opened in Safari on the iPhone, IceScreen Touch can measure the
 
 ## Settings and logs
 
-- Settings: `settings.json` in the data folder (change them in the **Settings** tab). The data folder is `%LOCALAPPDATA%\IceScreenTouch` for a build of your own; the Store version keeps it inside its package folder. The **About** tab shows the folder and opens it.
+- Settings: `settings.json` in the data folder (change them in the **Settings** tab). The data folder is `%LOCALAPPDATA%\IceScreenTouch`. The Store version may keep it inside its package folder instead (under `%LOCALAPPDATA%\Packages\`), because Windows redirects it when that folder did not exist yet; then the Store version and a build of your own keep separate settings. The **About** tab shows the folder and opens it.
 - Language: IceScreen Touch follows the Windows display language (Japanese for Japanese, English otherwise). You can also choose English or 日本語 under "Language" in the **Settings** tab; a new choice takes effect the next time IceScreen Touch starts.
 - Light or dark: IceScreen Touch follows the Windows app mode. You can also choose Light or Dark under "Appearance (light / dark)" in the **Settings** tab; it changes as soon as you press "Save and apply".
 - Logs: `logs\` in the data folder ("Open the log folder" in the **Log** tab)
-- Version and licenses: the **About** tab (version, license, third-party software, data folder). When you report a problem, paste the text that "Copy version info" copies.
+- Version and licenses: the **About** tab (version, the "License:" line that says whether this copy is in its trial, purchased or self-built, the open-source licenses, third-party software, data folder). When you report a problem, paste the text that "Copy version info" copies.
 - The environment variable `ICESCREENTOUCH_DATA_DIR` moves the settings and logs to another folder.
 
 ## Troubleshooting
@@ -189,6 +193,8 @@ With a test page opened in Safari on the iPhone, IceScreen Touch can measure the
 | Taps land away from where I click (Reflector 4) | Reflector 4 draws a device frame around the picture by default, and with it taps can land away from where you click. Turn off "Show Frame" in its settings (see [Reflector 4](#reflector-4)) |
 | I cannot move the receiver's window by dragging the picture (Reflector 4, 5KPlayer) | Hold **Alt** and drag. A drag without Alt goes to the iPhone |
 | The Status tab says "a device is connected, but its window was not found" | The mirror window may be minimized. Restore it. This message needs IceScreen Touch 0.2.0 or later |
+| The Status tab says "The trial has ended" | Press **Buy** and buy IceScreen Touch in the Microsoft Store dialog. It works again right away, without restarting |
+| **Buy** shows "Could not open the Microsoft Store purchase. Try again later." | Wait a while and press **Buy** again |
 
 ## License and notes
 
@@ -196,3 +202,4 @@ With a test page opened in Safari on the iPhone, IceScreen Touch can measure the
 - The licenses of the bundled components are in `THIRD-PARTY-NOTICES.txt`. IceScreen Touch contains no AirPlay receiver (no UxPlay, no FairPlay code).
 - The name and icon are not covered by the MIT License (see [TRADEMARKS.md](../TRADEMARKS.md)).
 - IceScreen Touch is not affiliated with Apple Inc. iPhone, iPad and AirPlay are trademarks of Apple Inc.
+- What IceScreen Touch stores and which connections it makes (including the Store version's license check) are described in [PRIVACY.md](PRIVACY.md).
