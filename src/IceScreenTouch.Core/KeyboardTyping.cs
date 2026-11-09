@@ -12,24 +12,25 @@ public static class KeyboardTyping
     /// Presses and releases one key. The modifiers go down one report before the key and come up after it, like a
     /// person typing. Returns when the key-down report was sent (<paramref name="pressed"/> gets that moment).
     /// </summary>
-    public static async ValueTask PressAsync(this IKeyboardSink sink, HidKey key, TimeSpan? hold = null, Action? pressed = null, CancellationToken cancellationToken = default)
+    public static async ValueTask PressAsync(this IKeyboardSink sink, HidKey key, TimeSpan? hold = null, Action? pressed = null, TimeProvider? time = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sink);
+        time ??= TimeProvider.System;
         try
         {
             if (key.Modifiers != 0)
             {
                 await sink.SendKeyboardAsync(key.Modifiers, ReadOnlyMemory<byte>.Empty, cancellationToken).ConfigureAwait(false);
-                await Task.Delay(ModifierGap, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(ModifierGap, time, cancellationToken).ConfigureAwait(false);
             }
 
             pressed?.Invoke();
             await sink.SendKeyboardAsync(key.Modifiers, new[] { key.Usage }, cancellationToken).ConfigureAwait(false);
-            await Task.Delay(hold ?? TimeSpan.FromMilliseconds(30), cancellationToken).ConfigureAwait(false);
+            await Task.Delay(hold ?? TimeSpan.FromMilliseconds(30), time, cancellationToken).ConfigureAwait(false);
             if (key.Modifiers != 0)
             {
                 await sink.SendKeyboardAsync(key.Modifiers, ReadOnlyMemory<byte>.Empty, cancellationToken).ConfigureAwait(false);
-                await Task.Delay(ModifierGap, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(ModifierGap, time, cancellationToken).ConfigureAwait(false);
             }
         }
         finally
@@ -44,9 +45,10 @@ public static class KeyboardTyping
     /// characters that have no key on that layout (they are skipped). <paramref name="pressed"/> gets each key as
     /// its key-down report goes out.
     /// </summary>
-    public static async ValueTask<string> TypeAsync(this IKeyboardSink sink, string text, HidKeyboardLayout layout, TimeSpan? interval = null, Action<char>? pressed = null, CancellationToken cancellationToken = default)
+    public static async ValueTask<string> TypeAsync(this IKeyboardSink sink, string text, HidKeyboardLayout layout, TimeSpan? interval = null, Action<char>? pressed = null, TimeProvider? time = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sink);
+        time ??= TimeProvider.System;
         ArgumentNullException.ThrowIfNull(text);
         var skipped = new System.Text.StringBuilder();
         foreach (var c in text.ReplaceLineEndings("\n"))
@@ -57,8 +59,8 @@ public static class KeyboardTyping
                 continue;
             }
 
-            await sink.PressAsync(key, pressed: pressed is null ? null : () => pressed(c), cancellationToken: cancellationToken).ConfigureAwait(false);
-            await Task.Delay(interval ?? TimeSpan.FromMilliseconds(20), cancellationToken).ConfigureAwait(false);
+            await sink.PressAsync(key, pressed: pressed is null ? null : () => pressed(c), cancellationToken: cancellationToken, time: time).ConfigureAwait(false);
+            await Task.Delay(interval ?? TimeSpan.FromMilliseconds(20), time, cancellationToken).ConfigureAwait(false);
         }
 
         return skipped.ToString();

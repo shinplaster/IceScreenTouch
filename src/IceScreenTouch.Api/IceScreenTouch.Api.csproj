@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The external API: transport-independent controller (serialization of operations, coordinates, limits,
+       arbitration with the user). The HTTP / WebSocket server (ASP.NET Core) is added on top of it. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Kestrel serves the API on 127.0.0.1 (a separate server from the probe page server). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The OpenAPI document served at GET /v1/openapi.json (replace the file to change the document). -->
+    <EmbeddedResource Include="openapi.json" LogicalName="IceScreenTouch.Api.openapi.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="IceScreenTouch.Api.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IceScreenTouch.Core\IceScreenTouch.Core.csproj" />
+  </ItemGroup>
+
+</Project>
