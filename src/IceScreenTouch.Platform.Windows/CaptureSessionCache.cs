@@ -13,8 +13,11 @@ namespace IceScreenTouch.Platform.Windows;
 internal sealed class CaptureSessionCache<TSession> : IDisposable
     where TSession : class, IDisposable
 {
-    /// <summary>How long a session lives without being used.</summary>
-    public static readonly TimeSpan IdleTime = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// How long a session lives without being used. Windows draws a colored border around the captured window while a session is
+    /// open, so this is also how long that border stays after the last screenshot: kept short on purpose.
+    /// </summary>
+    public static readonly TimeSpan IdleTime = TimeSpan.FromSeconds(2);
 
     private readonly TimeProvider _time;
     private readonly TimeSpan _idle;

@@ -623,7 +623,8 @@ paths:
       description: |
         The picture of the device as the receiver window shows it: exactly the rectangle that `GET /v1/status` reports as
         `picture` (the black bars of the window are left out), as a PNG or a JPEG. The image is made from the receiver window
-        alone, so other windows (notifications, overlays) do not appear in it.
+        alone, so other windows (notifications, overlays) do not appear in it. For about 2 seconds after a screenshot is taken, a colored border
+        (usually yellow) is shown around the receiver window; the border is not in the image.
 
         * The image size follows the **size of the receiver window**, not the resolution of the device. Use the size of
           the screenshot you took as `ref` when you point at it with `space: "pixel"`.

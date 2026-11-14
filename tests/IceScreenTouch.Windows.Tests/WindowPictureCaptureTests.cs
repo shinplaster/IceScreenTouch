@@ -364,15 +364,15 @@ public sealed class WindowPictureCaptureTests
     }
 
     [Fact]
-    public void ASessionIsClosedAfterTenSecondsWithoutUseAndDisposeClosesTheRest()
+    public void ASessionIsClosedAfterTheIdleTimeWithoutUseAndDisposeClosesTheRest()
     {
         using var h = new Harness();
         _ = h.Take();
         var session = h.Sessions[0];
 
-        h.Time.Advance(TimeSpan.FromSeconds(9.9));
+        h.Time.Advance(CaptureSessionCache<IWgcSession>.IdleTime - TimeSpan.FromSeconds(0.1));
         Assert.False(session.Disposed);
-        h.Time.Advance(TimeSpan.FromSeconds(0.2));
+        h.Time.Advance(TimeSpan.FromSeconds(0.2)); // 0.1 s past the idle time
         Assert.True(session.Disposed);
         Assert.Equal(0, h.Capture.OpenSessions);
 
@@ -623,18 +623,25 @@ public sealed class CaptureSessionCacheTests
     }
 
     [Fact]
-    public void AUseKeepsTheSessionAndEachUseRestartsTheTenSeconds()
+    public void TheIdleTimeIsTwoSeconds()
+    {
+        // Windows shows a border around the window while a session is open: it must not stay long after the last screenshot.
+        Assert.Equal(TimeSpan.FromSeconds(2), CaptureSessionCache<Probe>.IdleTime);
+    }
+
+    [Fact]
+    public void AUseKeepsTheSessionAndEachUseRestartsTheIdleTime()
     {
         var (cache, time, made) = Make();
 
         cache.Use(1, p => p);
-        time.Advance(TimeSpan.FromSeconds(9));
+        time.Advance(CaptureSessionCache<Probe>.IdleTime - TimeSpan.FromSeconds(0.1));
         cache.Use(1, p => p);
-        time.Advance(TimeSpan.FromSeconds(9));
+        time.Advance(CaptureSessionCache<Probe>.IdleTime - TimeSpan.FromSeconds(0.1));
 
         Assert.Single(made);
-        Assert.False(made[0].Disposed); // 9 s since the last use
-        time.Advance(TimeSpan.FromSeconds(1));
+        Assert.False(made[0].Disposed); // 0.1 s short of the idle time since the last use
+        time.Advance(TimeSpan.FromSeconds(0.1));
         Assert.True(made[0].Disposed);
         Assert.Equal(0, cache.Count);
     }
@@ -644,11 +651,11 @@ public sealed class CaptureSessionCacheTests
     {
         var (cache, time, made) = Make();
         cache.Use(1, p => p);
-        time.Advance(TimeSpan.FromSeconds(10)); // the timer closes the first (it is the only one)
+        time.Advance(CaptureSessionCache<Probe>.IdleTime); // the timer closes the first (it is the only one)
         Assert.True(made[0].Disposed);
 
         cache.Use(2, p => p);
-        time.Advance(TimeSpan.FromSeconds(4));
+        time.Advance(CaptureSessionCache<Probe>.IdleTime / 2);
         cache.Sweep();
 
         Assert.False(made[1].Disposed);

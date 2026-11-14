@@ -108,7 +108,7 @@ public sealed class WgcCaptureTests : IDisposable
     }
 
     [WgcFact]
-    public void ASessionIsKeptBetweenShotsAndClosedAfterTenSecondsWithoutUse()
+    public void ASessionIsKeptBetweenShotsAndClosedAfterTheIdleTimeWithoutUse()
     {
         ShowBlockAndWait();
         var time = new FakeTimeProvider();
@@ -122,7 +122,7 @@ public sealed class WgcCaptureTests : IDisposable
         }
 
         Assert.Equal(1, capture.OpenSessions);
-        time.Advance(TimeSpan.FromSeconds(10));
+        time.Advance(CaptureSessionCache<IWgcSession>.IdleTime);
         Assert.Equal(0, capture.OpenSessions);
         Assert.Equal(860, capture.Capture(_window.Handle, (_, w, _, _) => w).Value); // and a new one starts when it is needed
         Assert.Equal(1, capture.OpenSessions);

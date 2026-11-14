@@ -244,6 +244,9 @@ internal sealed partial class WgcSession : IWgcSession
     }
 
     // Options that only matter for looks; the capture works without them, so a failure is ignored.
+    // IsBorderRequired is deliberately left at the system default: Windows draws a colored border around the window while the session
+    // is open, which tells the user that the window is being captured. A borderless capture would need the user's consent
+    // (GraphicsCaptureAccess.RequestAccessAsync, a prompt) and, in a package, a capability; this does not ask for either.
     private static void SetOptions(GraphicsCaptureSession session)
     {
         // The mouse pointer is not part of a screenshot (IsCursorCaptureEnabled exists from Windows 10 version 1903).
@@ -252,20 +255,6 @@ internal sealed partial class WgcSession : IWgcSession
             if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 18362))
             {
                 session.IsCursorCaptureEnabled = false;
-            }
-        }
-        catch (Exception e) when (e is COMException or InvalidCastException or UnauthorizedAccessException or InvalidOperationException)
-        {
-        }
-
-        // No yellow border around the window (Windows 11 and Windows 10 21H1 or later). A packaged app also needs the
-        // graphicsCaptureWithoutBorder capability and the user's consent (GraphicsCaptureAccess.RequestAccessAsync, which this does not
-        // call: it shows a prompt); without them Windows ignores this setting and shows the border.
-        try
-        {
-            if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 20348))
-            {
-                session.IsBorderRequired = false;
             }
         }
         catch (Exception e) when (e is COMException or InvalidCastException or UnauthorizedAccessException or InvalidOperationException)
