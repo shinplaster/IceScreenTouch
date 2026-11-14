@@ -170,4 +170,23 @@ public interface IApiSession
     /// next tick, a few milliseconds later); the API shows the requested value until the bridge has caught up.
     /// </summary>
     void SetRotation(Rotation? landscape, Rotation? portrait);
+
+    /// <summary>
+    /// Copies the pixels of the picture rectangle out of the receiver window for a screenshot (see <see cref="CapturedPicture"/>), or returns null
+    /// when there is no picture (no window, minimized, no picture rectangle, the capture failed or timed out). Reads pixels only, so it works
+    /// while a measurement suspends the bridge and while the API holds the input. Any thread; the default is null (a session without pixels).
+    /// </summary>
+    ValueTask<CapturedPicture?> CapturePictureAsync(CancellationToken cancellationToken) => new((CapturedPicture?)null);
 }
+
+/// <summary>
+/// The pixels of one screenshot with the bridge state they were cut by (one <see cref="BridgeStatus"/> snapshot: its picture rectangle was the
+/// crop, its rotations and orientation belong to the same moment).
+/// </summary>
+/// <param name="Bgra">The cropped pixels, 32-bit BGRA, top-down (a copy the caller owns).</param>
+/// <param name="Width">Width in pixels.</param>
+/// <param name="Height">Height in pixels.</param>
+/// <param name="Stride">Bytes per row.</param>
+/// <param name="Status">The bridge snapshot the crop was computed from.</param>
+public sealed record CapturedPicture(byte[] Bgra, int Width, int Height, int Stride, BridgeStatus Status);
+

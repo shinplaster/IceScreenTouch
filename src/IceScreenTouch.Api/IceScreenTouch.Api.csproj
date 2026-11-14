@@ -21,6 +21,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Encodes and shrinks the screenshot (PNG, JPEG). The same version Avalonia.Skia brings into the app, so nothing new
+         is shipped; SkiaSharp pulls the native library of the platform it runs on. -->
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\IceScreenTouch.Core\IceScreenTouch.Core.csproj" />
   </ItemGroup>
 

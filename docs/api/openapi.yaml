@@ -69,7 +69,8 @@ info:
 
     ## Requests and responses
 
-    * Success is `200` with a JSON body. Operations that return nothing answer `{}`.
+    * Success is `200` with a JSON body. Operations that return nothing answer `{}`. The one exception is
+      `GET /v1/screenshot`, which answers an image (PNG or JPEG) with the details in `X-IceScreenTouch-*` headers.
     * Errors are `application/problem+json` (RFC 9457) with the machine-readable extension member `code` (see
       the `Problem` schema). `type` is always `about:blank`; `detail` is a sentence for a person and never contains
       your data.
@@ -83,7 +84,7 @@ info:
 
     * Only **one operation at a time**. A touch, key, home, `PUT /v1/rotation`, `PUT /v1/target` or a WebSocket
       session that is running makes every other operation answer `409` `busy`; the API never queues. `GET
-      /v1/status`, `GET /v1/rotation` and `GET /v1/openapi.json` are not operations and always work. While the
+      /v1/status`, `GET /v1/rotation`, `GET /v1/screenshot` and `GET /v1/openapi.json` are not operations and always work. While the
       probe (measurement) page of the app is running, operations are `409` `busy` too.
     * No operation takes longer than **60 seconds** (the sum of holds, durations, intervals and the last `t` of a
       path), else `400` `invalid_request`.
@@ -614,6 +615,123 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /v1/screenshot:
+    get:
+      operationId: getScreenshot
+      tags: [status]
+      summary: A picture of the device screen
+      description: |
+        The picture of the device as the receiver window shows it: exactly the rectangle that `GET /v1/status` reports as
+        `picture` (the black bars of the window are left out), as a PNG or a JPEG. The image is made from the receiver window
+        alone, so other windows (notifications, overlays) do not appear in it.
+
+        * The image size follows the **size of the receiver window**, not the resolution of the device. Use the size of
+          the screenshot you took as `ref` when you point at it with `space: "pixel"`.
+        * `maxSize` only shrinks (the longest side becomes `maxSize`, the aspect stays); it never enlarges. Without it the
+          image has the size of the picture. The header `X-IceScreenTouch-Source-Size` always has the size before shrinking.
+        * The image has no transparency.
+        * Not an operation: it takes no part in the one-operation-at-a-time rule, so it also works while an operation or a
+          WebSocket stream runs; it never answers `busy`. It sends nothing to the device.
+        * At most **10 screenshots in any 1 second**, counted over all clients. The 11th gets `429` `rate_limited` with
+          `Retry-After: 1`. Only requests that passed the query check count (also when they are then answered `not_running`
+          or `no_picture`); a request refused with `429` does not count. Too many screenshots in progress at once are also
+          answered `429` `rate_limited`.
+        * Checks in this order, after the common ones (`Origin`, `Host`, token): the license (`403` `purchase_required`), the
+          query (`400` `invalid_request`), the rate limit (`429`), `409` `not_running`, `409` `no_picture` (no picture: the
+          receiver window is closed, minimized, on another virtual desktop or not found, or it could not be read).
+        * The query parameter names are case-sensitive and the values are exact: `format` is `png` or `jpeg` in lower case;
+          `maxSize` and `quality` are plain decimal digits. An unknown or repeated parameter, a value out of range, and
+          `quality` with `format=png` are `400` `invalid_request`.
+      parameters:
+        - name: format
+          in: query
+          required: false
+          description: The image format. Lower case.
+          schema:
+            type: string
+            enum: [png, jpeg]
+            default: png
+        - name: maxSize
+          in: query
+          required: false
+          description: |
+            The longest side of the image in pixels. The image is shrunk to it when it is larger and is not touched when it
+            is smaller or equal. Without it the image keeps the size of the picture.
+          schema:
+            type: integer
+            minimum: 16
+            maximum: 8192
+        - name: quality
+          in: query
+          required: false
+          description: The JPEG quality. Only with `format=jpeg` (with `png` it is `400` `invalid_request`).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 90
+      responses:
+        "200":
+          description: |
+            The image. The body is the file (`Content-Type` is `image/png` or `image/jpeg`); the headers say how the app saw
+            the picture when it was taken.
+          headers:
+            X-IceScreenTouch-Orientation:
+              description: "`portrait`, or `landscape` when the picture is wider than tall (a square one is `portrait`)."
+              required: true
+              schema:
+                type: string
+                enum: [portrait, landscape]
+            X-IceScreenTouch-Rotation:
+              description: The rotation the app assumes for that orientation (see `GET /v1/rotation`), in degrees.
+              required: true
+              schema:
+                type: string
+                enum: ["0", "90", "180", "270"]
+            X-IceScreenTouch-Source-Size:
+              description: The size of the picture before `maxSize` shrank it, `<width>x<height>` in pixels, for example `1179x2556`.
+              required: true
+              schema:
+                type: string
+                pattern: "^[0-9]+x[0-9]+$"
+          content:
+            image/png:
+              schema:
+                type: string
+                contentMediaType: image/png
+                contentEncoding: binary
+            image/jpeg:
+              schema:
+                type: string
+                contentMediaType: image/jpeg
+                contentEncoding: binary
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: |
+            `not_running` (the mirroring session is not running) or `no_picture` (the receiver window is closed, minimized,
+            on another virtual desktop or not found, or it could not be read).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+              examples:
+                noPicture:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    detail: "there is no picture of the device"
+                    code: no_picture
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /v1/stream:
     get:
       operationId: stream
@@ -843,6 +961,29 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+    RateLimited:
+      description: |
+        `rate_limited`: more than 10 screenshots in one second (over all clients), or too many screenshots in progress at once. Try again after the time in
+        `Retry-After`.
+      headers:
+        Retry-After:
+          description: Seconds to wait before the next try. Always `1`.
+          required: true
+          schema:
+            type: string
+            enum: ["1"]
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          examples:
+            tooMany:
+              value:
+                type: about:blank
+                title: Too Many Requests
+                status: 429
+                detail: "at most 10 screenshots per second"
+                code: rate_limited
     InternalError:
       description: |
         `internal_error`: an unexpected failure inside the app (for example a failed Bluetooth write). The detail is
@@ -869,14 +1010,14 @@ components:
         | `method_not_allowed` | 405 | The endpoint does not accept that HTTP method (`Allow` lists the ones it does). |
         | `not_running` | 409 | The mirroring session is not running. |
         | `not_connected` | 409 | The target device has not subscribed to the HID reports. |
-        | `no_picture` | 409 | There is no picture (the receiver window is closed or minimized) and the request needs one. |
+        | `no_picture` | 409 | There is no picture (the receiver window is closed or minimized, or it could not be read) and the request needs one. |
         | `picture_changed` | 409 | A `pixel` request refers to a screenshot of the opposite orientation: the device rotated since. |
         | `busy` | 409 | Another operation, a WebSocket stream or the probe page is running. |
         | `user_interrupted` | 409 | The user used the mirror; everything was lifted. |
         | `user_active` | 409 | The user used the mirror within the last second, or holds the mouse or a key. |
         | `no_keyboard` | 409 | The published HID map has no keyboard. |
         | `no_home_button` | 409 | The published HID map has no home button. |
-        | `rate_limited` | 429 | Too many messages per second on a WebSocket stream (it is closed). |
+        | `rate_limited` | 429 | More than 10 screenshots in one second, or too many screenshots in progress at once (`Retry-After: 1` for both), or too many messages per second on a WebSocket stream (it is closed). |
         | `cancelled` | 499 | `POST /v1/cancel` (or the client going away) ended the operation. |
         | `internal_error` | 500 | An unexpected failure inside the app. |
       required: [type, title, status, detail, code]

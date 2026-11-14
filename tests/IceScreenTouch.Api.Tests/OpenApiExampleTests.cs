@@ -3,6 +3,7 @@
 
 using System.Text.Json.Nodes;
 using IceScreenTouch.Api;
+using IceScreenTouch.Core;
 
 namespace IceScreenTouch.Api.Tests;
 
@@ -124,6 +125,53 @@ public class OpenApiExampleTests : ServerTestBase
 
         var empty = await PostDriven("/v1/touch/tap", """{ "x": 0.5, "y": 0.5 }""");
         Assert.Empty(SchemaCheck.ValidateNamed(spec, "Empty", JsonNode.Parse(await empty.Content.ReadAsStringAsync())));
+    }
+
+    [Fact]
+    public async Task TheScreenshotMatchesItsDocumentedParametersHeadersAndErrors()
+    {
+        var spec = SpecFiles.LoadYaml();
+        var operation = spec["paths"]!["/v1/screenshot"]!["get"]!;
+
+        // The query parameters and their limits are the ones the server enforces.
+        var parameters = operation["parameters"]!.AsArray().ToDictionary(p => p!["name"]!.GetValue<string>(), p => p!["schema"]!);
+        Assert.Equal(["format", "maxSize", "quality"], parameters.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["png", "jpeg"], parameters["format"]["enum"]!.AsArray().Select(n => n!.GetValue<string>()));
+        Assert.Equal(ScreenshotOptions.MinMaxSize, parameters["maxSize"]["minimum"]!.GetValue<long>());
+        Assert.Equal(ScreenshotOptions.MaxMaxSize, parameters["maxSize"]["maximum"]!.GetValue<long>());
+        Assert.Equal(1, parameters["quality"]["minimum"]!.GetValue<long>());
+        Assert.Equal(100, parameters["quality"]["maximum"]!.GetValue<long>());
+        Assert.Equal(ScreenshotOptions.DefaultQuality, parameters["quality"]["default"]!.GetValue<long>());
+
+        // The headers of a real answer are the documented ones, with documented values.
+        Host.Frame = TestPictures.Quadrants(30, 20, landscape: true, rotation: Rotation.R90);
+        var ok = await GetAsync("/v1/screenshot");
+        Assert.Equal(200, (int)ok.StatusCode);
+        Assert.Contains(ok.Content.Headers.ContentType!.MediaType!, operation["responses"]!["200"]!["content"]!.AsObject().Select(c => c.Key));
+        foreach (var (name, header) in operation["responses"]!["200"]!["headers"]!.AsObject())
+        {
+            Assert.True(ok.Headers.TryGetValues(name, out var values), $"the answer has no {name}");
+            var value = values!.Single();
+            Assert.Empty(SchemaCheck.Validate(spec, header!["schema"]!, JsonValue.Create(value)));
+            if (header["schema"]!["pattern"] is { } pattern)
+            {
+                Assert.Matches(pattern.GetValue<string>(), value);
+            }
+        }
+
+        // The refusals the document lists are the ones the server answers, with the documented Retry-After.
+        var documented = operation["responses"]!.AsObject().Select(r => r.Key).Order(StringComparer.Ordinal).ToArray();
+        Assert.Equal(["200", "400", "401", "403", "409", "429", "500"], documented);
+        for (var i = 0; i < 10; i++)
+        {
+            await GetAsync("/v1/screenshot");
+        }
+
+        var limited = await GetAsync("/v1/screenshot");
+        var problem = await AssertProblem(limited, ApiErrorCodes.RateLimited);
+        Assert.Empty(SchemaCheck.ValidateNamed(spec, "Problem", JsonNode.Parse(problem.GetRawText())));
+        var retry = spec["components"]!["responses"]!["RateLimited"]!["headers"]!["Retry-After"]!;
+        Assert.Empty(SchemaCheck.Validate(spec, retry["schema"]!, JsonValue.Create(limited.Headers.GetValues("Retry-After").Single())));
     }
 
     [Fact]

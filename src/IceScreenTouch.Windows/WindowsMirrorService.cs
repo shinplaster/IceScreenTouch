@@ -174,6 +174,105 @@ internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null
             }
         }
 
+        // ---- Screenshots (the external API) ---------------------------------------------------------------------
+
+        // One capture at a time, with a time limit; a stuck capture makes later screenshots fail at once (see CaptureRunner).
+        private CaptureRunner? _captureRunner;
+        private LogThrottle? _captureLogs;
+        private WindowPictureCapture? _pictureCapture;
+        private int _lastCaptureSource = -1; // -1 nothing logged yet, otherwise the PictureSource last logged
+
+        /// <summary>The longest a screenshot waits for the window (a receiver that does not answer must not hold the request).</summary>
+        private static readonly TimeSpan CaptureTimeout = TimeSpan.FromSeconds(5);
+
+        // The receiver whose window is read: the running one the app follows, or UxPlay (never LonelyScreen). Its process owns the window.
+        private int ReceiverProcessId => settings.Receiver == ReceiverMode.AttachToProcess ? _attached?.ProcessId ?? 0 : _uxplay?.ProcessId ?? 0;
+
+        public ValueTask<CapturedPicture?> CapturePictureAsync(CancellationToken cancellationToken)
+        {
+            // One snapshot decides the window, the crop, the orientation and the rotation. While the probe suspends the bridge it keeps the
+            // last one, which is why the window is looked at again in CaptureNow.
+            var status = Bridge;
+            if (status.Window == 0 || status.Picture is not { HasArea: true } picture || status.Client is not { } client)
+            {
+                return new ValueTask<CapturedPicture?>((CapturedPicture?)null);
+            }
+
+            var runner = LazyInitializer.EnsureInitialized(ref _captureRunner, () => new CaptureRunner(CaptureTimeout, issue => LogCapture(
+                issue == CaptureIssue.TimedOut ? "timeout" : "stuck",
+                issue == CaptureIssue.TimedOut
+                    ? "screenshot failed: the window did not answer in time"
+                    : "screenshot refused: an earlier capture of the window is still stuck")));
+            return runner.RunAsync(() => CaptureNow(status, picture, client), cancellationToken);
+        }
+
+        private CapturedPicture? CaptureNow(BridgeStatus status, RectD picture, RectI snapshotClient)
+        {
+            var window = status.Window;
+            var processId = ReceiverProcessId;
+            if (processId == 0 || !Win32Windows.IsShown(window) || Win32Windows.ProcessIdOf(window) != processId)
+            {
+                // Gone, hidden, minimized, or no longer the receiver's (the handle may have been reused): never read it.
+                LogCapture("failure", "screenshot failed: the receiver window is gone, hidden, minimized or no longer the receiver's");
+                return null;
+            }
+
+            if (Win32Windows.ClientRectOnScreen(window) is not { } live || PictureCaptureMath.CropFor(picture, snapshotClient, live.Width, live.Height) is null)
+            {
+                LogCapture("failure", "screenshot failed: the window changed since the picture was measured");
+                return null;
+            }
+
+            // Only the receiver's own window is read (Windows.Graphics.Capture, else PrintWindow), never the screen: nothing above the
+            // window can get into the picture (WindowPictureCapture).
+            var capture = LazyInitializer.EnsureInitialized(ref _pictureCapture, () => new WindowPictureCapture(time, LogCapture));
+            PictureCaptureResult<CroppedPixels?> read;
+            try
+            {
+                read = capture.Capture<CroppedPixels?>(
+                    window,
+                    (bgra, width, height, stride) =>
+                    {
+                        // The window may have been resized since the check above: cut only what was measured for this size.
+                        return PictureCaptureMath.CropFor(picture, snapshotClient, width, height) is { } now ? PictureCaptureMath.CopyCrop(bgra, width, height, stride, now) : null;
+                    });
+            }
+            catch (ObjectDisposedException)
+            {
+                return null; // the session is stopping
+            }
+
+            if (read.Value is not { } cut)
+            {
+                if (read.Source != PictureSource.None)
+                {
+                    LogCapture("failure", "screenshot failed: the window could not be captured, or the picture changed");
+                }
+
+                return null;
+            }
+
+            if (Interlocked.Exchange(ref _lastCaptureSource, (int)read.Source) != (int)read.Source)
+            {
+                LogCapture(
+                    "source",
+                    read.Source == PictureSource.GraphicsCapture
+                        ? "screenshots are read from the receiver window with Windows.Graphics.Capture"
+                        : "screenshots are read from the receiver window with PrintWindow (Windows.Graphics.Capture is not available; the window may flicker)");
+            }
+
+            return new CapturedPicture(cut.Bgra, cut.Width, cut.Height, cut.Stride, status);
+        }
+
+        // At most one line per 10 seconds for each kind: a script may ask ten times a second.
+        private void LogCapture(string kind, string message)
+        {
+            if (LazyInitializer.EnsureInitialized(ref _captureLogs, () => new LogThrottle(time, TimeSpan.FromSeconds(10))).Allow(kind))
+            {
+                log.Write($"[api] {message}");
+            }
+        }
+
         public void ChooseTarget(string? deviceId)
         {
             _chosenTarget = deviceId;
@@ -501,6 +600,11 @@ internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null
             if (_keyboard is { } keyboard)
             {
                 await Step("the keyboard", () => keyboard.DisposeAsync().AsTask()).ConfigureAwait(false); // releases every key on the device
+            }
+
+            if (_pictureCapture is { } pictures)
+            {
+                await Step("the screenshot capture", () => { pictures.Dispose(); return Task.CompletedTask; }).ConfigureAwait(false);
             }
 
             if (_attached is { } attached)

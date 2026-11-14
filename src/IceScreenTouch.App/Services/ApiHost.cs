@@ -81,7 +81,7 @@ internal sealed class ApiHost : IApiHost
         }
 
         var bridge = session.Bridge;
-        var (landscapeNow, portraitNow) = Wanted(Landscape(bridge.LandscapeRotation), bridge.PortraitRotation == Rotation.R180 ? Rotation.R180 : Rotation.R0);
+        var (landscapeNow, portraitNow) = RotationsOf(bridge);
         return new ApiHostSnapshot(
             Running: true,
             ProbeSuspended: bridge.Suspended,
@@ -94,6 +94,10 @@ internal sealed class ApiHost : IApiHost
             LastUserInput: session.Input.LastUserInput,
             UserInputActive: session.Input.UserInputActive);
     }
+
+    // The rotations of one bridge snapshot as the API shows them (the requested ones while they are on their way, see Wanted).
+    private (Rotation Landscape, Rotation Portrait) RotationsOf(BridgeStatus bridge) =>
+        Wanted(Landscape(bridge.LandscapeRotation), bridge.PortraitRotation == Rotation.R180 ? Rotation.R180 : Rotation.R0);
 
     // The bridge's rotations, except where a requested one is still on its way: a field the bridge shows as requested is done
     // (the real value is believed from then on), and so is one that has been waiting longer than WantedRotationLifetime.
@@ -227,17 +231,27 @@ internal sealed class ApiHost : IApiHost
 
     private static Rotation Landscape(Rotation r) => r == Rotation.R270 ? Rotation.R270 : Rotation.R90;
 
-    // The rectangle a screenshot would cut out, in PC pixels (the bridge's picture, the one the mouse is mapped onto).
-    private static PictureInfo? PictureOf(BridgeStatus bridge)
+    // The rectangle a screenshot would cut out, in PC pixels (the bridge's picture, the one the mouse is mapped onto). The screenshot
+    // rounds it the same way (PictureCrop), so its size is this size.
+    private static PictureInfo? PictureOf(BridgeStatus bridge) => PictureCrop.InfoOf(bridge.Picture);
+
+    public async ValueTask<ApiPictureFrame?> CapturePictureAsync(CancellationToken cancellationToken)
     {
-        if (bridge.Picture is not { HasArea: true } p)
+        if (Session is not { } session)
         {
             return null;
         }
 
-        var width = (int)Math.Round(p.Width);
-        var height = (int)Math.Round(p.Height);
-        return width > 0 && height > 0 ? new PictureInfo(width, height) : null;
+        if (await session.CapturePictureAsync(cancellationToken).ConfigureAwait(false) is not { } shot)
+        {
+            return null;
+        }
+
+        // Orientation and rotation from the very snapshot the crop was cut by (not from a later one): the rotation shown as the
+        // API shows it in the status, the requested one while the bridge has not applied it yet.
+        var landscape = PictureOf(shot.Status)?.IsLandscape ?? shot.Width > shot.Height;
+        var (landscapeRotation, portraitRotation) = RotationsOf(shot.Status);
+        return new ApiPictureFrame(shot.Bgra, shot.Width, shot.Height, shot.Stride, landscape, landscape ? landscapeRotation : portraitRotation);
     }
 
     private static string BleName(BleState state) => state switch

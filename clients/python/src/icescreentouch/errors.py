@@ -104,7 +104,7 @@ class NotConnectedError(ApiError):
 
 
 class NoPictureError(ApiError):
-    """409 no_picture: there is no picture (the receiver window is closed or minimized)."""
+    """409 no_picture: there is no picture (the receiver window is closed, minimized, on another virtual desktop or not found, or it could not be read)."""
     code = "no_picture"
 
 
@@ -142,8 +142,16 @@ class PictureChangedError(ApiError):
 
 
 class RateLimitedError(ApiError):
-    """429 rate_limited: too many requests or messages (the API limits how fast it is called)."""
+    """429 rate_limited: the API limits how fast it is called.
+
+    A REST screenshot is limited to 10 in any second (over all clients), and too many in progress at once are refused as well; the answer has ``Retry-After: 1``. On a WebSocket
+    stream it means more than 1000 messages in a second.
+
+    Attributes:
+        retry_after: Seconds to wait, from the ``Retry-After`` header, or None when the answer had none.
+    """
     code = "rate_limited"
+    retry_after: Optional[float] = None
 
 
 class CancelledError(ApiError):
@@ -152,7 +160,7 @@ class CancelledError(ApiError):
 
 
 class NotFoundError(ApiError):
-    """404 not_found: no such endpoint (for example screenshots on an app version that has none yet)."""
+    """404 not_found: no such endpoint (for example screenshots on an app version before screenshot support)."""
     code = "not_found"
 
 
@@ -167,7 +175,7 @@ class InternalError(ApiError):
 
 
 class ScreenshotUnsupportedError(NotFoundError):
-    """The app answers 404 for /v1/screenshot: this version has no screenshot endpoint yet."""
+    """The app answers 404 for /v1/screenshot: this version of the app has no screenshot endpoint (update the app)."""
 
 
 _BY_CODE = {cls.code: cls for cls in (

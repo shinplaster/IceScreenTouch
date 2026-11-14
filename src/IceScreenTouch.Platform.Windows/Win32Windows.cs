@@ -51,6 +51,28 @@ public static partial class Win32Windows
         return new RectI(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top);
     }
 
+    /// <summary>
+    /// The visible frame of the top-level window of <paramref name="window"/> in screen pixels (<c>DWMWA_EXTENDED_FRAME_BOUNDS</c>: without
+    /// the invisible resize border), or null. It is the size of a Windows.Graphics.Capture frame of the window.
+    /// </summary>
+    public static RectI? ExtendedFrameBoundsOf(nint window)
+    {
+        var root = RootOf(window);
+        if (root == 0 || DwmGetWindowRect(root, DwmwaExtendedFrameBounds, out var r, Marshal.SizeOf<Rect>()) != 0)
+        {
+            return null;
+        }
+
+        return new RectI(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top);
+    }
+
+    /// <summary>The top-level window of <paramref name="window"/> is cloaked by DWM (on another virtual desktop, a suspended UWP app): it exists but is not drawn.</summary>
+    public static bool IsCloaked(nint window) =>
+        RootOf(window) is var root and not 0 && DwmGetWindowAttribute(root, DwmwaCloaked, out var cloaked, sizeof(int)) == 0 && cloaked != 0;
+
+    /// <summary>The first top-level window of the window class <paramref name="className"/>, or 0.</summary>
+    public static nint FindTopLevelByClass(string className) => FindWindowEx(0, 0, className, null);
+
     /// <summary>Work area (without the taskbar) of the monitor nearest to <paramref name="window"/>.</summary>
     public static RectI WorkAreaOf(nint window)
     {
@@ -68,6 +90,18 @@ public static partial class Win32Windows
     {
         var monitor = MonitorFromWindow(window, MonitorDefaultToNearest);
         return monitor != 0 && GetDpiForMonitor(monitor, 0, out var dpi, out _) == 0 && dpi > 0 ? dpi / 96.0 : 1.0;
+    }
+
+    /// <summary>
+    /// The DPI the window itself works at, and the DPI of its monitor (0 when unknown). They differ for a window that does not
+    /// follow the DPI of its monitor: Windows stretches it, and its own picture (<c>PrintWindow</c>) is the unstretched one.
+    /// The calling thread must be per-monitor DPI aware (the process is) or the monitor's DPI reads 96.
+    /// </summary>
+    public static (uint Window, uint Monitor) DpiOf(nint window)
+    {
+        var monitor = MonitorFromWindow(window, MonitorDefaultToNearest);
+        var monitorDpi = monitor != 0 && GetDpiForMonitor(monitor, 0, out var dpi, out _) == 0 ? dpi : 0;
+        return (GetDpiForWindow(window), monitorDpi);
     }
 
     /// <summary>

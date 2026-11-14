@@ -6,8 +6,8 @@ using IceScreenTouch.Core;
 namespace IceScreenTouch.Api;
 
 /// <summary>
-/// The picture of the phone as the receiver shows it (the rectangle a screenshot would cut out). The screenshot (A4) must
-/// crop exactly this same rectangle.
+/// The picture of the phone as the receiver shows it: the rectangle a screenshot cuts out of the receiver window (see <see cref="PictureCrop"/>,
+/// which both the status size and the screenshot use, so the screenshot is as large as this says).
 /// </summary>
 /// <param name="Width">Width in PC pixels.</param>
 /// <param name="Height">Height in PC pixels.</param>
@@ -145,4 +145,14 @@ public interface IApiHost
 
     /// <summary>Chooses the target device (null = automatic). Returns false when the id is unknown.</summary>
     bool ChooseTarget(string? deviceId);
+
+    /// <summary>
+    /// Copies the pixels of the picture (exactly the rectangle <see cref="PictureInfo"/> describes, see <see cref="PictureCrop"/>) out of
+    /// the receiver window, for <c>GET /v1/screenshot</c>. It reads pixels only: it sends no input, so the controller does not take
+    /// the operation gate for it and it also works while the probe has suspended the bridge. Returns null when there is no picture (no
+    /// window, minimized, no picture rectangle, or the capture failed). May take a while (it is called off the request path, but a
+    /// window that does not answer should not hold it up for long: give up when <paramref name="cancellationToken"/> fires). Any thread;
+    /// a host that has no pixels to give keeps this default (always null, which is <c>no_picture</c>).
+    /// </summary>
+    ValueTask<ApiPictureFrame?> CapturePictureAsync(CancellationToken cancellationToken) => new((ApiPictureFrame?)null);
 }

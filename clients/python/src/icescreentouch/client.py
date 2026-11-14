@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import re
 import socket
 from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Sequence, Tuple, TypeVar
 from urllib.parse import urlencode
@@ -29,6 +30,7 @@ from .errors import (
     ApiTimeoutError,
     ApiUnavailableError,
     NotFoundError,
+    RateLimitedError,
     ScreenshotUnsupportedError,
     StaleConnectionError,
     UnauthorizedError,
@@ -74,6 +76,26 @@ def _point(p: Point) -> Dict[str, float]:
 def _put(body: Dict[str, Any], name: str, value: Optional[int]) -> None:
     if value is not None:
         body[name] = int(value)
+
+
+_RETRY_AFTER = re.compile(r"[0-9]{1,4}")
+_ROTATION_HEADER = re.compile(r"[0-9]{1,3}")
+_MAX_RETRY_AFTER = 60  # seconds: the app sends 1; a larger value is not believed
+
+
+def _whole(name: str, value: Any) -> int:
+    """``value`` as an int, but only if it is one (a bool or a float such as 16.9 is a mistake, not 16)."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{name} must be an integer")
+    return value
+
+
+def _header_rotation(value: Optional[str]) -> Optional[int]:
+    """The rotation header as 0, 90, 180 or 270 (ASCII digits only), else None."""
+    if value is None or not _ROTATION_HEADER.fullmatch(value.strip()):
+        return None
+    degrees = int(value.strip())
+    return degrees if degrees in (0, 90, 180, 270) else None
 
 
 def _ms(value: Optional[int], default: int) -> int:
@@ -251,11 +273,39 @@ class Client:
     def screenshot(self, format: str = "png", max_size: Optional[int] = None, quality: Optional[int] = None) -> Screenshot:
         """The picture of the device (the receiver's video rectangle), shrunk so the long side is at most ``max_size``.
 
-        ``format`` is ``"png"`` or ``"jpeg"``; ``quality`` (1..100) applies to JPEG. The returned ``size`` is what ``tap_pixel`` and friends need as ``ref``.
+        Args:
+            format: ``"png"`` (default) or ``"jpeg"`` (``"jpg"`` is accepted here and sent as ``"jpeg"``).
+            max_size: The longest side in pixels, 16 to 8192. The app only shrinks (never enlarges) and keeps the aspect;
+                without it the image has the size of the receiver's picture (which follows the size of its window, not
+                the resolution of the device).
+            quality: JPEG quality 1 to 100 (the app's default is 90); only with ``format="jpeg"``.
+
+        Returns:
+            A :class:`Screenshot`. Its ``size`` (the size of the image you got) is what ``tap_pixel`` and friends need as
+            ``ref``; ``source_size`` is the size before shrinking, ``orientation`` and ``rotation`` are how the app saw the
+            picture when it was taken.
+
+        Raises:
+            ValueError: ``max_size`` or ``quality`` is not an integer (a bool or a float is refused, not truncated) or is out of
+                range, or ``quality`` is given for PNG (nothing is sent).
+            NoPictureError: The receiver window is closed, minimized, on another virtual desktop or not found, or it could not be read.
+            NotRunningError: Mirroring is not running.
+            RateLimitedError: More than 10 screenshots in a second (all clients together), or too many in progress at once; see ``retry_after``.
+            ScreenshotUnsupportedError: The app is a version without the screenshot endpoint (404).
+
+        Not an operation: it also works while a touch, a key or a stream is running, and it sends nothing to the device.
+        The image is made from the receiver window alone, so other windows (notifications, overlays) do not appear in it.
         """
         fmt = {"jpg": "jpeg"}.get(format.lower(), format.lower())
         if fmt not in ("png", "jpeg"):
             raise ValueError("format must be 'png' or 'jpeg'")
+        if max_size is not None and not 16 <= _whole("max_size", max_size) <= 8192:
+            raise ValueError("max_size must be 16 to 8192")
+        if quality is not None:
+            if fmt != "jpeg":
+                raise ValueError("quality only applies to format='jpeg'")
+            if not 1 <= _whole("quality", quality) <= 100:
+                raise ValueError("quality must be 1 to 100")
         query: Dict[str, Any] = {"format": fmt}
         _put(query, "maxSize", max_size)
         _put(query, "quality", quality)
@@ -264,7 +314,7 @@ class Client:
         except NotFoundError as exc:
             if type(exc) is NotFoundError:
                 raise ScreenshotUnsupportedError(
-                    "this version of IceScreen Touch has no screenshot endpoint (GET /v1/screenshot) yet; update the app",
+                    "this version of IceScreen Touch has no screenshot endpoint (GET /v1/screenshot); update the app",
                     code="not_found", status=404, detail=exc.detail) from None
             raise
         content_type = (headers.get("Content-Type") or "").split(";")[0].strip().lower()
@@ -277,7 +327,7 @@ class Client:
             format=shown,
             size=size,
             orientation=headers.get("X-IceScreenTouch-Orientation"),
-            rotation=int(rotation) if rotation and rotation.isdigit() else None,
+            rotation=_header_rotation(rotation),
             source_size=source,
         )
 
@@ -379,11 +429,11 @@ class Client:
         if len(data) > _MAX_RESPONSE_BYTES:
             raise ApiError("the API answered with too much data")
         if response.status >= 400:
-            raise _problem(response.status, response.getheader("Content-Type") or "", data)
+            raise _problem(response.status, response.getheader("Content-Type") or "", data, response.getheader("Retry-After"))
         return response.status, response.headers, data
 
 
-def _problem(status: int, content_type: str, data: bytes) -> ApiError:
+def _problem(status: int, content_type: str, data: bytes, retry_after: Optional[str] = None) -> ApiError:
     code = detail = None
     if "json" in content_type:
         try:
@@ -395,7 +445,10 @@ def _problem(status: int, content_type: str, data: bytes) -> ApiError:
             pass
     if code is None:
         return ApiError(f"the API answered HTTP {status}", status=status)
-    return error_for_code(code, detail, status)
+    error = error_for_code(code, detail, status)
+    if isinstance(error, RateLimitedError) and retry_after is not None and _RETRY_AFTER.fullmatch(retry_after.strip()):
+        error.retry_after = float(min(int(retry_after.strip()), _MAX_RETRY_AFTER))
+    return error
 
 
 def _rotation(data: Mapping[str, Any]) -> RotationInfo:

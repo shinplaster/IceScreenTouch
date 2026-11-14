@@ -13,6 +13,7 @@ This page is the guide. The full reference (every field, default, limit and erro
 - [Security](#security)
 - [Quick start](#quick-start)
 - [Coordinates](#coordinates)
+- [Screenshot](#screenshot)
 - [Endpoints and limits](#endpoints-and-limits)
 - [WebSocket stream](#websocket-stream)
 - [Errors](#errors)
@@ -153,7 +154,42 @@ Every position has a space, `space` (default `screen`):
 - If a `pixel` request's `ref` has the opposite orientation (wide versus tall) from the current picture, the device rotated since the screenshot: `409` `picture_changed`. Take a new screenshot. A square `ref` is never refused.
 - **The left or right side of a landscape screen cannot be detected.** The app assumes one. `GET /v1/status` (and `GET /v1/rotation`) shows the assumed `rotation` (`landscape`: 90 or 270, `portrait`: 0 or 180). If taps land mirrored, correct it with `PUT /v1/rotation` (saved, like `Ctrl+R` in the app). The same holds for an upside-down portrait screen (180).
 
-<!-- TODO(A4): screenshot section -->
+## Screenshot
+
+`GET /v1/screenshot` returns a picture of the device's screen: the part of the receiver window that shows the device (the black bars of the window are left out), as a PNG or a JPEG. It is exactly the rectangle that `GET /v1/status` reports as `picture`. It sends nothing to the device.
+
+| Query parameter | Value | Default |
+|---|---|---|
+| `format` | `png` or `jpeg` (lower case) | `png` |
+| `maxSize` | A whole number from 16 to 8192: the longest side of the image in pixels. The app only shrinks the image (it never enlarges it) and keeps the aspect ratio. | The size of the picture as it is |
+| `quality` | A whole number from 1 to 100. Only with `format=jpeg`; with `png` it is `400` `invalid_request`. | 90 |
+
+Parameter names are case-sensitive. An unknown parameter, a repeated one, or a value that is not plain digits or is out of range answers `400` `invalid_request`. The image has no transparency.
+
+The headers of the answer say how the app saw the picture:
+
+| Header | Value |
+|---|---|
+| `X-IceScreenTouch-Orientation` | `portrait`, or `landscape` when the picture is wider than tall (a square one is `portrait`) |
+| `X-IceScreenTouch-Rotation` | The rotation the app assumes for that orientation: `0`, `90`, `180` or `270` (the same as `rotation` in `GET /v1/status`) |
+| `X-IceScreenTouch-Source-Size` | The size of the picture before `maxSize` shrank it, for example `1179x2556` |
+
+```powershell
+Invoke-WebRequest "$base/v1/screenshot?maxSize=1024" -Headers $headers -OutFile shot.png
+```
+
+```python
+shot = phone.screenshot(max_size=1024)          # shot.size is the size of the image you got
+shot.save("shot.png")
+phone.tap_pixel(540, 1200, ref=shot.size)       # a position in the pixels of that image
+```
+
+- **The size follows the receiver window, not the device.** The image has the size of the picture in the window, which is not the resolution of the device. To point at a position in the screenshot, use `space: "pixel"` and give the size of that screenshot (the size of the image you received) as `ref`.
+- **No picture.** If the receiver window is closed, minimized, on another virtual desktop or not found, or it could not be read, the answer is `409` `no_picture`. A minimized window cannot be read.
+- **Other windows do not appear in the image.** The image is made from the receiver window alone, so notifications, overlays and other programs on top of it are not in the image.
+- **Not an operation.** A screenshot also works while a touch, a key, or a WebSocket stream is running. It never answers `409` `busy`.
+- **At most 10 screenshots in any second, counted over all programs that use the API.** The 11th within a second answers `429` `rate_limited` with the header `Retry-After: 1`. A request counts once it has passed the check of its query (also when it is then answered `409` `not_running` or `409` `no_picture`); a request refused with `429` does not count. Too many screenshots in progress at once are also answered `429` `rate_limited`.
+- **The order of the checks** after the common ones (`Origin`, `Host`, token) is: the license (`403` `purchase_required`), the query (`400` `invalid_request`), the rate limit (`429` `rate_limited`), `409` `not_running`, `409` `no_picture`.
 
 ## Endpoints and limits
 
@@ -165,6 +201,7 @@ Details of every request and response are in [api/openapi.yaml](api/openapi.yaml
 | `PUT /v1/target` | Choose the device that gets the input (`null` = automatic) |
 | `GET /v1/rotation` | The rotations the app assumes |
 | `PUT /v1/rotation` | Correct the assumed rotation |
+| `GET /v1/screenshot` | A picture of the device's screen (PNG or JPEG; see [Screenshot](#screenshot)) |
 | `POST /v1/touch/tap` | Tap (one finger; `count` 1 to 10) |
 | `POST /v1/touch/long-press` | Long press (default 800 ms) |
 | `POST /v1/touch/swipe` | Swipe or drag in a straight line (with optional hold before and after) |
@@ -179,7 +216,7 @@ Details of every request and response are in [api/openapi.yaml](api/openapi.yaml
 
 **Limits**
 
-- **One operation at a time.** While a touch, key, home, `PUT /v1/rotation`, `PUT /v1/target` or a stream is running, every other operation answers `409` `busy`; the API never queues. `GET /v1/status`, `GET /v1/rotation` and `GET /v1/openapi.json` always work. While the measurement (Test) page of the app is running, operations are `409` `busy` too.
+- **One operation at a time.** While a touch, key, home, `PUT /v1/rotation`, `PUT /v1/target` or a stream is running, every other operation answers `409` `busy`; the API never queues. `GET /v1/status`, `GET /v1/rotation` and `GET /v1/openapi.json` always work, and `GET /v1/screenshot` never answers `busy`. While the measurement (Test) page of the app is running, operations are `409` `busy` too.
 - **No operation takes longer than 60 seconds** (the sum of holds, durations, intervals and the last `t` of a path), else `400` `invalid_request`.
 - A touch is held at least **70 ms** (a shorter `holdMs` is raised to 70). The finger of a moving touch is updated every 16 ms and is always lifted at its last position.
 - `POST /v1/cancel` stops the running operation; the stopped request answers `499` `cancelled`.
@@ -222,14 +259,14 @@ An error is `application/problem+json` (RFC 9457) with the machine-readable memb
 | 405 | `method_not_allowed` | The endpoint does not accept that HTTP method (`Allow` lists the ones it does). |
 | 409 | `not_running` | The mirroring session is not running. |
 | 409 | `not_connected` | The target device has not subscribed to the HID reports. |
-| 409 | `no_picture` | There is no picture (the receiver window is closed or minimized) and the request needs one. |
+| 409 | `no_picture` | There is no picture (the receiver window is closed or minimized, or it could not be read) and the request needs one. |
 | 409 | `picture_changed` | A `pixel` request refers to a screenshot of the opposite orientation: the device rotated since. |
 | 409 | `busy` | Another operation, a WebSocket stream or the measurement page is running. |
 | 409 | `user_interrupted` | You used the mirror; everything was lifted. |
 | 409 | `user_active` | You used the mirror within the last second, or hold the mouse or a key. |
 | 409 | `no_keyboard` | The published HID map has no keyboard. |
 | 409 | `no_home_button` | The published HID map has no home button. |
-| 429 | `rate_limited` | Too many messages per second on a WebSocket stream (it is closed). |
+| 429 | `rate_limited` | More than 10 screenshots in one second, or too many screenshots in progress at once (`Retry-After: 1` for both), or too many messages per second on a WebSocket stream (it is closed). |
 | 499 | `cancelled` | `POST /v1/cancel` (or the client going away) ended the operation. |
 | 500 | `internal_error` | An unexpected failure inside the app (for example a failed Bluetooth write). |
 
@@ -282,7 +319,7 @@ The ten tools:
 | Tool | Purpose |
 |---|---|
 | `get_status` | State of the app, the device connection and the picture |
-| `screenshot` | The device's screen as an image, which is the reference for pixel positions (requires a version of the app with screenshot support) |
+| `screenshot` | The device's screen as an image, which is the reference for pixel positions |
 | `tap` | Tap once, or 2 to 10 times |
 | `long_press` | Press and hold |
 | `swipe` | Drag one finger from one point to another |

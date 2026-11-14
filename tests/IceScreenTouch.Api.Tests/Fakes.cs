@@ -255,8 +255,61 @@ internal sealed class FakeHost : IApiHost
         return true;
     }
 
+    /// <summary>What <see cref="CapturePictureAsync"/> returns (null = the capture failed). A small four-colour picture whose alpha bytes are 0, as a receiver may leave them.</summary>
+    public ApiPictureFrame? Frame { get; set; } = TestPictures.Quadrants(40, 80);
+
+    /// <summary>Replaces the capture (for example one that waits for its token).</summary>
+    public Func<CancellationToken, ValueTask<ApiPictureFrame?>>? CaptureOverride { get; set; }
+
+    /// <summary>How many captures were asked for.</summary>
+    public int Captures => Volatile.Read(ref _captures);
+
+    private int _captures;
+
+    public ValueTask<ApiPictureFrame?> CapturePictureAsync(CancellationToken cancellationToken)
+    {
+        Interlocked.Increment(ref _captures);
+        return CaptureOverride is { } over ? over(cancellationToken) : ValueTask.FromResult(Frame);
+    }
+
     /// <summary>The user used the mirror just now.</summary>
     public void UserJustActed(TimeSpan ago) => LastUserInput = _time.GetUtcNow() - ago;
+}
+
+/// <summary>Pictures for the screenshot tests.</summary>
+internal static class TestPictures
+{
+    public static readonly (byte B, byte G, byte R) Red = (0, 0, 255);
+    public static readonly (byte B, byte G, byte R) Green = (0, 255, 0);
+    public static readonly (byte B, byte G, byte R) Blue = (255, 0, 0);
+    public static readonly (byte B, byte G, byte R) Yellow = (0, 255, 255);
+
+    /// <summary>Top left red, top right green, bottom left blue, bottom right yellow; alpha 0 everywhere. The stride is padded by 8 bytes.</summary>
+    public static ApiPictureFrame Quadrants(int width, int height, bool landscape = false, Rotation rotation = Rotation.R0, int padding = 8)
+    {
+        var stride = (width * 4) + padding;
+        var bytes = new byte[stride * height];
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var (b, g, r) = (y < height / 2, x < width / 2) switch
+                {
+                    (true, true) => Red,
+                    (true, false) => Green,
+                    (false, true) => Blue,
+                    _ => Yellow,
+                };
+                var at = (y * stride) + (x * 4);
+                bytes[at] = b;
+                bytes[at + 1] = g;
+                bytes[at + 2] = r;
+                bytes[at + 3] = 0;
+            }
+        }
+
+        return new ApiPictureFrame(bytes, width, height, stride, landscape, rotation);
+    }
 }
 
 internal static class FakeTimeExtensions

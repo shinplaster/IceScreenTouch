@@ -63,8 +63,12 @@ with Client() as phone:                      # finds the API by itself (see "Con
   are always sent first and raise a pending error afterwards, so a finger or key is never left held by an earlier
   failure. A call that times out waiting for its `ack` raises `ApiTimeoutError`, and a late answer to it is dropped.
   The WebSocket library's own logger is never allowed to log at DEBUG (it would log the token in the first frame).
-* `screenshot()` needs an app version with the screenshot endpoint; older ones answer 404 and the client raises
-  `ScreenshotUnsupportedError`.
+* `screenshot(format="png", max_size=None, quality=None)` returns the receiver's picture as a `Screenshot` (`data`, `size`,
+  `orientation`, `rotation`, `source_size`). `max_size` (16 to 8192) only shrinks; `quality` (1 to 100) is for JPEG only;
+  arguments the app would refuse raise `ValueError` before anything is sent. The size follows the receiver window, so pass
+  `ref=shot.size` when you point at it in pixels. It is not an operation (it works while a touch or a stream runs), but the
+  app answers at most 10 a second: more raise `RateLimitedError` (`retry_after` is the `Retry-After` value). An app version
+  without the screenshot endpoint answers 404 and the client raises `ScreenshotUnsupportedError`.
 
 ### Connection
 

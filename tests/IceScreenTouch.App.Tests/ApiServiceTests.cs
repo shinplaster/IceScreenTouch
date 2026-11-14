@@ -56,6 +56,11 @@ internal sealed class FakeApiSession : IApiSession, ITouchSink, IKeyboardSink, I
     public ValueTask PressHomeAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
 
     public void SetRotation(Rotation? landscape, Rotation? portrait) => RotationSets.Add((landscape, portrait));
+
+    /// <summary>What a screenshot gets from this session (null = the capture fails).</summary>
+    public CapturedPicture? Captured { get; set; }
+
+    public ValueTask<CapturedPicture?> CapturePictureAsync(CancellationToken cancellationToken) => new(Captured);
 }
 
 /// <summary>A mirror service whose API session the test sets.</summary>
@@ -171,6 +176,76 @@ public sealed class ApiHostTests
         await host.Touch.SendAsync(new TouchContact[2], CancellationToken.None);
         Assert.Equal([2], next.TouchReports);
         Assert.Empty(session.TouchReports);
+    }
+
+    [Fact]
+    public async Task ACaptureWithoutASessionOrFromAFailedCaptureIsNoPicture()
+    {
+        var host = Host();
+        Assert.Null(await host.CapturePictureAsync(CancellationToken.None));
+
+        _mirror.Status = Running();
+        _mirror.Session = new FakeApiSession(_time) { Captured = null };
+        Assert.Null(await host.CapturePictureAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ACaptureGivesThePixelsAndTheOrientationAndRotationOfTheSnapshotItWasCutBy()
+    {
+        var pixels = new byte[(390 * 4 * 3) + 8];
+        var cut = BridgeStatus.Initial with { Picture = new RectD(10, 20, 390.4, 843.6), LandscapeRotation = Rotation.R90, PortraitRotation = Rotation.R180 };
+        var session = new FakeApiSession(_time)
+        {
+            // The bridge has moved on (landscape now); the screenshot keeps what it was cut by.
+            Bridge = BridgeStatus.Initial with { Picture = new RectD(10, 20, 844, 390), LandscapeRotation = Rotation.R270 },
+            Captured = new CapturedPicture(pixels, 390, 3, 390 * 4, cut),
+        };
+        _mirror.Status = Running();
+        _mirror.Session = session;
+
+        var frame = await Host().CapturePictureAsync(CancellationToken.None);
+
+        Assert.NotNull(frame);
+        Assert.Same(pixels, frame.Bgra);
+        Assert.Equal((390, 3, 390 * 4), (frame.Width, frame.Height, frame.Stride));
+        Assert.False(frame.IsLandscape);
+        Assert.Equal(Rotation.R180, frame.Rotation); // the portrait rotation
+    }
+
+    [Fact]
+    public async Task ALandscapeCaptureHasTheLandscapeRotationAndASquareOneIsPortrait()
+    {
+        var landscape = BridgeStatus.Initial with { Picture = new RectD(0, 0, 844.2, 390.2), LandscapeRotation = Rotation.R270, PortraitRotation = Rotation.R180 };
+        var square = BridgeStatus.Initial with { Picture = new RectD(0, 0, 500, 500), LandscapeRotation = Rotation.R270, PortraitRotation = Rotation.R180 };
+        var session = new FakeApiSession(_time);
+        _mirror.Status = Running();
+        _mirror.Session = session;
+        var host = Host();
+
+        session.Captured = new CapturedPicture(new byte[844 * 4], 844, 1, 844 * 4, landscape);
+        var wide = await host.CapturePictureAsync(CancellationToken.None);
+        session.Captured = new CapturedPicture(new byte[500 * 4], 500, 1, 500 * 4, square);
+        var even = await host.CapturePictureAsync(CancellationToken.None);
+
+        Assert.True(wide!.IsLandscape);
+        Assert.Equal(Rotation.R270, wide.Rotation);
+        Assert.False(even!.IsLandscape);
+        Assert.Equal(Rotation.R180, even.Rotation);
+    }
+
+    [Fact]
+    public async Task ARotationTheApiJustAskedForIsShownByTheScreenshotLikeByTheStatus()
+    {
+        var landscape = BridgeStatus.Initial with { Picture = new RectD(0, 0, 844, 390), LandscapeRotation = Rotation.R90 };
+        var session = new FakeApiSession(_time) { Bridge = landscape, Captured = new CapturedPicture(new byte[844 * 4], 844, 1, 844 * 4, landscape) };
+        _mirror.Status = Running();
+        _mirror.Session = session;
+        var host = Host();
+
+        host.SetRotation(Rotation.R270, null); // the bridge has not applied it yet
+
+        Assert.Equal(Rotation.R270, host.GetSnapshot().LandscapeRotation);
+        Assert.Equal(Rotation.R270, (await host.CapturePictureAsync(CancellationToken.None))!.Rotation);
     }
 
     [Fact]

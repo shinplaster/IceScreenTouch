@@ -414,4 +414,29 @@ internal static partial class NativeMethods
     [LibraryImport("gdi32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool BitBlt(nint dest, int x, int y, int width, int height, nint source, int sourceX, int sourceY, uint rop);
+
+    // Window coverage and DPI (screenshots).
+    internal const int DwmwaExtendedFrameBounds = 9;
+    internal const int DwmwaCloaked = 14;
+    internal const int Halftone = 4;
+
+    [LibraryImport("dwmapi.dll")]
+    internal static partial int DwmGetWindowAttribute(nint hwnd, int attribute, out int value, int size);
+
+    [LibraryImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")]
+    internal static partial int DwmGetWindowRect(nint hwnd, int attribute, out Rect value, int size);
+
+    [LibraryImport("user32.dll")]
+    internal static partial uint GetDpiForWindow(nint hwnd);
+
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool StretchBlt(nint dest, int x, int y, int width, int height, nint source, int sourceX, int sourceY, int sourceWidth, int sourceHeight, uint rop);
+
+    [LibraryImport("gdi32.dll")]
+    internal static partial int SetStretchBltMode(nint dc, int mode);
+
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SetBrushOrgEx(nint dc, int x, int y, nint previous);
 }

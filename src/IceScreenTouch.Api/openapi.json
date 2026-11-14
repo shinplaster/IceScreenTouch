@@ -4,7 +4,7 @@
     "title": "IceScreen Touch API",
     "version": "1.0.0",
     "summary": "Control an iPhone or iPad from scripts through IceScreen Touch on the same Windows PC.",
-    "description": "IceScreen Touch mirrors an iPhone or iPad to a Windows PC and sends mouse input to the device as Bluetooth LE\nHID touches. This local API lets a script or an AI agent do the same with programmatic input: touch gestures\n(tap, long press, swipe, path, pinch), keys and text, the home button, and low-level multi-touch over a\nWebSocket. The version of this document is the version of the API (`apiVersion` in `GET /v1/status` is its\nmajor number, `1`).\n\n## Availability\n\n* The API is **off by default**. The user switches it on in the app (Settings, \"External API\"). It listens on\n  `127.0.0.1` only (never on `::1` or another address) on port 47821 by default; the user can choose another\n  port (1024 to 65535, not the probe page's port 8000). A port that is in use is an error in the app, the app\n  never looks for another one.\n* The API is part of the purchased app (and of a build made from the source). While the app is in its trial it\n  is not started; if the license stops covering it while the API runs, every call answers `403`\n  `purchase_required`.\n* The API can only drive the one target device the app currently sends input to (see `PUT /v1/target`).\n\n## Finding the API (connection discovery)\n\nWhen the API is on, the app writes `api.json` (only the current Windows user can read it) and deletes it when\nthe API is switched off:\n\n```json\n{ \"port\": 47821, \"token\": \"<43 characters>\", \"pid\": 1234 }\n```\n\n* Normal install: `%LOCALAPPDATA%\\IceScreenTouch\\api.json`.\n* Store (MSIX) install: the same file is redirected to\n  `%LOCALAPPDATA%\\Packages\\Shin-plaster.IceScreenTouch_5c159ja95e6hm\\LocalCache\\Local\\IceScreenTouch\\api.json`.\n* `pid` is the process that owns the port, so a client can check that it talks to IceScreen Touch (and that\n  the process runs as the same Windows user, see the owner check in the API guide) before it sends the token.\n* Clients are expected to look first at the environment variables `ICESCREENTOUCH_API` (for example\n  `http://127.0.0.1:47821`) and `ICESCREENTOUCH_TOKEN`, then at `api.json`.\n\n## Authentication and browser protection\n\n* Every call except `GET /v1/openapi.json` and the WebSocket upgrade of `GET /v1/stream` carries\n  `Authorization: Bearer <token>`. The token is 256 random bits as 43 Base64url characters; the user can copy\n  or regenerate it in the app. Regenerating it makes the old one stop working at once (an open WebSocket is\n  closed with 1008).\n* A browser cannot set `Authorization` on a WebSocket, so the WebSocket takes the token in its first message\n  (see `GET /v1/stream`).\n* Any request with an `Origin` header is refused with `403` `forbidden_origin` (there is no CORS: scripts and\n  command-line tools do not send `Origin`, web pages always do).\n* The `Host` header must be `127.0.0.1:<port>` or `localhost:<port>` with the port of the API (protection\n  against DNS rebinding), else `403` `forbidden_origin`.\n* The checks run in this order: `Origin`, `Host`, token (`401` `unauthorized`, with\n  `WWW-Authenticate: Bearer`), route (`404` `not_found`, `405` `method_not_allowed` with an `Allow` header), then\n  the request body.\n\n## Requests and responses\n\n* Success is `200` with a JSON body. Operations that return nothing answer `{}`.\n* Errors are `application/problem+json` (RFC 9457) with the machine-readable extension member `code` (see\n  the `Problem` schema). `type` is always `about:blank`; `detail` is a sentence for a person and never contains\n  your data.\n* A body is JSON in UTF-8 with `Content-Type: application/json` and at most **64 KB**. A body that is not valid for\n  the endpoint is `400` `invalid_request`: unknown members are refused, missing required members are refused,\n  numbers must be JSON numbers (not strings), and a body is required where the endpoint takes one.\n* Every response has `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`.\n* An operation answers only **after** it has finished on the device (a swipe answers after the finger lifted).\n\n## Operations: one at a time, limited in time\n\n* Only **one operation at a time**. A touch, key, home, `PUT /v1/rotation`, `PUT /v1/target` or a WebSocket\n  session that is running makes every other operation answer `409` `busy`; the API never queues. `GET\n  /v1/status`, `GET /v1/rotation` and `GET /v1/openapi.json` are not operations and always work. While the\n  probe (measurement) page of the app is running, operations are `409` `busy` too.\n* No operation takes longer than **60 seconds** (the sum of holds, durations, intervals and the last `t` of a\n  path), else `400` `invalid_request`.\n* A touch is held at least **70 ms** (a shorter `holdMs` of a tap or long press is raised to 70); frames of a\n  moving finger go out every 16 ms. A finger is always lifted at its last position.\n* `POST /v1/cancel` stops the running operation (the fingers and keys are lifted; the stopped request answers\n  `499` `cancelled`).\n\n## The user has priority\n\nThe person at the PC can always take over the mirror window. When they use it (mouse press on the picture,\nwheel, the keys that go to the device, Home, rotate), a running operation is stopped, every finger is lifted\nand every key is released: a REST call answers `409` `user_interrupted`, a WebSocket stream gets an\n`interrupted` event with reason `user` and is closed. For one second after the user's last input (and while they\nhold the mouse or a key), a new operation is refused with `409` `user_active`. The API never resumes by itself:\nthe client decides whether to try again.\n\n## Coordinate spaces\n\nEvery position has a space, `space` (default `screen`):\n\n| space | meaning | needs the picture |\n|---|---|---|\n| `screen` | The screen **as it is seen now**, normalized to 0..1 (0,0 top left, 1,1 bottom right). Landscape means a wide screen. The app undoes the rotation. | yes |\n| `pixel` | Pixels of a screenshot. `ref: { \"width\": W, \"height\": H }`, the size of that screenshot, is **required**. x is 0..W, y is 0..H. | yes |\n| `device` | The digitizer's own portrait frame, 0..1, never rotated. | no |\n\n* A position outside the range (below 0, above 1 or above the `ref` size, or not a number) is `400`\n  `invalid_request`.\n* `screen` and `pixel` need the picture of the device (to know whether it is portrait or landscape). Without\n  it (the receiver window is closed or minimized) the call is `409` `no_picture`.\n* A `pixel` request whose `ref` has the opposite orientation (wide versus tall) from the current picture means\n  the device rotated since the screenshot: `409` `picture_changed`. Take a new screenshot. A square `ref` is\n  never refused.\n* The **left or right side of a landscape screen cannot be detected** by the app. The assumed rotation is in\n  `GET /v1/status` (`rotation`); if it is wrong, correct it with `PUT /v1/rotation` (saved, like `Ctrl+R`\n  in the app). The same holds for an upside-down portrait screen (180).\n\n## Notes on the device\n\n* Touch input only arrives if **Zoom** (Accessibility) is on in the device.\n* Typing sends keys of a **US keyboard**. Characters without a key (Japanese, emoji) cannot be typed directly;\n  they are skipped and reported.\n* The API cannot know whether the device is locked and does not stop input to a passcode screen.\n",
+    "description": "IceScreen Touch mirrors an iPhone or iPad to a Windows PC and sends mouse input to the device as Bluetooth LE\nHID touches. This local API lets a script or an AI agent do the same with programmatic input: touch gestures\n(tap, long press, swipe, path, pinch), keys and text, the home button, and low-level multi-touch over a\nWebSocket. The version of this document is the version of the API (`apiVersion` in `GET /v1/status` is its\nmajor number, `1`).\n\n## Availability\n\n* The API is **off by default**. The user switches it on in the app (Settings, \"External API\"). It listens on\n  `127.0.0.1` only (never on `::1` or another address) on port 47821 by default; the user can choose another\n  port (1024 to 65535, not the probe page's port 8000). A port that is in use is an error in the app, the app\n  never looks for another one.\n* The API is part of the purchased app (and of a build made from the source). While the app is in its trial it\n  is not started; if the license stops covering it while the API runs, every call answers `403`\n  `purchase_required`.\n* The API can only drive the one target device the app currently sends input to (see `PUT /v1/target`).\n\n## Finding the API (connection discovery)\n\nWhen the API is on, the app writes `api.json` (only the current Windows user can read it) and deletes it when\nthe API is switched off:\n\n```json\n{ \"port\": 47821, \"token\": \"<43 characters>\", \"pid\": 1234 }\n```\n\n* Normal install: `%LOCALAPPDATA%\\IceScreenTouch\\api.json`.\n* Store (MSIX) install: the same file is redirected to\n  `%LOCALAPPDATA%\\Packages\\Shin-plaster.IceScreenTouch_5c159ja95e6hm\\LocalCache\\Local\\IceScreenTouch\\api.json`.\n* `pid` is the process that owns the port, so a client can check that it talks to IceScreen Touch (and that\n  the process runs as the same Windows user, see the owner check in the API guide) before it sends the token.\n* Clients are expected to look first at the environment variables `ICESCREENTOUCH_API` (for example\n  `http://127.0.0.1:47821`) and `ICESCREENTOUCH_TOKEN`, then at `api.json`.\n\n## Authentication and browser protection\n\n* Every call except `GET /v1/openapi.json` and the WebSocket upgrade of `GET /v1/stream` carries\n  `Authorization: Bearer <token>`. The token is 256 random bits as 43 Base64url characters; the user can copy\n  or regenerate it in the app. Regenerating it makes the old one stop working at once (an open WebSocket is\n  closed with 1008).\n* A browser cannot set `Authorization` on a WebSocket, so the WebSocket takes the token in its first message\n  (see `GET /v1/stream`).\n* Any request with an `Origin` header is refused with `403` `forbidden_origin` (there is no CORS: scripts and\n  command-line tools do not send `Origin`, web pages always do).\n* The `Host` header must be `127.0.0.1:<port>` or `localhost:<port>` with the port of the API (protection\n  against DNS rebinding), else `403` `forbidden_origin`.\n* The checks run in this order: `Origin`, `Host`, token (`401` `unauthorized`, with\n  `WWW-Authenticate: Bearer`), route (`404` `not_found`, `405` `method_not_allowed` with an `Allow` header), then\n  the request body.\n\n## Requests and responses\n\n* Success is `200` with a JSON body. Operations that return nothing answer `{}`. The one exception is\n  `GET /v1/screenshot`, which answers an image (PNG or JPEG) with the details in `X-IceScreenTouch-*` headers.\n* Errors are `application/problem+json` (RFC 9457) with the machine-readable extension member `code` (see\n  the `Problem` schema). `type` is always `about:blank`; `detail` is a sentence for a person and never contains\n  your data.\n* A body is JSON in UTF-8 with `Content-Type: application/json` and at most **64 KB**. A body that is not valid for\n  the endpoint is `400` `invalid_request`: unknown members are refused, missing required members are refused,\n  numbers must be JSON numbers (not strings), and a body is required where the endpoint takes one.\n* Every response has `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`.\n* An operation answers only **after** it has finished on the device (a swipe answers after the finger lifted).\n\n## Operations: one at a time, limited in time\n\n* Only **one operation at a time**. A touch, key, home, `PUT /v1/rotation`, `PUT /v1/target` or a WebSocket\n  session that is running makes every other operation answer `409` `busy`; the API never queues. `GET\n  /v1/status`, `GET /v1/rotation`, `GET /v1/screenshot` and `GET /v1/openapi.json` are not operations and always work. While the\n  probe (measurement) page of the app is running, operations are `409` `busy` too.\n* No operation takes longer than **60 seconds** (the sum of holds, durations, intervals and the last `t` of a\n  path), else `400` `invalid_request`.\n* A touch is held at least **70 ms** (a shorter `holdMs` of a tap or long press is raised to 70); frames of a\n  moving finger go out every 16 ms. A finger is always lifted at its last position.\n* `POST /v1/cancel` stops the running operation (the fingers and keys are lifted; the stopped request answers\n  `499` `cancelled`).\n\n## The user has priority\n\nThe person at the PC can always take over the mirror window. When they use it (mouse press on the picture,\nwheel, the keys that go to the device, Home, rotate), a running operation is stopped, every finger is lifted\nand every key is released: a REST call answers `409` `user_interrupted`, a WebSocket stream gets an\n`interrupted` event with reason `user` and is closed. For one second after the user's last input (and while they\nhold the mouse or a key), a new operation is refused with `409` `user_active`. The API never resumes by itself:\nthe client decides whether to try again.\n\n## Coordinate spaces\n\nEvery position has a space, `space` (default `screen`):\n\n| space | meaning | needs the picture |\n|---|---|---|\n| `screen` | The screen **as it is seen now**, normalized to 0..1 (0,0 top left, 1,1 bottom right). Landscape means a wide screen. The app undoes the rotation. | yes |\n| `pixel` | Pixels of a screenshot. `ref: { \"width\": W, \"height\": H }`, the size of that screenshot, is **required**. x is 0..W, y is 0..H. | yes |\n| `device` | The digitizer's own portrait frame, 0..1, never rotated. | no |\n\n* A position outside the range (below 0, above 1 or above the `ref` size, or not a number) is `400`\n  `invalid_request`.\n* `screen` and `pixel` need the picture of the device (to know whether it is portrait or landscape). Without\n  it (the receiver window is closed or minimized) the call is `409` `no_picture`.\n* A `pixel` request whose `ref` has the opposite orientation (wide versus tall) from the current picture means\n  the device rotated since the screenshot: `409` `picture_changed`. Take a new screenshot. A square `ref` is\n  never refused.\n* The **left or right side of a landscape screen cannot be detected** by the app. The assumed rotation is in\n  `GET /v1/status` (`rotation`); if it is wrong, correct it with `PUT /v1/rotation` (saved, like `Ctrl+R`\n  in the app). The same holds for an upside-down portrait screen (180).\n\n## Notes on the device\n\n* Touch input only arrives if **Zoom** (Accessibility) is on in the device.\n* Typing sends keys of a **US keyboard**. Characters without a key (Japanese, emoji) cannot be typed directly;\n  they are skipped and reported.\n* The API cannot know whether the device is locked and does not stop input to a passcode screen.\n",
     "license": {
       "name": "MIT",
       "identifier": "MIT"
@@ -740,6 +740,146 @@
         }
       }
     },
+    "/v1/screenshot": {
+      "get": {
+        "operationId": "getScreenshot",
+        "tags": [
+          "status"
+        ],
+        "summary": "A picture of the device screen",
+        "description": "The picture of the device as the receiver window shows it: exactly the rectangle that `GET /v1/status` reports as\n`picture` (the black bars of the window are left out), as a PNG or a JPEG. The image is made from the receiver window\nalone, so other windows (notifications, overlays) do not appear in it.\n\n* The image size follows the **size of the receiver window**, not the resolution of the device. Use the size of\n  the screenshot you took as `ref` when you point at it with `space: \"pixel\"`.\n* `maxSize` only shrinks (the longest side becomes `maxSize`, the aspect stays); it never enlarges. Without it the\n  image has the size of the picture. The header `X-IceScreenTouch-Source-Size` always has the size before shrinking.\n* The image has no transparency.\n* Not an operation: it takes no part in the one-operation-at-a-time rule, so it also works while an operation or a\n  WebSocket stream runs; it never answers `busy`. It sends nothing to the device.\n* At most **10 screenshots in any 1 second**, counted over all clients. The 11th gets `429` `rate_limited` with\n  `Retry-After: 1`. Only requests that passed the query check count (also when they are then answered `not_running`\n  or `no_picture`); a request refused with `429` does not count. Too many screenshots in progress at once are also\n  answered `429` `rate_limited`.\n* Checks in this order, after the common ones (`Origin`, `Host`, token): the license (`403` `purchase_required`), the\n  query (`400` `invalid_request`), the rate limit (`429`), `409` `not_running`, `409` `no_picture` (no picture: the\n  receiver window is closed, minimized, on another virtual desktop or not found, or it could not be read).\n* The query parameter names are case-sensitive and the values are exact: `format` is `png` or `jpeg` in lower case;\n  `maxSize` and `quality` are plain decimal digits. An unknown or repeated parameter, a value out of range, and\n  `quality` with `format=png` are `400` `invalid_request`.\n",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "The image format. Lower case.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "png",
+                "jpeg"
+              ],
+              "default": "png"
+            }
+          },
+          {
+            "name": "maxSize",
+            "in": "query",
+            "required": false,
+            "description": "The longest side of the image in pixels. The image is shrunk to it when it is larger and is not touched when it\nis smaller or equal. Without it the image keeps the size of the picture.\n",
+            "schema": {
+              "type": "integer",
+              "minimum": 16,
+              "maximum": 8192
+            }
+          },
+          {
+            "name": "quality",
+            "in": "query",
+            "required": false,
+            "description": "The JPEG quality. Only with `format=jpeg` (with `png` it is `400` `invalid_request`).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 90
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The image. The body is the file (`Content-Type` is `image/png` or `image/jpeg`); the headers say how the app saw\nthe picture when it was taken.\n",
+            "headers": {
+              "X-IceScreenTouch-Orientation": {
+                "description": "`portrait`, or `landscape` when the picture is wider than tall (a square one is `portrait`).",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "portrait",
+                    "landscape"
+                  ]
+                }
+              },
+              "X-IceScreenTouch-Rotation": {
+                "description": "The rotation the app assumes for that orientation (see `GET /v1/rotation`), in degrees.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "0",
+                    "90",
+                    "180",
+                    "270"
+                  ]
+                }
+              },
+              "X-IceScreenTouch-Source-Size": {
+                "description": "The size of the picture before `maxSize` shrank it, `<width>x<height>` in pixels, for example `1179x2556`.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[0-9]+x[0-9]+$"
+                }
+              }
+            },
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "contentMediaType": "image/png",
+                  "contentEncoding": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "contentMediaType": "image/jpeg",
+                  "contentEncoding": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "`not_running` (the mirroring session is not running) or `no_picture` (the receiver window is closed, minimized,\non another virtual desktop or not found, or it could not be read).\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "examples": {
+                  "noPicture": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Conflict",
+                      "status": 409,
+                      "detail": "there is no picture of the device",
+                      "code": "no_picture"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/v1/stream": {
       "get": {
         "operationId": "stream",
@@ -935,6 +1075,39 @@
           }
         }
       },
+      "RateLimited": {
+        "description": "`rate_limited`: more than 10 screenshots in one second (over all clients), or too many screenshots in progress at once. Try again after the time in\n`Retry-After`.\n",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds to wait before the next try. Always `1`.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "examples": {
+              "tooMany": {
+                "value": {
+                  "type": "about:blank",
+                  "title": "Too Many Requests",
+                  "status": 429,
+                  "detail": "at most 10 screenshots per second",
+                  "code": "rate_limited"
+                }
+              }
+            }
+          }
+        }
+      },
       "InternalError": {
         "description": "`internal_error`: an unexpected failure inside the app (for example a failed Bluetooth write). The detail is\ngeneric.\n",
         "content": {
@@ -949,7 +1122,7 @@
     "schemas": {
       "Problem": {
         "type": "object",
-        "description": "An error, RFC 9457 `application/problem+json`. The meaning is in `code`.\n\n| code | HTTP | meaning |\n|---|---|---|\n| `invalid_request` | 400 | The body, a range, a limit or a name is wrong. |\n| `unauthorized` | 401 | The token is missing or wrong. |\n| `forbidden_origin` | 403 | The `Origin` header is present, or `Host` is not allowed. |\n| `purchase_required` | 403 | The license does not cover the API (trial, expired). |\n| `not_found` | 404 | No such endpoint. |\n| `method_not_allowed` | 405 | The endpoint does not accept that HTTP method (`Allow` lists the ones it does). |\n| `not_running` | 409 | The mirroring session is not running. |\n| `not_connected` | 409 | The target device has not subscribed to the HID reports. |\n| `no_picture` | 409 | There is no picture (the receiver window is closed or minimized) and the request needs one. |\n| `picture_changed` | 409 | A `pixel` request refers to a screenshot of the opposite orientation: the device rotated since. |\n| `busy` | 409 | Another operation, a WebSocket stream or the probe page is running. |\n| `user_interrupted` | 409 | The user used the mirror; everything was lifted. |\n| `user_active` | 409 | The user used the mirror within the last second, or holds the mouse or a key. |\n| `no_keyboard` | 409 | The published HID map has no keyboard. |\n| `no_home_button` | 409 | The published HID map has no home button. |\n| `rate_limited` | 429 | Too many messages per second on a WebSocket stream (it is closed). |\n| `cancelled` | 499 | `POST /v1/cancel` (or the client going away) ended the operation. |\n| `internal_error` | 500 | An unexpected failure inside the app. |\n",
+        "description": "An error, RFC 9457 `application/problem+json`. The meaning is in `code`.\n\n| code | HTTP | meaning |\n|---|---|---|\n| `invalid_request` | 400 | The body, a range, a limit or a name is wrong. |\n| `unauthorized` | 401 | The token is missing or wrong. |\n| `forbidden_origin` | 403 | The `Origin` header is present, or `Host` is not allowed. |\n| `purchase_required` | 403 | The license does not cover the API (trial, expired). |\n| `not_found` | 404 | No such endpoint. |\n| `method_not_allowed` | 405 | The endpoint does not accept that HTTP method (`Allow` lists the ones it does). |\n| `not_running` | 409 | The mirroring session is not running. |\n| `not_connected` | 409 | The target device has not subscribed to the HID reports. |\n| `no_picture` | 409 | There is no picture (the receiver window is closed or minimized, or it could not be read) and the request needs one. |\n| `picture_changed` | 409 | A `pixel` request refers to a screenshot of the opposite orientation: the device rotated since. |\n| `busy` | 409 | Another operation, a WebSocket stream or the probe page is running. |\n| `user_interrupted` | 409 | The user used the mirror; everything was lifted. |\n| `user_active` | 409 | The user used the mirror within the last second, or holds the mouse or a key. |\n| `no_keyboard` | 409 | The published HID map has no keyboard. |\n| `no_home_button` | 409 | The published HID map has no home button. |\n| `rate_limited` | 429 | More than 10 screenshots in one second, or too many screenshots in progress at once (`Retry-After: 1` for both), or too many messages per second on a WebSocket stream (it is closed). |\n| `cancelled` | 499 | `POST /v1/cancel` (or the client going away) ended the operation. |\n| `internal_error` | 500 | An unexpected failure inside the app. |\n",
         "required": [
           "type",
           "title",

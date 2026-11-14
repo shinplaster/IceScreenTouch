@@ -40,6 +40,15 @@ public sealed class ApiController : IDisposable
     public const int MaxPathPoints = 1000;
 
     /// <summary>
+    /// Screenshots taken and encoded at the same time (the others wait their turn). A request takes its turn before it captures, so at most
+    /// this many pictures exist at once: none waits for the encoder.
+    /// </summary>
+    public const int MaxConcurrentEncodes = 2;
+
+    /// <summary>Screenshot requests that may wait for their turn behind the ones that are running; one more is refused (<c>rate_limited</c>).</summary>
+    public const int MaxWaitingScreenshots = 4;
+
+    /// <summary>
     /// Characters in one <c>type</c> request. The 60 s limit applies too, on an estimate (see <see cref="TypeTextAsync"/>).
     /// </summary>
     public const int MaxTextLength = 1_000;
@@ -78,6 +87,12 @@ public sealed class ApiController : IDisposable
     private readonly TimeProvider _time;
     private readonly Action<string>? _log;
     private readonly RejectionLog _refusals;
+    private readonly ScreenshotRateLimiter _screenshotLimit;
+    private readonly SemaphoreSlim _encodeGate = new(MaxConcurrentEncodes, MaxConcurrentEncodes);
+    private int _screenshotsInProgress; // requests past the rate limit that have not finished (running or waiting for their turn)
+
+    /// <summary>The encoder (replaceable by the tests, which count how many run at once).</summary>
+    internal Func<ApiPictureFrame, ScreenshotOptions, ScreenshotImage> Encoder { get; set; } = ScreenshotEncoder.Encode;
     private readonly Lock _gate = new();
     private Handle? _current;
 
@@ -95,6 +110,7 @@ public sealed class ApiController : IDisposable
         _time = time ?? TimeProvider.System;
         _log = log;
         _refusals = new RejectionLog(log, _time);
+        _screenshotLimit = new ScreenshotRateLimiter(_time);
     }
 
     /// <summary>An operation or a session is running.</summary>
@@ -171,6 +187,121 @@ public sealed class ApiController : IDisposable
             });
         }, cancellationToken).ConfigureAwait(false);
         return result.WithoutValue();
+    }
+
+    // ---- Screenshot ----------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// <c>GET /v1/screenshot</c>: the picture rectangle of the receiver window (see <see cref="PictureCrop"/>) as a PNG or JPEG,
+    /// shrunk to <c>maxSize</c> if asked. Not an operation: it takes no gate, so it works while an operation or a stream runs (it sends no input,
+    /// and is not the user's), and while the probe has suspended the bridge (it only reads pixels). Order of the answers: license
+    /// (<c>purchase_required</c>), the query (<c>invalid_request</c>, see <see cref="ScreenshotOptions"/>), the rate limit
+    /// (<c>rate_limited</c>: at most <see cref="ScreenshotRateLimiter.Limit"/> screenshots in any second, over all clients; only a request that
+    /// passed the query check counts, also when it is then answered <c>not_running</c> or <c>no_picture</c>; a refused one does not extend the window),
+    /// <c>not_running</c>, <c>no_picture</c> (no picture rectangle, or the host could not capture it).
+    /// </summary>
+    /// <param name="query">The URL's query as (name, value) pairs, in order.</param>
+    /// <param name="cancellationToken">Cancelled when the client goes away.</param>
+    public async ValueTask<ApiResult<ScreenshotImage>> ScreenshotAsync(IReadOnlyList<KeyValuePair<string, string>> query, CancellationToken cancellationToken = default)
+    {
+        ApiResult<ScreenshotImage> result;
+        try
+        {
+            result = await TakeScreenshotAsync(query, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            result = ApiResult.Fail<ScreenshotImage>(ApiError.Create(ApiErrorCodes.Cancelled, "the request was cancelled"));
+        }
+        catch
+        {
+            _refusals.Record("screenshot failed");
+            throw;
+        }
+
+        // A script may take ten a second: the limiter writes the first line of each kind and then a count every 10 s.
+        _refusals.Record($"screenshot {result.Error?.Code ?? "ok"}");
+        return result;
+    }
+
+    private async ValueTask<ApiResult<ScreenshotImage>> TakeScreenshotAsync(IReadOnlyList<KeyValuePair<string, string>> query, CancellationToken cancellationToken)
+    {
+        if (!_isApiAllowed())
+        {
+            return ApiResult.Fail<ScreenshotImage>(PurchaseRequired());
+        }
+
+        var parsed = ScreenshotOptions.Parse(query);
+        if (parsed.Error is not null)
+        {
+            return ApiResult.Fail<ScreenshotImage>(parsed.Error);
+        }
+
+        if (!_screenshotLimit.TryAcquire())
+        {
+            return ApiResult.Fail<ScreenshotImage>(ApiError.Create(ApiErrorCodes.RateLimited, $"at most {ScreenshotRateLimiter.Limit} screenshots per second"));
+        }
+
+        var state = _host.GetSnapshot();
+        if (!state.Running)
+        {
+            return ApiResult.Fail<ScreenshotImage>(ApiError.Create(ApiErrorCodes.NotRunning, "the mirroring session is not running"));
+        }
+
+        var noPicture = ApiResult.Fail<ScreenshotImage>(ApiError.Create(ApiErrorCodes.NoPicture, "there is no picture of the device"));
+        if (state.Picture is null)
+        {
+            return noPicture;
+        }
+
+        // The turn comes before the capture: a picture (megabytes) is never held while it waits for an encoder, and ten requests a second
+        // cannot pile up pictures behind a slow encode. Waiting requests hold nothing, and there are only a few of them.
+        if (Interlocked.Increment(ref _screenshotsInProgress) > MaxConcurrentEncodes + MaxWaitingScreenshots)
+        {
+            _ = Interlocked.Decrement(ref _screenshotsInProgress);
+            return ApiResult.Fail<ScreenshotImage>(ApiError.Create(ApiErrorCodes.RateLimited, "too many screenshots are being taken at once"));
+        }
+
+        var options = parsed.Value!;
+        var holdsTurn = false;
+        var handedOver = false;
+        try
+        {
+            await _encodeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            holdsTurn = true;
+            var frame = await _host.CapturePictureAsync(cancellationToken).ConfigureAwait(false);
+            if (frame is null)
+            {
+                return noPicture;
+            }
+
+            // Skia works on the thread pool, not on the request's thread. The turn is given back by the encode itself, so a cancelled
+            // request never lets a running one go uncounted.
+            var work = Task.Run(
+                () =>
+                {
+                    try
+                    {
+                        return Encoder(frame, options);
+                    }
+                    finally
+                    {
+                        _ = _encodeGate.Release();
+                    }
+                },
+                CancellationToken.None);
+            handedOver = true;
+            return ApiResult.Ok(await work.WaitAsync(cancellationToken).ConfigureAwait(false));
+        }
+        finally
+        {
+            if (holdsTurn && !handedOver)
+            {
+                _ = _encodeGate.Release();
+            }
+
+            _ = Interlocked.Decrement(ref _screenshotsInProgress);
+        }
     }
 
     // ---- Control -------------------------------------------------------------------------------------------

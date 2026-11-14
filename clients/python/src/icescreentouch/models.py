@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 import struct
 from dataclasses import dataclass, field
 from typing import Any, Dict, Mapping, Optional, Tuple
@@ -177,13 +178,13 @@ def image_size(data: bytes) -> Optional[Tuple[int, int]]:
     return None
 
 
+_SOURCE_SIZE = re.compile(r"([0-9]{1,6})x([0-9]{1,6})")
+
+
 def parse_source_size(value: Optional[str]) -> Optional[Tuple[int, int]]:
     """``"1179x2556"`` to ``(1179, 2556)``."""
     if not value:
         return None
-    try:
-        width, height = value.lower().split("x")
-        return (int(width), int(height))
-    except ValueError:
-        return None
+    match = _SOURCE_SIZE.fullmatch(value.strip().lower())
+    return (int(match.group(1)), int(match.group(2))) if match else None
 

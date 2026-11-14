@@ -51,7 +51,7 @@ public sealed record ApiServerStartResult(bool IsSuccess, int Port, string? Erro
 /// with a generic detail.
 /// </summary>
 /// <remarks>
-/// Success responses are <c>200</c> with a JSON body: <see cref="EmptyResponse"/> (<c>{}</c>) for plain operations,
+/// Success responses are <c>200</c> with a JSON body (the screenshot is an image): <see cref="EmptyResponse"/> (<c>{}</c>) for plain operations,
 /// <see cref="ApiStatus"/>, <see cref="RotationInfo"/>, <see cref="TypeTextResponse"/>, <see cref="CancelResponse"/> as
 /// listed on the routes. Every response carries <c>Cache-Control: no-store</c> and <c>X-Content-Type-Options: nosniff</c>.
 /// </remarks>
@@ -137,7 +137,7 @@ public sealed class ApiServer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Adds a route (the screenshot and the WebSocket of later stages go in here). Only before <see cref="StartAsync"/>;
+    /// Adds a route (beyond the built-in ones). Only before <see cref="StartAsync"/>;
     /// the same method and path twice is an error.
     /// </summary>
     public void AddRoute(ApiRoute route)
@@ -405,6 +405,9 @@ public sealed class ApiServer : IAsyncDisposable
         Add("POST", "/v1/home", async ctx => await ApiResponses.WriteResultAsync(ctx, await c.HomeAsync(ctx.RequestAborted).ConfigureAwait(false)).ConfigureAwait(false));
         Add("POST", "/v1/cancel", ctx => ApiResponses.WriteJsonAsync(ctx, StatusCodes.Status200OK, new CancelResponse(c.CancelCurrent()), ApiJson.Default.CancelResponse));
 
+        // GET /v1/screenshot?format=&maxSize=&quality= -> the image (not JSON), with the orientation, rotation and source size in headers.
+        Add("GET", "/v1/screenshot", ScreenshotAsync);
+
         // GET /v1/stream: the WebSocket of the low-level operations. The token is the first message (a browser cannot set the
         // header), so the route is anonymous for the header check; the Origin and Host checks still apply before the handshake.
         Add("GET", "/v1/stream", ctx => ctx.WebSockets.IsWebSocketRequest
@@ -622,6 +625,37 @@ public sealed class ApiServer : IAsyncDisposable
     }
 
     // ---- Handlers ------------------------------------------------------------------------------------------
+
+    private async Task ScreenshotAsync(HttpContext context)
+    {
+        List<KeyValuePair<string, string>> query = [];
+        foreach (var (name, values) in context.Request.Query)
+        {
+            if (values.Count == 0)
+            {
+                query.Add(new KeyValuePair<string, string>(name, string.Empty));
+            }
+
+            foreach (var value in values)
+            {
+                query.Add(new KeyValuePair<string, string>(name, value ?? string.Empty));
+            }
+        }
+
+        var result = await _controller.ScreenshotAsync(query, context.RequestAborted).ConfigureAwait(false);
+        if (result.Error is { } error)
+        {
+            await ApiResponses.WriteProblemAsync(context, error).ConfigureAwait(false);
+            return;
+        }
+
+        var image = result.Value!;
+        var headers = context.Response.Headers;
+        headers["X-IceScreenTouch-Orientation"] = image.Orientation;
+        headers["X-IceScreenTouch-Rotation"] = image.Rotation.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        headers["X-IceScreenTouch-Source-Size"] = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{image.SourceWidth}x{image.SourceHeight}");
+        await ApiResponses.WriteBytesAsync(context, StatusCodes.Status200OK, image.ContentType, image.Data).ConfigureAwait(false);
+    }
 
     private static async Task WithBodyAsync<TRequest>(
         HttpContext context,

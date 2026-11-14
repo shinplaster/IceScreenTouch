@@ -14,8 +14,9 @@
   xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
   xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:desktop2="http://schemas.microsoft.com/appx/manifest/desktop/windows10/2"
+  xmlns:uap11="http://schemas.microsoft.com/appx/manifest/uap/windows10/11"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap3 desktop desktop2 rescap">
+  IgnorableNamespaces="uap uap3 uap11 desktop desktop2 rescap">
 
   <Identity Name="{{IDENTITY_NAME}}" Publisher="{{PUBLISHER}}" Version="{{VERSION}}" ProcessorArchitecture="x64" />
 
@@ -61,6 +62,11 @@
          the user installed, finding its window, reading the process list, writing %LOCALAPPDATA%. Needs a
          reason in Partner Center. -->
     <rescap:Capability Name="runFullTrust" />
+    <!-- Windows.Graphics.Capture of the receiver window for the API screenshot: GraphicsCaptureSession.IsBorderRequired (no yellow
+         border around the window while it is captured) needs this. A general capability, not a restricted one: no Partner Center
+         justification. Older Windows builds ignore it (uap11 is ignorable). CreateForWindow with a window handle needs no
+         capability (graphicsCaptureProgrammatic is for window and display IDs). -->
+    <uap11:Capability Name="graphicsCaptureWithoutBorder" />
     <!-- Bluetooth LE: the app is a BLE HID peripheral (GATT server and advertising) towards the iPhone. -->
     <DeviceCapability Name="bluetooth" />
   </Capabilities>

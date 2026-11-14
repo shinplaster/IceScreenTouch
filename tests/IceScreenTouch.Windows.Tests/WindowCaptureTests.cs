@@ -67,6 +67,61 @@ public sealed class WindowCaptureTests : IDisposable
         Assert.Equal((Picture.R, Picture.G, Picture.B), seen.Covered); // under the red cover on screen
     }
 
+
+    // ---- The source of the pixels: PrintWindow only (the fallback of the screenshots), or the screen for the picture detection --------
+
+    private static readonly Color Overlay = Color.FromArgb(220, 30, 30);
+
+    private static (byte R, byte G, byte B) Block => (Picture.R, Picture.G, Picture.B);
+
+    [Fact]
+    public void PrintWindowOnlyNeverShowsAClickThroughOverlay()
+    {
+        using var window = StandInWindow.Show(new Rectangle(200, 160, 860, 360), topMost: true, color: Color.Black);
+        window.ShowBlock(new Rectangle(100, 50, 400, 200), Picture);
+        var c = window.ClientOnScreen;
+        using var overlay = new ClickThroughOverlay(new Rectangle(c.X + 150, c.Y + 80, 100, 100), Overlay);
+        using var capture = new WindowCapture { Mode = WindowCaptureMode.PrintWindowOnly };
+
+        var under = capture.Capture(window.Handle, (bgra, _, _, stride) => PixelAt(bgra, stride, 200, 130));
+
+        Assert.False(capture.LastFromScreen);
+        Assert.Equal(Block, under);
+    }
+
+    // ---- A window that Windows stretches (does not follow its monitor's DPI) -------------------------------------------
+
+    [ScaledMonitorFact]
+    public void AStretchedWindowIsPrintedAtTheSizeItDrawsAtAndStretchedBackToTheClientSize()
+    {
+        // The window follows no DPI; where it stands on a monitor with a scale above 100 % Windows stretches it, and PrintWindow gives
+        // the unstretched picture: before the fix it sat in the top left corner, the rest of the bitmap black (2026-11-14).
+        using var window = StandInWindow.Show(new Rectangle(100, 100, 500, 800), topMost: true, color: Picture, dpiUnaware: true);
+        var scaled = false;
+        foreach (var screen in System.Windows.Forms.Screen.AllScreens.OrderBy(s => s.Primary))
+        {
+            window.MoveTo(screen.WorkingArea.Location + new Size(40, 40));
+            var (windowDpi, monitorDpi) = Win32Windows.DpiOf(window.Handle);
+            if (windowDpi != 0 && monitorDpi > windowDpi)
+            {
+                scaled = true;
+                break;
+            }
+        }
+
+        Assert.True(scaled, "the stand-in window could not be put on a scaled monitor");
+
+        Thread.Sleep(300);
+        using var capture = new WindowCapture { Mode = WindowCaptureMode.PrintWindowOnly };
+        var seen = capture.Capture(window.Handle, (bgra, width, height, stride) =>
+            (width, height, TopLeft: PixelAt(bgra, stride, 3, 3), Middle: PixelAt(bgra, stride, width / 2, height / 2), BottomRight: PixelAt(bgra, stride, width - 4, height - 4)));
+
+        Assert.False(capture.LastFromScreen);
+        Assert.Equal((Picture.R, Picture.G, Picture.B), seen.TopLeft);
+        Assert.Equal((Picture.R, Picture.G, Picture.B), seen.Middle);
+        Assert.Equal((Picture.R, Picture.G, Picture.B), seen.BottomRight);
+    }
+
     [Fact]
     public void AMinimizedOrMissingWindowGivesNothing()
     {

@@ -9,8 +9,10 @@ every request and every stream message, so a client that sends something the rea
 """
 
 import json
+import re
 from pathlib import Path
 from typing import Any, List, Optional
+from urllib.parse import parse_qsl
 
 import yaml
 from jsonschema import Draft202012Validator
@@ -92,6 +94,47 @@ def request_errors(method: str, path: str, body: bytes, content_type: Optional[s
     except ValueError as exc:
         return [f"the body is not JSON ({exc})"]
     return _errors(["paths", path, method.lower(), "requestBody", "content", "application/json", "schema"], instance)
+
+
+def query_errors(method: str, path: str, query: str) -> List[str]:
+    """The problems of a URL query string against the operation's ``parameters`` (``in: query``) in the spec.
+
+    Names are case-sensitive; an undeclared or repeated name is refused; an integer parameter is plain decimal digits; every
+    value must satisfy its schema. What the schema cannot say is left to the operation (for the screenshot: ``quality`` only
+    with ``format=jpeg``).
+    """
+    operation = SPEC["paths"].get(path, {}).get(method.lower())
+    if operation is None:
+        return []
+    declared = {p["name"]: p for p in operation.get("parameters", []) if p.get("in") == "query"}
+    pairs = parse_qsl(query, keep_blank_values=True)
+    problems: List[str] = []
+    for name, value in pairs:
+        parameter = declared.get(name)
+        if parameter is None:
+            problems.append(f"the query parameter {name!r} is not in the spec")
+            continue
+        if [n for n, _ in pairs].count(name) > 1:
+            if not any(f"{name!r} is given more than once" in p for p in problems):
+                problems.append(f"the query parameter {name!r} is given more than once")
+            continue
+        schema = parameter["schema"]
+        instance: Any = value
+        if schema.get("type") == "integer":
+            if not re.fullmatch(r"[0-9]+", value):
+                problems.append(f"{name}: {value!r} is not plain decimal digits")
+                continue
+            instance = int(value)
+        for error in Draft202012Validator(schema).iter_errors(instance):
+            problems.append(f"{name}: {error.message[:200]}")
+    for name, parameter in declared.items():
+        if parameter.get("required") and name not in [n for n, _ in pairs]:
+            problems.append(f"the query parameter {name!r} is required")
+    if path == "/v1/screenshot":
+        values = dict(pairs)
+        if "quality" in values and values.get("format", "png") != "jpeg":
+            problems.append("quality only applies to format=jpeg")
+    return problems
 
 
 def response_errors(method: str, path: str, status: int, content_type: str, body: bytes) -> List[str]:

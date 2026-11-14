@@ -328,11 +328,56 @@ def test_screenshot_not_implemented_yet_is_a_clear_error(api):
     assert "screenshot" in str(info.value)
 
 
-@pytest.mark.parametrize("status,code,cls", [(409, "no_picture", ist.NoPictureError), (429, "rate_limited", ist.RateLimitedError)])
+@pytest.mark.parametrize("status,code,cls", [
+    (409, "no_picture", ist.NoPictureError), (409, "not_running", ist.NotRunningError),
+    (429, "rate_limited", ist.RateLimitedError), (403, "purchase_required", ist.PurchaseRequiredError)])
 def test_screenshot_errors(api, status, code, cls):
     api.route("GET", "/v1/screenshot", problem(status, code))
     with pytest.raises(cls):
         api.client().screenshot()
+
+
+def test_screenshot_rate_limit_carries_retry_after(api):
+    reply = problem(429, "rate_limited", "at most 10 screenshots per second")
+    reply.headers["Retry-After"] = "1"
+    api.route("GET", "/v1/screenshot", reply)
+    with pytest.raises(ist.RateLimitedError) as info:
+        api.client().screenshot()
+    assert info.value.retry_after == 1.0 and info.value.status == 429 and info.value.code == "rate_limited"
+    # An answer without the header leaves it unknown.
+    api.route("GET", "/v1/screenshot", problem(429, "rate_limited"))
+    with pytest.raises(ist.RateLimitedError) as info:
+        api.client().screenshot()
+    assert info.value.retry_after is None
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"max_size": 15}, {"max_size": 8193}, {"quality": 80}, {"format": "png", "quality": 80},
+    {"format": "jpeg", "quality": 0}, {"format": "jpeg", "quality": 101}])
+def test_screenshot_arguments_the_app_would_refuse_are_refused_locally(api, kwargs):
+    with pytest.raises(ValueError):
+        api.client().screenshot(**kwargs)
+    assert not [r for r in api.requests if r.path.startswith("/v1/screenshot")]  # nothing was sent
+
+
+def test_screenshot_limits_are_accepted(api):
+    data = png_bytes(16, 16)
+    api.route("GET", "/v1/screenshot", Reply(200, "image/png", data, {
+        "X-IceScreenTouch-Orientation": "portrait", "X-IceScreenTouch-Rotation": "0", "X-IceScreenTouch-Source-Size": "16x16"}))
+    api.client().screenshot(max_size=16)
+    api.client().screenshot(max_size=8192)
+    api.client().screenshot(format="jpeg", quality=1)
+    api.client().screenshot(format="jpeg", quality=100)
+
+
+def test_the_fake_server_holds_the_query_to_the_spec(api):
+    # Bypass the client's own checks to show that the fake would catch a client that sends what the real server refuses.
+    api.route("GET", "/v1/screenshot", Reply(200, "image/png", png_bytes(16, 16)))
+    for query in ("format=gif", "maxSize=15", "format=png&quality=5", "size=5", "format=png&format=jpeg", "maxSize=+5"):
+        with pytest.raises(ist.InvalidRequestError):
+            api.client()._call("GET", f"/v1/screenshot?{query}", None, 5.0, "image/png")
+    assert len(api.schema_errors) == 6
+    api.schema_errors.clear()
 
 
 # ---- Rediscovery after the app restarted -------------------------------------------------------------------
@@ -453,3 +498,42 @@ def test_a_timeout_is_never_retried(api, tmp_path):
         client.get_status()
     time.sleep(0.5)
     assert len(api.requests) == 1
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"max_size": 16.9}, {"max_size": True}, {"max_size": 100.0}, {"max_size": "512"},
+    {"format": "jpeg", "quality": 80.5}, {"format": "jpeg", "quality": True}, {"format": "jpeg", "quality": "80"}])
+def test_screenshot_sizes_that_are_not_integers_are_refused_not_truncated(api, kwargs):
+    with pytest.raises(ValueError, match="integer"):
+        api.client().screenshot(**kwargs)
+    assert not [r for r in api.requests if r.path.startswith("/v1/screenshot")]
+
+
+@pytest.mark.parametrize("value,expected", [
+    ("1", 1.0), ("30", 30.0), (" 2 ", 2.0), ("9999", 60.0), ("61", 60.0),
+    ("", None), ("-1", None), ("1.5", None), ("1e3", None), ("+1", None), ("12345", None),
+    ("²", None), ("1³", None), ("Wed, 21 Oct 2015 07:28:00 GMT", None)])
+def test_retry_after_is_read_only_from_ascii_digits_and_is_capped(api, value, expected):
+    reply = problem(429, "rate_limited")
+    reply.headers["Retry-After"] = value
+    api.route("GET", "/v1/screenshot", reply)
+    with pytest.raises(ist.RateLimitedError) as info:
+        api.client().screenshot()
+    assert info.value.retry_after == expected
+
+
+@pytest.mark.parametrize("value,expected", [
+    ("0", 0), ("90", 90), ("180", 180), ("270", 270), ("45", None), ("9999", None), ("-90", None), ("9¹", None),
+    ("90.0", None), ("", None)])
+def test_the_rotation_header_must_be_ascii_digits_naming_a_rotation(api, value, expected):
+    api.route("GET", "/v1/screenshot", Reply(200, "image/png", png_bytes(10, 20), {
+        "X-IceScreenTouch-Orientation": "portrait", "X-IceScreenTouch-Rotation": value}))
+    assert api.client().screenshot().rotation == expected
+
+
+@pytest.mark.parametrize("value,expected", [
+    ("1179x2556", (1179, 2556)), ("1179X2556", (1179, 2556)), ("0x0", (0, 0)),
+    ("1_0x5", None), ("¹x2", None), ("1x2x3", None), ("axb", None), ("-1x2", None), ("", None)])
+def test_the_source_size_header_must_be_ascii_digits(api, value, expected):
+    api.route("GET", "/v1/screenshot", Reply(200, "image/png", png_bytes(10, 20), {"X-IceScreenTouch-Source-Size": value}))
+    assert api.client().screenshot().source_size == expected

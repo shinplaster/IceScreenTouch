@@ -67,6 +67,7 @@ public readonly record struct BridgeCommand(BridgeCommandKind Kind, Rotation Rot
 /// <param name="MaxSend">Longest single send.</param>
 /// <param name="Suspended">Mouse input and commands are ignored (another sender, such as the probe, uses the phone).</param>
 /// <param name="PortraitRotation">Rotation used while the picture is portrait (180 = upside down).</param>
+/// <param name="Client">The client area of <paramref name="Window"/> on screen that <paramref name="Picture"/> was measured in (it stays with the picture while the bridge is suspended), or null.</param>
 public sealed record BridgeStatus(
     nint Window,
     RectD? Picture,
@@ -79,7 +80,8 @@ public sealed record BridgeStatus(
     int Dropped,
     TimeSpan MaxSend,
     bool Suspended = false,
-    Rotation PortraitRotation = Rotation.R0)
+    Rotation PortraitRotation = Rotation.R0,
+    RectI? Client = null)
 {
     /// <summary>Before the first tick.</summary>
     public static BridgeStatus Initial { get; } = new(0, null, null, Rotation.R90, false, 0, 0, 0, 0, TimeSpan.Zero);
@@ -164,6 +166,9 @@ public sealed class MirrorBridge
 
     /// <summary>The picture in screen pixels in the last tick, or null when there is nothing to click on.</summary>
     public RectD? Picture { get; private set; }
+
+    // The client area on screen the picture was measured in (set with Picture; screenshots detect a window that moved or resized since).
+    private RectI? _pictureClient;
 
     /// <summary>The picture size the window was last resized to.</summary>
     public SizeD? FollowedSize { get; private set; }
@@ -267,6 +272,7 @@ public sealed class MirrorBridge
             _followedWindow = 0;
         }
 
+        _pictureClient = null;
         var picture = window == 0 ? null : MeasurePicture(window);
         Picture = picture;
         if (_arbiter is not null && await ApiStageAsync(window, picture, cancellationToken).ConfigureAwait(false))
@@ -772,6 +778,7 @@ public sealed class MirrorBridge
         var inClient = _video.LocatePicture(window, new SizeD(client.Width, client.Height))
             ?? Geometry.VideoRect(client.Width, client.Height, size ?? _options.FallbackVideoSize);
         var picture = inClient.Offset(client.Left, client.Top);
+        _pictureClient = client;
         return picture.HasArea ? picture : null;
     }
 
@@ -816,7 +823,8 @@ public sealed class MirrorBridge
             stats.Dropped,
             stats.MaxSend,
             _suspended,
-            Engine.PortraitRotation);
+            Engine.PortraitRotation,
+            Picture is null ? null : _pictureClient);
         try
         {
             StatusPublished?.Invoke(_status);

@@ -672,6 +672,43 @@ public class MirrorBridgeTests
     }
 
     [Fact]
+    public async Task TheStatusCarriesTheClientAreaThePictureWasMeasuredInAndKeepsItWhileSuspended()
+    {
+        await Tick();
+
+        Assert.Equal(_desktop.Client, _bridge.Status.Client);
+        Assert.NotNull(_bridge.Status.Picture);
+
+        // Suspended (the probe): the picture is frozen, and so is the client area it belongs to, even when the window moves.
+        var suspended = _bridge.SuspendAsync();
+        await Tick();
+        await suspended;
+        var frozen = _bridge.Status;
+        _desktop.Client = new RectI(500, 300, 300, 200);
+        await Tick();
+
+        Assert.Equal(frozen.Picture, _bridge.Status.Picture);
+        Assert.Equal(frozen.Client, _bridge.Status.Client);
+        Assert.NotEqual(_desktop.Client, _bridge.Status.Client);
+
+        // Resumed: the new client area comes with the new picture.
+        _bridge.Resume();
+        await Tick();
+        Assert.Equal(_desktop.Client, _bridge.Status.Client);
+    }
+
+    [Fact]
+    public async Task WithoutAWindowTheStatusHasNoClientArea()
+    {
+        await Tick();
+        _video.Window = 0;
+        await Tick();
+
+        Assert.Null(_bridge.Status.Picture);
+        Assert.Null(_bridge.Status.Client);
+    }
+
+    [Fact]
     public async Task WhileSuspendedClicksKeysAndCommandsAreDropped()
     {
         var suspended = _bridge.SuspendAsync();

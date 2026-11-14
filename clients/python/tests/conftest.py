@@ -123,6 +123,7 @@ class FakeApi:
         if route is None:
             return problem(404, "not_found", "no such endpoint")
         errors = openapi_check.request_errors(request.method, path, request.body, request.headers.get("content-type"))
+        errors += openapi_check.query_errors(request.method, path, request.path.partition("?")[2])
         if request.method == "POST" and path == "/v1/keys/press" and not errors:
             body = request.json
             errors = openapi_check.key_errors(body.get("key"), body.get("modifiers"))

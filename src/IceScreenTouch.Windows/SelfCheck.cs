@@ -28,6 +28,9 @@ internal static class SelfCheck
 {
     public const string Argument = "--self-check";
 
+    // A detail that starts with this is printed as a warning (the check passed, but did not test what it is for).
+    private const string WarningPrefix = "WARN: ";
+
     public static async Task<int> RunAsync(TextWriter output)
     {
         var failures = 0;
@@ -38,7 +41,12 @@ internal static class SelfCheck
             try
             {
                 var detail = await check().ConfigureAwait(false);
-                output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"PASS {name} ({watch.ElapsedMilliseconds} ms): {detail}"));
+
+                // A check that could not really run says so (WARN): it is not a failure, but it must not read as a plain pass.
+                var warned = detail.StartsWith(WarningPrefix, StringComparison.Ordinal);
+                output.WriteLine(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{(warned ? "WARN" : "PASS")} {name} ({watch.ElapsedMilliseconds} ms): {(warned ? detail[WarningPrefix.Length..] : detail)}"));
             }
 #pragma warning disable CA1031 // every failure is reported, none may stop the other checks
             catch (Exception ex)
@@ -255,6 +263,36 @@ internal static class SelfCheck
             var found = PictureLocator.Locate(pixels, w, h, w * 4, 393.0 / 852.0)?.Picture;
             Expect(found is { } r && Math.Abs(r.Left - left) <= 2 && Math.Abs(r.Width - pictureWidth) <= 2, $"found {found}");
             return Task.FromResult($"found {found}");
+        }).ConfigureAwait(false);
+
+        await Check("screenshot capture", () =>
+        {
+            // Windows.Graphics.Capture through the raw COM calls and the WinRT projection (what a trimmed build can break): read the
+            // taskbar. Without Windows.Graphics.Capture, or without a taskbar (no desktop), there is nothing to read here.
+            var taskbar = Win32Windows.FindTopLevelByClass("Shell_TrayWnd");
+            if (taskbar == 0)
+            {
+                return Task.FromResult(WarningPrefix + "no taskbar window (no desktop): the screenshot capture was not tested");
+            }
+
+            var notes = new List<string>();
+            using var capture = new WindowPictureCapture(null, (kind, message) => notes.Add($"{kind}: {message}"));
+            var shot = capture.Capture(taskbar, (_, width, height, stride) => (width, height, stride));
+            if (shot.Source == PictureSource.PrintWindow)
+            {
+                // PrintWindow is the fallback when Windows.Graphics.Capture is unavailable; on a system that has it, that is the fault.
+                Expect(notes.Count == 0, string.Join("; ", notes));
+                return Task.FromResult(WarningPrefix + "Windows.Graphics.Capture is not available on this system (that is fine: PrintWindow is used instead), so it was not tested");
+            }
+
+            if (shot.Source == PictureSource.None)
+            {
+                // Not a failure (the taskbar can be hidden, or a system can disagree on frame sizes), but the capture was not tested either.
+                return Task.FromResult($"{WarningPrefix}the taskbar gave no picture (hidden, cloaked, or its capture frame does not match): the screenshot capture was not tested. {string.Join("; ", notes)}");
+            }
+
+            Expect(shot.Source == PictureSource.GraphicsCapture && shot.Value.width > 0 && shot.Value.height > 0, $"{shot.Source} {shot.Value} {string.Join("; ", notes)}");
+            return Task.FromResult($"taskbar {shot.Value.width}x{shot.Value.height} through Windows.Graphics.Capture");
         }).ConfigureAwait(false);
 
         await Check("win32", () =>

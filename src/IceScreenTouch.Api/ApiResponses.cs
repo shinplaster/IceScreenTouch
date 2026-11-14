@@ -47,6 +47,12 @@ internal static class ApiResponses
     {
         var problem = new ApiProblem("about:blank", TitleOf(error.Status), error.Status, error.Detail, error.Code);
         var bytes = JsonSerializer.SerializeToUtf8Bytes(problem, ApiJson.Default.ApiProblem);
+        if (error.Code == ApiErrorCodes.RateLimited)
+        {
+            // The screenshot window is one second.
+            context.Response.Headers.RetryAfter = "1";
+        }
+
         return WriteBytesAsync(context, error.Status, ProblemContentType, bytes);
     }
 
