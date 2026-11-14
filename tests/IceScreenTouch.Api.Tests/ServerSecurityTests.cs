@@ -199,7 +199,6 @@ public class ServerSecurityTests : ServerTestBase
         await AssertProblem(await GetAsync("/v1/status/"), ApiErrorCodes.NotFound);
         await AssertProblem(await GetAsync("/V1/status"), ApiErrorCodes.NotFound);
         await AssertProblem(await GetAsync("/v1/screenshot"), ApiErrorCodes.NotFound); // A4
-        await AssertProblem(await GetAsync("/v1/stream"), ApiErrorCodes.NotFound); // A5
     }
 
     [Fact]

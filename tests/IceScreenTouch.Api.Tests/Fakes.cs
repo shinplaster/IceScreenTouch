@@ -39,13 +39,35 @@ internal sealed class FakeTouchSink(FakeTimeProvider time, SyncList<string> jour
 
     public IEnumerable<Frame> Downs => Frames.Where(f => f.IsDown);
 
+    /// <summary>The next send throws (the link broke); the one after works again.</summary>
+    public bool FailNextSend { get; set; }
+
+    /// <summary>The next send does not come back until its token is cancelled (a hung BLE write).</summary>
+    public bool HangNextSend { get; set; }
+
+    /// <summary>Called after each report is recorded, with the number of reports so far (on the sending thread).</summary>
+    public Action<int>? OnSend { get; set; }
+
     public ValueTask SendAsync(ReadOnlyMemory<TouchContact> contacts, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (FailNextSend)
+        {
+            FailNextSend = false;
+            throw new InvalidOperationException("the link broke");
+        }
+
+        if (HangNextSend)
+        {
+            HangNextSend = false;
+            return new ValueTask(Task.Delay(Timeout.Infinite, cancellationToken));
+        }
+
         var frame = new Frame(time.GetUtcNow() - _start, contacts.ToArray());
         ThreadIds.Add(Environment.CurrentManagedThreadId);
         Frames.Add(frame);
         journal.Add(frame.IsEmpty ? "touch:empty" : frame.IsLift ? "touch:lift" : "touch:down");
+        OnSend?.Invoke(Frames.Count);
         return ValueTask.CompletedTask;
     }
 }
@@ -56,6 +78,9 @@ internal sealed class FakeKeyboardSink(FakeTimeProvider time, SyncList<string> j
 
     public bool HasKeyboard { get; set; } = true;
 
+    /// <summary>Called after each report is recorded, with the number of reports so far (on the sending thread).</summary>
+    public Action<int>? OnSend { get; set; }
+
     public SyncList<KeyReport> Reports { get; } = [];
 
     public ValueTask SendKeyboardAsync(byte modifiers, ReadOnlyMemory<byte> keys, CancellationToken cancellationToken)
@@ -64,6 +89,7 @@ internal sealed class FakeKeyboardSink(FakeTimeProvider time, SyncList<string> j
         var report = new KeyReport(time.GetUtcNow() - _start, modifiers, keys.ToArray());
         Reports.Add(report);
         journal.Add(report.IsRelease ? "key:release" : "key:down");
+        OnSend?.Invoke(Reports.Count);
         return ValueTask.CompletedTask;
     }
 }

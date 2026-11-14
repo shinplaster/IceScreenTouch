@@ -31,4 +31,6 @@ namespace IceScreenTouch.Api;
 [JsonSerializable(typeof(CancelResponse))]
 [JsonSerializable(typeof(ApiProblem))]
 [JsonSerializable(typeof(ApiConnectionInfo))]
+[JsonSerializable(typeof(StreamClientMessage))]
+[JsonSerializable(typeof(StreamEvent))]
 internal sealed partial class ApiJson : JsonSerializerContext;

@@ -72,6 +72,7 @@ public sealed class ApiServer : IAsyncDisposable
     private readonly ApiConnectionFile? _connectionFile;
     private readonly Action<string>? _log;
     private readonly RejectionLog _rejections;
+    private readonly ApiStreamEndpoint _streams;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly List<ApiRoute> _routes = [];
     private volatile TokenState _token;
@@ -103,7 +104,9 @@ public sealed class ApiServer : IAsyncDisposable
         _requestedPort = port;
         _connectionFile = connectionFile;
         _log = log;
-        _rejections = new RejectionLog(log, time ?? TimeProvider.System);
+        time ??= TimeProvider.System;
+        _rejections = new RejectionLog(log, time);
+        _streams = new ApiStreamEndpoint(controller, time, log, _rejections, VerifyToken, () => _token.Generation);
         RegisterBuiltInRoutes();
     }
 
@@ -112,6 +115,11 @@ public sealed class ApiServer : IAsyncDisposable
 
     /// <summary>The server listens.</summary>
     public bool IsRunning => _app is not null;
+
+    /// <summary>The WebSocket streams that are open now (those still waiting for their <c>auth</c> included).</summary>
+    public int OpenStreams => _streams.Count;
+
+    internal ApiStreamEndpoint Streams => _streams;
 
     /// <summary>The current token.</summary>
     public string Token => _token.Value;
@@ -157,7 +165,8 @@ public sealed class ApiServer : IAsyncDisposable
     /// Replaces the token (it must have the format of <see cref="ApiToken.Generate"/>); it applies to the next request (a
     /// request being handled keeps the decision it got). Serialized with start and stop. While
     /// the server runs the connection file is rewritten (an <see cref="IOException"/> or
-    /// <see cref="UnauthorizedAccessException"/> from that is thrown after the token has changed).
+    /// <see cref="UnauthorizedAccessException"/> from that is thrown after the token has changed). Every open WebSocket stream
+    /// (it authenticated with the old token) is ended: everything it holds is released and it is closed with 1008.
     /// </summary>
     public async Task SetTokenAsync(string token)
     {
@@ -165,6 +174,7 @@ public sealed class ApiServer : IAsyncDisposable
         await _lifecycle.WaitAsync().ConfigureAwait(false);
         try
         {
+            state = state with { Generation = _token.Generation + 1 };
             _token = state;
             if (_app is not null)
             {
@@ -174,6 +184,7 @@ public sealed class ApiServer : IAsyncDisposable
         finally
         {
             _lifecycle.Release();
+            await _streams.CloseStaleAsync(state.Generation).ConfigureAwait(false);
         }
     }
 
@@ -214,12 +225,15 @@ public sealed class ApiServer : IAsyncDisposable
                 o.AddServerHeader = false;
                 o.Limits.MaxRequestBodySize = MaxBodyBytes;
                 o.Limits.MaxConcurrentConnections = 64;
-                o.Limits.MaxConcurrentUpgradedConnections = 4;
+                o.Limits.MaxConcurrentUpgradedConnections = 2 * ApiStreamEndpoint.MaxStreams; // above our own count, which refuses with a 409 first
                 o.Limits.KeepAliveTimeout = TimeSpan.FromSeconds(10);
                 o.Limits.RequestHeadersTimeout = TimeSpan.FromSeconds(5);
                 o.Listen(IPAddress.Loopback, _requestedPort, listen => listen.Protocols = HttpProtocols.Http1);
             });
             var app = builder.Build();
+
+            // The WebSocket feature only; the Origin, Host and token checks of HandleAsync come before the handshake is accepted.
+            app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(15), KeepAliveTimeout = TimeSpan.FromSeconds(10) });
             app.Run(HandleAsync);
 
             try
@@ -318,6 +332,15 @@ public sealed class ApiServer : IAsyncDisposable
         // A request accepted just before the listener closed must not start (or keep running) an operation: refuse new
         // ones, and keep cancelling the running one until the host has finished stopping.
         _stopping = true;
+        var closing = _streams.CloseAllAsync(StreamEnd.ServerStopping, TimeSpan.FromSeconds(3));
+
+        // A stream stuck in a device write is cancelled together with its session if it has not ended after a second.
+        if (await Task.WhenAny(closing, Task.Delay(TimeSpan.FromSeconds(1))).ConfigureAwait(false) != closing)
+        {
+            _controller.CancelCurrent();
+        }
+
+        await closing.ConfigureAwait(false);
         _controller.CancelCurrent();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var stop = app.StopAsync(timeout.Token);
@@ -381,6 +404,12 @@ public sealed class ApiServer : IAsyncDisposable
         // POST /v1/home -> {}. POST /v1/cancel -> { "cancelled": true | false }.
         Add("POST", "/v1/home", async ctx => await ApiResponses.WriteResultAsync(ctx, await c.HomeAsync(ctx.RequestAborted).ConfigureAwait(false)).ConfigureAwait(false));
         Add("POST", "/v1/cancel", ctx => ApiResponses.WriteJsonAsync(ctx, StatusCodes.Status200OK, new CancelResponse(c.CancelCurrent()), ApiJson.Default.CancelResponse));
+
+        // GET /v1/stream: the WebSocket of the low-level operations. The token is the first message (a browser cannot set the
+        // header), so the route is anonymous for the header check; the Origin and Host checks still apply before the handshake.
+        Add("GET", "/v1/stream", ctx => ctx.WebSockets.IsWebSocketRequest
+            ? _streams.HandleAsync(ctx)
+            : RejectAsync(ctx, ApiError.InvalidRequest("this endpoint needs a WebSocket upgrade (GET with Upgrade: websocket)")), anonymous: true);
 
         // The specification: needs no token (the Origin and Host checks still apply).
         Add("GET", "/v1/openapi.json", ctx => ApiResponses.WriteBytesAsync(ctx, StatusCodes.Status200OK, ApiResponses.JsonContentType, OpenApiDocument), anonymous: true);
@@ -552,9 +581,21 @@ public sealed class ApiServer : IAsyncDisposable
             return false;
         }
 
+        return VerifyToken(header[BearerPrefix.Length..]) is not null;
+    }
+
+    /// <summary>The generation of the token when <paramref name="presented"/> is the current one, else null (constant time).</summary>
+    private int? VerifyToken(string? presented)
+    {
+        if (presented is null)
+        {
+            return null;
+        }
+
         // Hash both sides so the comparison always covers 32 bytes whatever the length of the presented value.
-        var presented = SHA256.HashData(Encoding.UTF8.GetBytes(header[BearerPrefix.Length..]));
-        return CryptographicOperations.FixedTimeEquals(presented, _token.Hash);
+        var state = _token;
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(presented));
+        return CryptographicOperations.FixedTimeEquals(hash, state.Hash) ? state.Generation : null;
     }
 
     private static bool HasBody(HttpRequest request) =>
@@ -644,8 +685,8 @@ public sealed class ApiServer : IAsyncDisposable
         return buffer.ToArray();
     }
 
-    /// <summary>The token and its SHA-256 (what a request's token is compared with).</summary>
-    private sealed record TokenState(string Value, byte[] Hash)
+    /// <summary>The token, its SHA-256 (what a request's token is compared with) and its generation (grows with every replacement).</summary>
+    private sealed record TokenState(string Value, byte[] Hash, int Generation = 0)
     {
         public static TokenState Of(string token)
         {

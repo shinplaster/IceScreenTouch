@@ -146,7 +146,7 @@ public sealed class ApiController : IDisposable
                 180 => Rotation.R180,
                 _ => throw Invalid("portrait must be 0 or 180"),
             };
-            return new OpSpec<RotationInfo>(Needs.None, _ => ct =>
+            return new OpSpec<RotationInfo>(Needs.None, (_, _) => ct =>
             {
                 ct.ThrowIfCancellationRequested();
                 _host.SetRotation(landscape, portrait);
@@ -164,7 +164,7 @@ public sealed class ApiController : IDisposable
         {
             Require(request, "a body is required");
             var id = request.DeviceId;
-            return new OpSpec<bool>(Needs.Session, _ => ct =>
+            return new OpSpec<bool>(Needs.Session, (_, _) => ct =>
             {
                 ct.ThrowIfCancellationRequested();
                 return _host.ChooseTarget(id) ? ValueTask.FromResult(true) : throw Invalid("unknown device id");
@@ -286,12 +286,12 @@ public sealed class ApiController : IDisposable
 
             var interval = Math.Max(NonNegative(request.IntervalMs, DefaultTapIntervalMs, "intervalMs"), (int)Timing.MinGap.TotalMilliseconds);
             LimitTotal(((long)count * hold) + ((long)(count - 1) * interval));
-            return new OpSpec<bool>(TouchNeeds(spec), state =>
+            return new OpSpec<bool>(TouchNeeds(spec), (state, io) =>
             {
                 var at = spec.Bind(state).OrThrow().ToAxis(unit);
                 return async ct =>
                 {
-                    var player = new TouchPlayer(_host.Touch, _time);
+                    var player = new TouchPlayer(io.Touch, _time);
                     for (var i = 0; i < count; i++)
                     {
                         if (i > 0)
@@ -319,12 +319,12 @@ public sealed class ApiController : IDisposable
             var unit = spec.ToUnit(request.X, request.Y).OrThrow();
             var hold = Math.Max(NonNegative(request.HoldMs, DefaultLongPressHoldMs, "holdMs"), (int)Timing.MinHold.TotalMilliseconds);
             LimitTotal(hold);
-            return new OpSpec<bool>(TouchNeeds(spec), state =>
+            return new OpSpec<bool>(TouchNeeds(spec), (state, io) =>
             {
                 var at = spec.Bind(state).OrThrow().ToAxis(unit);
                 return async ct =>
                 {
-                    await new TouchPlayer(_host.Touch, _time).TapAsync(at, TimeSpan.FromMilliseconds(hold), ct).ConfigureAwait(false);
+                    await new TouchPlayer(io.Touch, _time).TapAsync(at, TimeSpan.FromMilliseconds(hold), ct).ConfigureAwait(false);
                     return true;
                 };
             });
@@ -351,7 +351,7 @@ public sealed class ApiController : IDisposable
             var after = NonNegative(request.HoldAfterMs, 0, "holdAfterMs");
             var total = (long)duration + before + after;
             LimitTotal(total);
-            return new OpSpec<bool>(TouchNeeds(spec), state =>
+            return new OpSpec<bool>(TouchNeeds(spec), (state, io) =>
             {
                 var frame = spec.Bind(state).OrThrow();
                 var a = frame.ToAxis(from);
@@ -359,7 +359,7 @@ public sealed class ApiController : IDisposable
                 var timeline = new Timeline([(0, a), (before, a), (before + duration, b), (total, b)]);
                 return async ct =>
                 {
-                    await PlayAsync(new TouchPlayer(_host.Touch, _time), total, t => (timeline.At(t), null), ct).ConfigureAwait(false);
+                    await PlayAsync(new TouchPlayer(io.Touch, _time), total, t => (timeline.At(t), null), ct).ConfigureAwait(false);
                     return true;
                 };
             });
@@ -400,7 +400,7 @@ public sealed class ApiController : IDisposable
             }
 
             LimitTotal(previous);
-            return new OpSpec<bool>(TouchNeeds(spec), state =>
+            return new OpSpec<bool>(TouchNeeds(spec), (state, io) =>
             {
                 var frame = spec.Bind(state).OrThrow();
                 var keys = new List<(double T, AxisPoint P)>(units.Count + 1);
@@ -413,7 +413,7 @@ public sealed class ApiController : IDisposable
                 var timeline = new Timeline(keys);
                 return async ct =>
                 {
-                    await PlayAsync(new TouchPlayer(_host.Touch, _time), previous, t => (timeline.At(t), null), ct).ConfigureAwait(false);
+                    await PlayAsync(new TouchPlayer(io.Touch, _time), previous, t => (timeline.At(t), null), ct).ConfigureAwait(false);
                     return true;
                 };
             });
@@ -445,7 +445,7 @@ public sealed class ApiController : IDisposable
             var duration = NonNegative(request.DurationMs, DefaultPinchDurationMs, "durationMs");
             LimitTotal(duration);
             var total = Math.Max(duration, (int)Timing.MinHold.TotalMilliseconds);
-            return new OpSpec<bool>(TouchNeeds(spec), state =>
+            return new OpSpec<bool>(TouchNeeds(spec), (state, io) =>
             {
                 var frame = spec.Bind(state).OrThrow();
                 var (startHalf, endHalf) = (frame.HalfWidth(request.StartRadius), frame.HalfWidth(request.EndRadius));
@@ -459,7 +459,7 @@ public sealed class ApiController : IDisposable
 
                 return async ct =>
                 {
-                    await PlayAsync(new TouchPlayer(_host.Touch, _time), total, t =>
+                    await PlayAsync(new TouchPlayer(io.Touch, _time), total, t =>
                     {
                         var f = duration == 0 ? 1.0 : Math.Min(t / duration, 1.0);
                         var half = startHalf + ((endHalf - startHalf) * f);
@@ -490,9 +490,9 @@ public sealed class ApiController : IDisposable
 
             var hold = NonNegative(request.HoldMs, DefaultKeyHoldMs, "holdMs");
             LimitTotal((long)hold + KeyPressOverheadMs);
-            return new OpSpec<bool>(Needs.Session | Needs.Input | Needs.Keyboard, _ => async ct =>
+            return new OpSpec<bool>(Needs.Session | Needs.Input | Needs.Keyboard, (_, io) => async ct =>
             {
-                await _host.Keyboard.PressAsync(key, TimeSpan.FromMilliseconds(hold), cancellationToken: ct, time: _time).ConfigureAwait(false);
+                await io.Keyboard.PressAsync(key, TimeSpan.FromMilliseconds(hold), cancellationToken: ct, time: _time).ConfigureAwait(false);
                 return true;
             });
         }, cancellationToken).ConfigureAwait(false);
@@ -523,9 +523,9 @@ public sealed class ApiController : IDisposable
 
             var text = request.Text;
 LimitTotal(EstimateTypingMs(text, interval), "split the text into several requests (an operation can take at most 60 seconds)");
-            return new OpSpec<TypeTextResponse>(Needs.Session | Needs.Input | Needs.Keyboard, _ => async ct =>
+            return new OpSpec<TypeTextResponse>(Needs.Session | Needs.Input | Needs.Keyboard, (_, io) => async ct =>
             {
-                var skipped = await _host.Keyboard.TypeAsync(text, HidKeyboardLayout.Us, TimeSpan.FromMilliseconds(interval), cancellationToken: ct, time: _time).ConfigureAwait(false);
+                var skipped = await io.Keyboard.TypeAsync(text, HidKeyboardLayout.Us, TimeSpan.FromMilliseconds(interval), cancellationToken: ct, time: _time).ConfigureAwait(false);
                 return new TypeTextResponse(skipped);
             });
         }, cancellationToken).ConfigureAwait(false);
@@ -534,9 +534,9 @@ LimitTotal(EstimateTypingMs(text, interval), "split the text into several reques
     public async ValueTask<ApiResult> HomeAsync(CancellationToken cancellationToken = default)
     {
         var result = await ExecuteAsync("home", () =>
-            new OpSpec<bool>(Needs.Session | Needs.Input | Needs.HomeButton, _ => async ct =>
+            new OpSpec<bool>(Needs.Session | Needs.Input | Needs.HomeButton, (_, io) => async ct =>
             {
-                await _host.HomeButton.PressHomeAsync(ct).ConfigureAwait(false);
+                await io.Home.PressHomeAsync(ct).ConfigureAwait(false);
                 return true;
             }), cancellationToken).ConfigureAwait(false);
         return result.WithoutValue();
@@ -578,6 +578,9 @@ LimitTotal(EstimateTypingMs(text, interval), "split the text into several reques
             _refusals.Record($"{kind} {code}");
         }
     }
+
+    /// <summary>The application (the sinks a WebSocket session sends to).</summary>
+    internal IApiHost Host => _host;
 
     /// <summary>The state to convert coordinates for a message of an open session.</summary>
     internal ApiHostSnapshot Snapshot() => _host.GetSnapshot();
@@ -683,10 +686,11 @@ LimitTotal(EstimateTypingMs(text, interval), "split the text into several reques
         CancellationTokenRegistration userRegistration = default;
         try
         {
+            var guard = new InputGuard(_host);
             Func<CancellationToken, ValueTask<T>> job;
             try
             {
-                job = spec.Resolve(admission.State!);
+                job = spec.Resolve(admission.State!, guard);
             }
             catch (ApiRequestException ex)
             {
@@ -696,6 +700,7 @@ LimitTotal(EstimateTypingMs(text, interval), "split the text into several reques
             if ((spec.Needs & Needs.Input) != 0)
             {
                 lease = await AcquireInputAsync(handle, cancellationToken).ConfigureAwait(false);
+                guard.Lease = lease;
             }
 
             // The caller's token and the user's input fire on whatever thread cancels them (Kestrel, the mouse hook,
@@ -920,7 +925,7 @@ LimitTotal(EstimateTypingMs(text, interval), "split the text into several reques
 
     private readonly record struct Admission(ApiError? Error, Handle? Handle, ApiHostSnapshot? State);
 
-    private sealed record OpSpec<T>(Needs Needs, Func<ApiHostSnapshot, Func<CancellationToken, ValueTask<T>>> Resolve);
+    private sealed record OpSpec<T>(Needs Needs, Func<ApiHostSnapshot, InputGuard, Func<CancellationToken, ValueTask<T>>> Resolve);
 
     /// <summary>Linear interpolation between keyframes (time in ms, not decreasing), for increasing times.</summary>
     private sealed class Timeline(IReadOnlyList<(double T, AxisPoint P)> keys)

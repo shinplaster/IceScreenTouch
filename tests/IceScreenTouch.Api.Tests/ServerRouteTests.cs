@@ -17,7 +17,7 @@ public class ServerRouteTests : ServerTestBase
         [
             "GET /v1/status", "GET /v1/rotation", "PUT /v1/target", "PUT /v1/rotation",
             "POST /v1/touch/tap", "POST /v1/touch/long-press", "POST /v1/touch/swipe", "POST /v1/touch/path", "POST /v1/touch/pinch",
-            "POST /v1/keys/press", "POST /v1/keys/type", "POST /v1/home", "POST /v1/cancel", "GET /v1/openapi.json",
+            "POST /v1/keys/press", "POST /v1/keys/type", "POST /v1/home", "POST /v1/cancel", "GET /v1/stream", "GET /v1/openapi.json",
         ];
 
         Assert.Equal(expected.Order(), Server.Routes.Order());

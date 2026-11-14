@@ -49,6 +49,19 @@ public sealed class ApiSession : IAsyncDisposable
         Interrupted.IsCancellationRequested ? ApiController.InterruptionError(_lease) : null;
 
     /// <summary>
+    /// True from the moment the user's input (or the end of the mirroring session) cancelled the lease, or the session was
+    /// cancelled, without waiting for the queued cancellation of <see cref="Interrupted"/>: an owner checks it before every send
+    /// that puts a finger or key down.
+    /// </summary>
+    public bool IsInterrupted => Interrupted.IsCancellationRequested || _lease.UserInput.IsCancellationRequested;
+
+    /// <summary>The reason behind <see cref="IsInterrupted"/> (same mapping as <see cref="InterruptionError"/>), or null.</summary>
+    internal ApiError? CurrentInterruption => IsInterrupted ? ApiController.InterruptionError(_lease) : null;
+
+    /// <summary>The user's input token of the lease (cancelled by the user or the end of the mirroring session).</summary>
+    internal CancellationToken UserInput => _lease.UserInput;
+
+    /// <summary>
     /// Ties a message's <c>space</c> and <c>ref</c> to the current picture and rotation. Failures:
     /// <c>invalid_request</c> (bad space or ref) and <c>no_picture</c> (screen and pixel need one).
     /// </summary>
@@ -57,6 +70,12 @@ public sealed class ApiSession : IAsyncDisposable
         var spec = CoordinateSpec.Parse(space, reference);
         return spec.IsSuccess ? spec.Value!.Bind(_controller.Snapshot()) : ApiResult.Fail<CoordinateFrame>(spec.Error!);
     }
+
+    /// <summary>The state of the application now (picture, subscription, keyboard): checked per message.</summary>
+    internal ApiHostSnapshot Snapshot() => _controller.Snapshot();
+
+    /// <summary>The sinks the owner sends to.</summary>
+    internal IApiHost Host => _controller.Host;
 
     /// <summary>Ends the session: gives the input back to the bridge and lets other operations in.</summary>
     public async ValueTask DisposeAsync()
