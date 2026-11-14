@@ -1,0 +1,1468 @@
+# IceScreen Touch API: OpenAPI 3.1 specification (hand-written).
+#
+# This file is the source of truth. The application serves GET /v1/openapi.json from
+# src/IceScreenTouch.Api/openapi.json, which is GENERATED from this file. After every edit, regenerate it:
+#
+#   uv run --with pyyaml python tools/openapi_to_json.py
+#
+# The tests (tests/IceScreenTouch.Api.Tests/OpenApiSpecTests.cs) fail when the JSON is stale or when the paths and
+# methods here differ from the routes the server registers.
+#
+# YAML pitfalls: quote status codes ("200") and version strings; the generator refuses non-string mapping keys.
+
+openapi: "3.1.0"
+
+info:
+  title: IceScreen Touch API
+  version: "1.0.0"
+  summary: Control an iPhone or iPad from scripts through IceScreen Touch on the same Windows PC.
+  description: |
+    IceScreen Touch mirrors an iPhone or iPad to a Windows PC and sends mouse input to the device as Bluetooth LE
+    HID touches. This local API lets a script or an AI agent do the same with programmatic input: touch gestures
+    (tap, long press, swipe, path, pinch), keys and text, the home button, and low-level multi-touch over a
+    WebSocket. The version of this document is the version of the API (`apiVersion` in `GET /v1/status` is its
+    major number, `1`).
+
+    ## Availability
+
+    * The API is **off by default**. The user switches it on in the app (Settings, "External API"). It listens on
+      `127.0.0.1` only (never on `::1` or another address) on port 47821 by default; the user can choose another
+      port (1024 to 65535, not the probe page's port 8000). A port that is in use is an error in the app, the app
+      never looks for another one.
+    * The API is part of the purchased app (and of a build made from the source). While the app is in its trial it
+      is not started; if the license stops covering it while the API runs, every call answers `403`
+      `purchase_required`.
+    * The API can only drive the one target device the app currently sends input to (see `PUT /v1/target`).
+
+    ## Finding the API (connection discovery)
+
+    When the API is on, the app writes `api.json` (only the current Windows user can read it) and deletes it when
+    the API is switched off:
+
+    ```json
+    { "port": 47821, "token": "<43 characters>", "pid": 1234 }
+    ```
+
+    * Normal install: `%LOCALAPPDATA%\IceScreenTouch\api.json`.
+    * Store (MSIX) install: the same file is redirected to
+      `%LOCALAPPDATA%\Packages\Shin-plaster.IceScreenTouch_5c159ja95e6hm\LocalCache\Local\IceScreenTouch\api.json`.
+    * `pid` is the process that owns the port, so a client can check that it talks to IceScreen Touch (and that
+      the process runs as the same Windows user, see the owner check in the API guide) before it sends the token.
+    * Clients are expected to look first at the environment variables `ICESCREENTOUCH_API` (for example
+      `http://127.0.0.1:47821`) and `ICESCREENTOUCH_TOKEN`, then at `api.json`.
+
+    ## Authentication and browser protection
+
+    * Every call except `GET /v1/openapi.json` and the WebSocket upgrade of `GET /v1/stream` carries
+      `Authorization: Bearer <token>`. The token is 256 random bits as 43 Base64url characters; the user can copy
+      or regenerate it in the app. Regenerating it makes the old one stop working at once (an open WebSocket is
+      closed with 1008).
+    * A browser cannot set `Authorization` on a WebSocket, so the WebSocket takes the token in its first message
+      (see `GET /v1/stream`).
+    * Any request with an `Origin` header is refused with `403` `forbidden_origin` (there is no CORS: scripts and
+      command-line tools do not send `Origin`, web pages always do).
+    * The `Host` header must be `127.0.0.1:<port>` or `localhost:<port>` with the port of the API (protection
+      against DNS rebinding), else `403` `forbidden_origin`.
+    * The checks run in this order: `Origin`, `Host`, token (`401` `unauthorized`, with
+      `WWW-Authenticate: Bearer`), route (`404` `not_found`, `405` `method_not_allowed` with an `Allow` header), then
+      the request body.
+
+    ## Requests and responses
+
+    * Success is `200` with a JSON body. Operations that return nothing answer `{}`.
+    * Errors are `application/problem+json` (RFC 9457) with the machine-readable extension member `code` (see
+      the `Problem` schema). `type` is always `about:blank`; `detail` is a sentence for a person and never contains
+      your data.
+    * A body is JSON in UTF-8 with `Content-Type: application/json` and at most **64 KB**. A body that is not valid for
+      the endpoint is `400` `invalid_request`: unknown members are refused, missing required members are refused,
+      numbers must be JSON numbers (not strings), and a body is required where the endpoint takes one.
+    * Every response has `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`.
+    * An operation answers only **after** it has finished on the device (a swipe answers after the finger lifted).
+
+    ## Operations: one at a time, limited in time
+
+    * Only **one operation at a time**. A touch, key, home, `PUT /v1/rotation`, `PUT /v1/target` or a WebSocket
+      session that is running makes every other operation answer `409` `busy`; the API never queues. `GET
+      /v1/status`, `GET /v1/rotation` and `GET /v1/openapi.json` are not operations and always work. While the
+      probe (measurement) page of the app is running, operations are `409` `busy` too.
+    * No operation takes longer than **60 seconds** (the sum of holds, durations, intervals and the last `t` of a
+      path), else `400` `invalid_request`.
+    * A touch is held at least **70 ms** (a shorter `holdMs` of a tap or long press is raised to 70); frames of a
+      moving finger go out every 16 ms. A finger is always lifted at its last position.
+    * `POST /v1/cancel` stops the running operation (the fingers and keys are lifted; the stopped request answers
+      `499` `cancelled`).
+
+    ## The user has priority
+
+    The person at the PC can always take over the mirror window. When they use it (mouse press on the picture,
+    wheel, the keys that go to the device, Home, rotate), a running operation is stopped, every finger is lifted
+    and every key is released: a REST call answers `409` `user_interrupted`, a WebSocket stream gets an
+    `interrupted` event with reason `user` and is closed. For one second after the user's last input (and while they
+    hold the mouse or a key), a new operation is refused with `409` `user_active`. The API never resumes by itself:
+    the client decides whether to try again.
+
+    ## Coordinate spaces
+
+    Every position has a space, `space` (default `screen`):
+
+    | space | meaning | needs the picture |
+    |---|---|---|
+    | `screen` | The screen **as it is seen now**, normalized to 0..1 (0,0 top left, 1,1 bottom right). Landscape means a wide screen. The app undoes the rotation. | yes |
+    | `pixel` | Pixels of a screenshot. `ref: { "width": W, "height": H }`, the size of that screenshot, is **required**. x is 0..W, y is 0..H. | yes |
+    | `device` | The digitizer's own portrait frame, 0..1, never rotated. | no |
+
+    * A position outside the range (below 0, above 1 or above the `ref` size, or not a number) is `400`
+      `invalid_request`.
+    * `screen` and `pixel` need the picture of the device (to know whether it is portrait or landscape). Without
+      it (the receiver window is closed or minimized) the call is `409` `no_picture`.
+    * A `pixel` request whose `ref` has the opposite orientation (wide versus tall) from the current picture means
+      the device rotated since the screenshot: `409` `picture_changed`. Take a new screenshot. A square `ref` is
+      never refused.
+    * The **left or right side of a landscape screen cannot be detected** by the app. The assumed rotation is in
+      `GET /v1/status` (`rotation`); if it is wrong, correct it with `PUT /v1/rotation` (saved, like `Ctrl+R`
+      in the app). The same holds for an upside-down portrait screen (180).
+
+    ## Notes on the device
+
+    * Touch input only arrives if **Zoom** (Accessibility) is on in the device.
+    * Typing sends keys of a **US keyboard**. Characters without a key (Japanese, emoji) cannot be typed directly;
+      they are skipped and reported.
+    * The API cannot know whether the device is locked and does not stop input to a passcode screen.
+  license:
+    name: MIT
+    identifier: MIT
+  contact:
+    name: IceScreen Touch
+    url: https://github.com/shinplaster/IceScreenTouch
+
+servers:
+  - url: http://127.0.0.1:{port}
+    description: The app on the same PC. Only 127.0.0.1 is served.
+    variables:
+      port:
+        default: "47821"
+        description: The port chosen in the app (default 47821). The connection file `api.json` has it.
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: status
+    description: Read the state of the app and the device.
+  - name: settings
+    description: Change what the app assumes (target device, rotation).
+  - name: touch
+    description: Touch gestures of one or two fingers.
+  - name: keys
+    description: Keyboard input and the home button.
+  - name: control
+    description: Stop the running operation.
+  - name: stream
+    description: Low-level input over a WebSocket.
+  - name: spec
+    description: This document.
+
+paths:
+  /v1/status:
+    get:
+      operationId: getStatus
+      tags: [status]
+      summary: State of the app, the devices and the picture
+      description: |
+        Not an operation: it works while another operation runs (`operating` tells whether one does).
+      responses:
+        "200":
+          description: The state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Status"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/target:
+    put:
+      operationId: setTarget
+      tags: [settings]
+      summary: Choose the device that gets the input
+      description: |
+        Sets the device that touches and keys go to (`null` = automatic). A device id is one of `devices[].id` of
+        `GET /v1/status`; an unknown id is `400` `invalid_request`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TargetRequest"
+            examples:
+              device:
+                summary: A device
+                value: { "deviceId": "iphone-1" }
+              automatic:
+                summary: Automatic
+                value: { "deviceId": null }
+      responses:
+        "200":
+          $ref: "#/components/responses/Empty"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: |
+            `not_running` (the mirroring session is not running) or `busy` (another operation, a stream or the probe
+            page is running).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "499":
+          $ref: "#/components/responses/Cancelled"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/rotation:
+    get:
+      operationId: getRotation
+      tags: [settings]
+      summary: The rotations the app assumes
+      description: |
+        Not an operation: it works while another operation runs.
+      responses:
+        "200":
+          description: The assumed rotations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rotation"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      operationId: setRotation
+      tags: [settings]
+      summary: Correct the assumed rotation
+      description: |
+        The app cannot tell the two landscape directions (90 or 270) or an upside-down portrait (180) from the
+        picture, so it assumes one. This corrects the assumption (saved, like `Ctrl+R` in the app). At least one of
+        `landscape` and `portrait` is required; the one that is left out stays. It is an operation (`busy` while
+        another runs) but needs no picture and no connected device. Answers the rotations now in force.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RotationRequest"
+            examples:
+              landscape:
+                value: { "landscape": 270 }
+      responses:
+        "200":
+          description: The rotations now in force.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rotation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: "`busy`: another operation, a stream or the probe page is running."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "499":
+          $ref: "#/components/responses/Cancelled"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/touch/tap:
+    post:
+      operationId: tap
+      tags: [touch]
+      summary: Tap (one finger, once or several times)
+      description: |
+        Puts one finger down at the position, holds it for `holdMs` (at least 70) and lifts it; repeated `count`
+        times with `intervalMs` between a lift and the next touch (at least 25). The total
+        (`count` x hold + (`count` - 1) x interval) is at most 60 seconds.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TapRequest"
+            examples:
+              screen:
+                summary: Tap the middle of the screen
+                value: { "x": 0.5, "y": 0.5 }
+              pixel:
+                summary: Double tap at a screenshot pixel
+                value: { "x": 540, "y": 1820, "space": "pixel", "ref": { "width": 1080, "height": 2340 }, "count": 2 }
+      responses:
+        "200":
+          $ref: "#/components/responses/Empty"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ConflictTouch"
+        "499":
+          $ref: "#/components/responses/Cancelled"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/touch/long-press:
+    post:
+      operationId: longPress
+      tags: [touch]
+      summary: Long press
+      description: One finger held at the position for `holdMs` (default 800, at least 70).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LongPressRequest"
+            examples:
+              default:
+                value: { "x": 0.5, "y": 0.8, "holdMs": 1000 }
+      responses:
+        "200":
+          $ref: "#/components/responses/Empty"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ConflictTouch"
+        "499":
+          $ref: "#/components/responses/Cancelled"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/touch/swipe:
+    post:
+      operationId: swipe
+      tags: [touch]
+      summary: Swipe or drag with one finger
+      description: |
+        The finger goes down at `from`, waits there `holdBeforeMs` (a long press before the drag, for example to
+        reorder icons), moves in a straight line to `to` in `durationMs` (a frame every 16 ms), waits there
+        `holdAfterMs` (stops the scrolling momentum) and lifts at `to`. `holdBeforeMs` + `durationMs` +
+        `holdAfterMs` is at most 60 seconds.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SwipeRequest"
+            examples:
+              scrollUp:
+                value: { "from": { "x": 0.5, "y": 0.8 }, "to": { "x": 0.5, "y": 0.2 }, "durationMs": 300 }
+      responses:
+        "200":
+          $ref: "#/components/responses/Empty"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ConflictTouch"
+        "499":
+          $ref: "#/components/responses/Cancelled"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/touch/path:
+    post:
+      operationId: path
+      tags: [touch]
+      summary: Drag one finger along any path
+      description: |
+        One finger follows `points`; each point has `t`, the milliseconds since the finger went down (not decreasing
+        from point to point). A frame goes out every 16 ms at the position interpolated linearly between the points;
+        the last frame is the last point, then the finger lifts there. If the first `t` is above 0 the finger waits at
+        the first point until then. The last `t` is at most 60000 (60 seconds). Use it to draw curves without a
+        WebSocket.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PathRequest"
+            examples:
+              curve:
+                value:
+                  space: screen
+                  points:
+                    - { "x": 0.2, "y": 0.5, "t": 0 }
+                    - { "x": 0.5, "y": 0.3, "t": 200 }
+                    - { "x": 0.8, "y": 0.5, "t": 400 }
+      responses:
+        "200":
+          $ref: "#/components/responses/Empty"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ConflictTouch"
+        "499":
+          $ref: "#/components/responses/Cancelled"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/touch/pinch:
+    post:
+      operationId: pinch
+      tags: [touch]
+      summary: Pinch (two fingers)
+      description: |
+        Two fingers are placed side by side horizontally around `center`, each `radius` away from it, and the radius
+        goes from `startRadius` to `endRadius` in `durationMs` (at least 70 ms in all). The radius is a fraction of
+        the screen's **short side** (in `device` space: of the digitizer's x axis, which spans the device's short
+        side). `endRadius` larger than `startRadius` spreads the fingers (zoom in), smaller pinches them together. A
+        finger that would leave the screen at the start or the end is `400` `invalid_request`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PinchRequest"
+            examples:
+              zoomIn:
+                value: { "center": { "x": 0.5, "y": 0.5 }, "startRadius": 0.1, "endRadius": 0.3 }
+      responses:
+        "200":
+          $ref: "#/components/responses/Empty"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ConflictTouch"
+        "499":
+          $ref: "#/components/responses/Cancelled"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/keys/press:
+    post:
+      operationId: pressKey
+      tags: [keys]
+      summary: Press one key (with modifiers)
+      description: |
+        Presses a key of a US keyboard for `holdMs` (default 30; unlike a touch it is not raised to 70) and releases
+        it. The names are the **device's**: the app does not translate PC key layouts (`cmd` is the device's Command
+        key, not the PC's Ctrl).
+
+        * Characters: `a` to `z` (lower case), `0` to `9` and the unshifted US symbols `` - = [ ] \ ; ' , . / ` ``.
+          A character that needs Shift on its own (`A`, `!`) is refused: send the base key with the `shift` modifier.
+        * Names (not case sensitive): `Enter`, `Escape`, `Backspace`, `Tab`, `Space`, `Delete`, `ArrowUp`,
+          `ArrowDown`, `ArrowLeft`, `ArrowRight`, `PageUp`, `PageDown`, `Home`, `End`, `F1` to `F12`.
+        * Modifiers (`modifiers`): `cmd`, `shift`, `option`, `ctrl`.
+        * `Home` is the keyboard key of that name. The device's home **button** is `POST /v1/home`.
+
+        Needs the keyboard in the published HID map (`409` `no_keyboard` otherwise). Examples: select all
+        `{ "key": "a", "modifiers": ["cmd"] }`; switch the input method `{ "key": "Space", "modifiers": ["ctrl"] }`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeyPressRequest"
+            examples:
+              selectAll:
+                value: { "key": "a", "modifiers": ["cmd"] }
+      responses:
+        "200":
+          $ref: "#/components/responses/Empty"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ConflictKey"
+        "499":
+          $ref: "#/components/responses/Cancelled"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/keys/type:
+    post:
+      operationId: typeText
+      tags: [keys]
+      summary: Type a text, one character at a time
+      description: |
+        Types `text` on a US keyboard, a character every `intervalMs` (plus about 30 ms of key hold; Shift costs
+        about 30 ms more). At most 1000 characters, and the estimated time must stay within 60 seconds (else
+        `400` `invalid_request`; split the text into several requests). New lines are typed as Enter and tabs as Tab.
+
+        Characters that have no key on a US keyboard (Japanese, emoji, accented letters) are **not typed**; they are
+        returned in `skipped`. Japanese cannot be typed directly: switch the device to its "Japanese - Romaji"
+        keyboard (for example with `ctrl` + `Space`), type the romaji and confirm with the keys.
+
+        Needs the keyboard in the published HID map (`409` `no_keyboard` otherwise).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TypeTextRequest"
+            examples:
+              hello:
+                value: { "text": "hello", "intervalMs": 20 }
+      responses:
+        "200":
+          description: The text was typed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TypeTextResponse"
+              examples:
+                allTyped:
+                  value: { "skipped": "" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ConflictKey"
+        "499":
+          $ref: "#/components/responses/Cancelled"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/home:
+    post:
+      operationId: home
+      tags: [keys]
+      summary: Press the home button
+      description: |
+        Sends the home key (Consumer Control "Menu") of the device. Needs the home button in the published HID map
+        (`409` `no_home_button` otherwise). No body.
+      responses:
+        "200":
+          $ref: "#/components/responses/Empty"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: |
+            `not_running`, `busy`, `user_active`, `not_connected`, `no_home_button` or `user_interrupted`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "499":
+          $ref: "#/components/responses/Cancelled"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/cancel:
+    post:
+      operationId: cancel
+      tags: [control]
+      summary: Stop the running operation
+      description: |
+        Ends the operation or WebSocket stream that is running: every finger is lifted and every key released. The
+        stopped REST request answers `499` `cancelled`; a stream gets an `interrupted` event with reason `cancelled`
+        and is closed. Answers at once; `cancelled` tells whether something was running. No body.
+      responses:
+        "200":
+          description: Done.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CancelResponse"
+              examples:
+                stopped:
+                  value: { "cancelled": true }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/stream:
+    get:
+      operationId: stream
+      tags: [stream]
+      summary: Low-level input over a WebSocket
+      security: []
+      description: |
+        Upgrades the connection to a WebSocket (`Upgrade: websocket`; response `101`) for low-level input: put one or
+        two fingers down, move them, lift them, press and release keys, all in real time. OpenAPI cannot describe a
+        WebSocket; the protocol is described here, and the messages are the schemas `StreamClientMessage` and
+        `StreamEvent` in this document. Messages are JSON in **text** frames (a binary frame closes the connection
+        with 1003), at most **4 KB** each (a larger one closes it with 1009).
+
+        ## Handshake and authentication
+
+        There is no `Authorization` header (a browser cannot set one on a WebSocket) and the `Origin` and `Host`
+        checks of the API still apply before the upgrade (`403` `forbidden_origin`). The **first message** must be
+        `{ "op": "auth", "token": "<token>" }`, within **2 seconds** of the upgrade. A wrong or late first message is
+        answered with an `error` event (`unauthorized`) and the close code 1008.
+
+        After a good `auth` the stream opens a **session**: it behaves like a running operation, so every other
+        operation answers `409` `busy` while the stream is open (`GET /v1/status`, `GET /v1/rotation` and the
+        specification still work), the user's mouse and keys are held back from the device, and the same preconditions
+        as for touches apply (session running, device connected, user not active). The server sends
+        `{ "ev": "ready", "api": 1 }`. If the session cannot be opened the server sends an `error` event with the
+        reason (`purchase_required`, `busy`, `user_active`, `not_connected`, `not_running`) and closes
+        (see the close codes). At most 4 streams can be connected at once, but only one can hold the session; beyond 4
+        the upgrade itself is refused with `409` `busy`. A request that is not a WebSocket upgrade is `400`
+        `invalid_request`.
+
+        ## Messages from the client
+
+        Every message below except `auth` and `ping` has a number `seq` (an integer, 0 or more) that the answer
+        repeats. Members that an `op` does not take are refused (`error`, `invalid_request`). A message that is not a
+        valid JSON object of this API is answered with an `error` event without `seq`; the stream stays open.
+
+        | op | members | effect |
+        |---|---|---|
+        | `auth` | `token` | First message only. |
+        | `down` | `seq`, `contacts`, optional `space` (default `screen`), optional `ref` | Puts the listed fingers down (a finger that is already down moves). `space` and `ref` apply to the following `move` messages too. |
+        | `move` | `seq`, `contacts` | Moves fingers that are down (each must be down first). |
+        | `up` | `seq` | Lifts every finger at its last position. |
+        | `key` | `seq`, `key`, optional `modifiers`, `down` | Presses (`down: true`) or releases (`false`) a key; names and modifiers as in `POST /v1/keys/press`. At most 6 keys can be down at once. |
+        | `ping` | none | Answered with `{ "ev": "pong" }`; keeps the stream alive. |
+
+        `contacts` has 1 or 2 entries `{ "id": 0 or 1, "x", "y" }` (unique ids; the digitizer has two points). The
+        coordinates are those of `space` (see the coordinate spaces in the description of this API); the picture and
+        the rotation are read again for every message, so a rotation or a new picture is honoured.
+
+        ## Messages from the server
+
+        | ev | members | meaning |
+        |---|---|---|
+        | `ready` | `api` | The stream is open. |
+        | `ack` | `seq` | The message with this `seq` was carried out (sent to the device). |
+        | `error` | `seq` (when known), `code`, `detail` | The message was refused and did nothing. `code` is a code of the `Problem` schema (`invalid_request`, `not_connected`, `no_picture`, `picture_changed`, `no_keyboard`, ...). The stream stays open, except where a close code is listed below. |
+        | `interrupted` | `reason` | `user` (the user took over), `cancelled` (`POST /v1/cancel` or the server stops) or `session_ended` (the mirroring session ended): everything was lifted and released and the stream is closed. `idle`: see the dead-man below; the stream stays open. |
+        | `pong` | none | The answer to `ping`. |
+
+        ## Timing and the dead-man
+
+        * `move` messages are applied at most once every 16 ms: moves that arrive in between are merged into the last
+          position and acknowledged as applied (every `seq` gets its `ack`).
+        * **Dead-man**: while a finger or key is down, if no message arrives for **1 second**, everything is lifted
+          and released and the server sends `{ "ev": "interrupted", "reason": "idle" }`. The stream stays open. To hold
+          a finger still, send `ping` regularly.
+        * More than 1000 frames in a second close the stream (1008, `error` `rate_limited`). Real use is 60 to 125 a
+          second.
+        * When the stream ends for any reason (a client close, a broken connection, the user, the server) every finger
+          is lifted and every key released first, then the session is given up.
+
+        ## Close codes
+
+        | code | when |
+        |---|---|
+        | 1000 | The client closed the stream; or the user, `POST /v1/cancel` or the end of the mirroring session stopped it (an `interrupted` event came first). |
+        | 1001 | The app is shutting down; or the session could not be opened because the request was cancelled. |
+        | 1003 | A binary frame. |
+        | 1008 | Authentication failed or timed out; the token was regenerated; the API is not covered by the license (`purchase_required`); too many messages per second. An `error` event comes first. |
+        | 1009 | A message larger than 4 KB. |
+        | 1011 | An internal error (for example a failed Bluetooth write); an `error` event (`internal_error`) comes first. |
+        | 1013 | Try again later: the session could not be opened because of `busy`, `user_active`, `not_connected` or `not_running`. An `error` event with that code comes first. |
+
+        Example session:
+
+        ```
+        -> { "op": "auth", "token": "..." }
+        <- { "ev": "ready", "api": 1 }
+        -> { "op": "down", "seq": 1, "space": "screen", "contacts": [{ "id": 0, "x": 0.2, "y": 0.5 }] }
+        <- { "ev": "ack", "seq": 1 }
+        -> { "op": "move", "seq": 2, "contacts": [{ "id": 0, "x": 0.8, "y": 0.5 }] }
+        <- { "ev": "ack", "seq": 2 }
+        -> { "op": "up", "seq": 3 }
+        <- { "ev": "ack", "seq": 3 }
+        ```
+      responses:
+        "101":
+          description: Switching protocols. The WebSocket is open.
+        "400":
+          description: "`invalid_request`: the request is not a WebSocket upgrade."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: "`forbidden_origin`: an `Origin` header is present, or `Host` is not allowed."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "409":
+          description: "`busy`: 4 streams are already connected."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/openapi.json:
+    get:
+      operationId: getOpenApi
+      tags: [spec]
+      summary: This specification as JSON
+      security: []
+      description: |
+        The specification (the same document as this file, in JSON). It needs no token; the `Origin` and `Host`
+        checks still apply.
+      responses:
+        "200":
+          description: The OpenAPI 3.1 document.
+          content:
+            application/json:
+              schema:
+                type: object
+        "403":
+          description: "`forbidden_origin`: an `Origin` header is present, or `Host` is not allowed."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        The token of `api.json` (or `ICESCREENTOUCH_TOKEN`), 43 Base64url characters. Sent as
+        `Authorization: Bearer <token>`.
+
+  responses:
+    Empty:
+      description: Done. The body is `{}`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Empty"
+    BadRequest:
+      description: |
+        `invalid_request`: the body, a range, a limit or a name is wrong. `detail` says which (never the value).
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          examples:
+            outOfRange:
+              value:
+                type: about:blank
+                title: Bad Request
+                status: 400
+                detail: "position is outside the screen (x and y must be in 0..1)"
+                code: invalid_request
+    Unauthorized:
+      description: "`unauthorized`: the bearer token is missing or wrong."
+      headers:
+        WWW-Authenticate:
+          description: Always `Bearer`.
+          schema:
+            type: string
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Forbidden:
+      description: |
+        `forbidden_origin` (an `Origin` header is present, or `Host` is not `127.0.0.1:<port>` / `localhost:<port>`)
+        or `purchase_required` (the license does not cover the API).
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    ConflictTouch:
+      description: |
+        The operation cannot run now: `busy` (another operation, a stream or the probe page is running), `not_running`
+        (the mirroring session is not running), `user_active` (the user used the mirror within the last second),
+        `not_connected` (the target device has not subscribed to the touch reports), `no_picture` (`screen` and `pixel`
+        need the picture), `picture_changed` (a `pixel` request whose `ref` has the opposite orientation of the
+        picture) or `user_interrupted` (the user took over while it ran; everything was lifted).
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          examples:
+            busy:
+              value:
+                type: about:blank
+                title: Conflict
+                status: 409
+                detail: "another operation or session is running"
+                code: busy
+    ConflictKey:
+      description: |
+        The operation cannot run now: `busy`, `not_running`, `user_active`, `not_connected`, `no_keyboard` (the
+        published HID map has no keyboard) or `user_interrupted`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Cancelled:
+      description: |
+        `cancelled`: `POST /v1/cancel` (or the client going away) ended the operation. Every finger was lifted and
+        every key released.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    InternalError:
+      description: |
+        `internal_error`: an unexpected failure inside the app (for example a failed Bluetooth write). The detail is
+        generic.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+  schemas:
+    # ---- Errors -------------------------------------------------------------------------------------------
+    Problem:
+      type: object
+      description: |
+        An error, RFC 9457 `application/problem+json`. The meaning is in `code`.
+
+        | code | HTTP | meaning |
+        |---|---|---|
+        | `invalid_request` | 400 | The body, a range, a limit or a name is wrong. |
+        | `unauthorized` | 401 | The token is missing or wrong. |
+        | `forbidden_origin` | 403 | The `Origin` header is present, or `Host` is not allowed. |
+        | `purchase_required` | 403 | The license does not cover the API (trial, expired). |
+        | `not_found` | 404 | No such endpoint. |
+        | `method_not_allowed` | 405 | The endpoint does not accept that HTTP method (`Allow` lists the ones it does). |
+        | `not_running` | 409 | The mirroring session is not running. |
+        | `not_connected` | 409 | The target device has not subscribed to the HID reports. |
+        | `no_picture` | 409 | There is no picture (the receiver window is closed or minimized) and the request needs one. |
+        | `picture_changed` | 409 | A `pixel` request refers to a screenshot of the opposite orientation: the device rotated since. |
+        | `busy` | 409 | Another operation, a WebSocket stream or the probe page is running. |
+        | `user_interrupted` | 409 | The user used the mirror; everything was lifted. |
+        | `user_active` | 409 | The user used the mirror within the last second, or holds the mouse or a key. |
+        | `no_keyboard` | 409 | The published HID map has no keyboard. |
+        | `no_home_button` | 409 | The published HID map has no home button. |
+        | `rate_limited` | 429 | Too many messages per second on a WebSocket stream (it is closed). |
+        | `cancelled` | 499 | `POST /v1/cancel` (or the client going away) ended the operation. |
+        | `internal_error` | 500 | An unexpected failure inside the app. |
+      required: [type, title, status, detail, code]
+      properties:
+        type:
+          type: string
+          const: about:blank
+        title:
+          type: string
+          description: The HTTP status text.
+        status:
+          type: integer
+          description: The HTTP status.
+        detail:
+          type: string
+          description: A sentence for a person. Never contains positions, keys, text or the token.
+        code:
+          type: string
+          description: The machine-readable error code.
+          enum:
+            - invalid_request
+            - unauthorized
+            - forbidden_origin
+            - purchase_required
+            - not_found
+            - method_not_allowed
+            - not_running
+            - not_connected
+            - no_picture
+            - picture_changed
+            - busy
+            - user_interrupted
+            - user_active
+            - no_keyboard
+            - no_home_button
+            - rate_limited
+            - cancelled
+            - internal_error
+      examples:
+        - type: about:blank
+          title: Conflict
+          status: 409
+          detail: the user used the mirror a moment ago
+          code: user_active
+
+    Empty:
+      type: object
+      description: The body of an operation that returns nothing.
+      additionalProperties: false
+
+    # ---- Responses ----------------------------------------------------------------------------------------
+    Status:
+      type: object
+      description: The state of the app.
+      required: [version, apiVersion, running, bleState, devices, targetDeviceId, receiver, picture, rotation, operating]
+      properties:
+        version:
+          type: string
+          description: The version of the app.
+        apiVersion:
+          type: integer
+          description: The major version of the API (1).
+        running:
+          type: boolean
+          description: The mirroring session is running.
+        bleState:
+          type: string
+          description: A short description of the Bluetooth state, for example `advertising` or `connected`.
+        devices:
+          type: array
+          description: The devices that connected.
+          items:
+            $ref: "#/components/schemas/Device"
+        targetDeviceId:
+          type: [string, "null"]
+          description: The device that gets the input (`null` when there is none).
+        receiver:
+          type: [string, "null"]
+          description: The AirPlay receiver the picture comes from (`null` when there is none).
+        picture:
+          oneOf:
+            - $ref: "#/components/schemas/Picture"
+            - type: "null"
+          description: The picture of the device as the receiver window shows it (`null` when there is none).
+        rotation:
+          $ref: "#/components/schemas/Rotation"
+        operating:
+          type: boolean
+          description: An API operation or stream is running.
+      examples:
+        - version: 0.3.0
+          apiVersion: 1
+          running: true
+          bleState: connected
+          devices:
+            - { id: iphone-1, name: iPhone, model: "iPhone15,2", subscribed: true }
+          targetDeviceId: iphone-1
+          receiver: UxPlay
+          picture: { width: 390, height: 844, isLandscape: false, orientation: portrait, aspect: 0.462 }
+          rotation: { landscape: 90, portrait: 0 }
+          operating: false
+
+    Device:
+      type: object
+      required: [id, name, model, subscribed]
+      properties:
+        id:
+          type: string
+          description: The id that `PUT /v1/target` takes.
+        name:
+          type: string
+          description: The name the device advertises.
+        model:
+          type: [string, "null"]
+          description: The model, when known.
+        subscribed:
+          type: boolean
+          description: The device subscribed to the touch reports (it can receive input).
+
+    Picture:
+      type: object
+      description: |
+        The rectangle of the device's picture in the receiver window (black bars excluded), in PC pixels. The width
+        and height are not the device's resolution.
+      required: [width, height, isLandscape, orientation, aspect]
+      properties:
+        width:
+          type: integer
+        height:
+          type: integer
+        isLandscape:
+          type: boolean
+          description: Wider than tall. A square counts as portrait.
+        orientation:
+          type: string
+          enum: [portrait, landscape]
+        aspect:
+          type: number
+          description: Width divided by height.
+
+    Rotation:
+      type: object
+      description: The rotations of the device the app assumes, in degrees.
+      required: [landscape, portrait]
+      properties:
+        landscape:
+          type: integer
+          enum: [90, 270]
+          description: Used when the picture is wide.
+        portrait:
+          type: integer
+          enum: [0, 180]
+          description: Used when the picture is tall.
+
+    TypeTextResponse:
+      type: object
+      required: [skipped]
+      properties:
+        skipped:
+          type: string
+          description: The characters that have no key on a US keyboard (not typed). Empty when all were typed.
+
+    CancelResponse:
+      type: object
+      required: [cancelled]
+      properties:
+        cancelled:
+          type: boolean
+          description: True when an operation or stream was running and was told to stop; false when nothing ran.
+
+    # ---- Requests -----------------------------------------------------------------------------------------
+    Space:
+      type: string
+      enum: [screen, pixel, device]
+      default: screen
+      description: |
+        The coordinate space of the positions (not case sensitive): `screen` (0..1 of the screen as seen now),
+        `pixel` (pixels of a screenshot; needs `ref`) or `device` (0..1 of the digitizer's portrait frame).
+
+    PixelRef:
+      type: object
+      description: The size of the screenshot a `pixel` position refers to.
+      required: [width, height]
+      additionalProperties: false
+      properties:
+        width:
+          type: integer
+          minimum: 1
+          description: Screenshot width in pixels.
+        height:
+          type: integer
+          minimum: 1
+          description: Screenshot height in pixels.
+
+    PixelNeedsRef:
+      description: When `space` is `pixel`, `ref` is required.
+      if:
+        required: [space]
+        properties:
+          space:
+            const: pixel
+      then:
+        required: [ref]
+
+    Point:
+      type: object
+      description: A position in the space of the request.
+      required: [x, y]
+      additionalProperties: false
+      properties:
+        x:
+          type: number
+          description: Horizontal position (0..1; for `pixel` 0..`ref.width`).
+        y:
+          type: number
+          description: Vertical position (0..1; for `pixel` 0..`ref.height`).
+
+    TargetRequest:
+      type: object
+      required: [deviceId]
+      additionalProperties: false
+      properties:
+        deviceId:
+          type: [string, "null"]
+          description: The device id, or `null` for automatic. The member must be present.
+
+    RotationRequest:
+      type: object
+      description: At least one of the two members.
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        landscape:
+          type: integer
+          enum: [90, 270]
+        portrait:
+          type: integer
+          enum: [0, 180]
+
+    TapRequest:
+      type: object
+      required: [x, y]
+      additionalProperties: false
+      allOf:
+        - $ref: "#/components/schemas/PixelNeedsRef"
+      properties:
+        x:
+          type: number
+          description: Horizontal position.
+        y:
+          type: number
+          description: Vertical position.
+        space:
+          $ref: "#/components/schemas/Space"
+        ref:
+          $ref: "#/components/schemas/PixelRef"
+        holdMs:
+          type: integer
+          minimum: 0
+          default: 80
+          description: How long the finger stays down. A value below 70 is raised to 70.
+        count:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 1
+          description: Number of taps.
+        intervalMs:
+          type: integer
+          minimum: 0
+          default: 120
+          description: The pause between a lift and the next tap. A value below 25 is raised to 25.
+
+    LongPressRequest:
+      type: object
+      required: [x, y]
+      additionalProperties: false
+      allOf:
+        - $ref: "#/components/schemas/PixelNeedsRef"
+      properties:
+        x:
+          type: number
+          description: Horizontal position.
+        y:
+          type: number
+          description: Vertical position.
+        space:
+          $ref: "#/components/schemas/Space"
+        ref:
+          $ref: "#/components/schemas/PixelRef"
+        holdMs:
+          type: integer
+          minimum: 0
+          default: 800
+          description: How long the finger stays down (at most 60000). A value below 70 is raised to 70.
+
+    SwipeRequest:
+      type: object
+      required: [from, to]
+      additionalProperties: false
+      allOf:
+        - $ref: "#/components/schemas/PixelNeedsRef"
+      properties:
+        from:
+          $ref: "#/components/schemas/Point"
+        to:
+          $ref: "#/components/schemas/Point"
+        space:
+          $ref: "#/components/schemas/Space"
+        ref:
+          $ref: "#/components/schemas/PixelRef"
+        durationMs:
+          type: integer
+          minimum: 0
+          default: 300
+          description: The time to move from `from` to `to`.
+        holdBeforeMs:
+          type: integer
+          minimum: 0
+          default: 0
+          description: The finger waits at `from` this long first (a long press before the drag).
+        holdAfterMs:
+          type: integer
+          minimum: 0
+          default: 0
+          description: The finger waits at `to` this long before the lift (stops the momentum).
+
+    PathPoint:
+      type: object
+      required: [x, y, t]
+      additionalProperties: false
+      properties:
+        x:
+          type: number
+          description: Horizontal position.
+        y:
+          type: number
+          description: Vertical position.
+        t:
+          type: integer
+          minimum: 0
+          description: Milliseconds since the finger went down; not decreasing from point to point; at most 60000.
+
+    PathRequest:
+      type: object
+      required: [points]
+      additionalProperties: false
+      allOf:
+        - $ref: "#/components/schemas/PixelNeedsRef"
+      properties:
+        space:
+          $ref: "#/components/schemas/Space"
+        ref:
+          $ref: "#/components/schemas/PixelRef"
+        points:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items:
+            $ref: "#/components/schemas/PathPoint"
+
+    PinchRequest:
+      type: object
+      required: [center, startRadius, endRadius]
+      additionalProperties: false
+      allOf:
+        - $ref: "#/components/schemas/PixelNeedsRef"
+      properties:
+        center:
+          $ref: "#/components/schemas/Point"
+        space:
+          $ref: "#/components/schemas/Space"
+        ref:
+          $ref: "#/components/schemas/PixelRef"
+        startRadius:
+          type: number
+          minimum: 0
+          description: Half the distance between the fingers at the start, as a fraction of the screen's short side.
+        endRadius:
+          type: number
+          minimum: 0
+          description: Half the distance between the fingers at the end, as a fraction of the screen's short side.
+        durationMs:
+          type: integer
+          minimum: 0
+          default: 400
+          description: The time from start to end (the whole gesture lasts at least 70 ms).
+
+    KeyPressRequest:
+      type: object
+      required: [key]
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+          description: A key name, see `POST /v1/keys/press`.
+        modifiers:
+          type: array
+          description: Modifier keys held while the key is pressed.
+          items:
+            type: string
+            enum: [cmd, shift, option, ctrl]
+        holdMs:
+          type: integer
+          minimum: 0
+          default: 30
+          description: How long the key stays down.
+
+    TypeTextRequest:
+      type: object
+      required: [text]
+      additionalProperties: false
+      properties:
+        text:
+          type: string
+          description: |
+            The text, at most 1000 characters (UTF-16 code units). Its estimated typing time must be at most 60
+            seconds.
+        intervalMs:
+          type: integer
+          minimum: 0
+          maximum: 1000
+          default: 20
+          description: The pause after each typed character.
+
+    # ---- WebSocket messages (GET /v1/stream) ---------------------------------------------------------------
+    StreamContact:
+      type: object
+      description: One finger of a `down` or `move` message.
+      required: [id, x, y]
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          enum: [0, 1]
+          description: The contact id (the digitizer has two points).
+        x:
+          type: number
+          description: Horizontal position in the space of the last `down`.
+        y:
+          type: number
+          description: Vertical position in the space of the last `down`.
+
+    StreamClientMessage:
+      description: |
+        A message from the client to `GET /v1/stream`, a JSON object in a text frame. `op` selects the kind; see
+        the description of `GET /v1/stream` for the members each kind takes. Messages that are not valid are
+        answered with an `error` event.
+      oneOf:
+        - type: object
+          title: auth
+          description: The first message, within 2 seconds of the upgrade.
+          required: [op, token]
+          additionalProperties: false
+          properties:
+            op:
+              const: auth
+            token:
+              type: string
+        - type: object
+          title: down
+          required: [op, seq, contacts]
+          additionalProperties: false
+          allOf:
+            - $ref: "#/components/schemas/PixelNeedsRef"
+          properties:
+            op:
+              const: down
+            seq:
+              $ref: "#/components/schemas/StreamSeq"
+            space:
+              $ref: "#/components/schemas/Space"
+            ref:
+              $ref: "#/components/schemas/PixelRef"
+            contacts:
+              $ref: "#/components/schemas/StreamContacts"
+        - type: object
+          title: move
+          required: [op, seq, contacts]
+          additionalProperties: false
+          properties:
+            op:
+              const: move
+            seq:
+              $ref: "#/components/schemas/StreamSeq"
+            contacts:
+              $ref: "#/components/schemas/StreamContacts"
+        - type: object
+          title: up
+          required: [op, seq]
+          additionalProperties: false
+          properties:
+            op:
+              const: up
+            seq:
+              $ref: "#/components/schemas/StreamSeq"
+        - type: object
+          title: key
+          required: [op, seq, key, down]
+          additionalProperties: false
+          properties:
+            op:
+              const: key
+            seq:
+              $ref: "#/components/schemas/StreamSeq"
+            key:
+              type: string
+              description: A key name, see `POST /v1/keys/press`.
+            modifiers:
+              type: array
+              items:
+                type: string
+                enum: [cmd, shift, option, ctrl]
+            down:
+              type: boolean
+              description: True to press, false to release.
+        - type: object
+          title: ping
+          required: [op]
+          additionalProperties: false
+          properties:
+            op:
+              const: ping
+
+    StreamSeq:
+      type: integer
+      minimum: 0
+      description: A number chosen by the client; the `ack` or `error` for the message repeats it.
+
+    StreamContacts:
+      type: array
+      minItems: 1
+      maxItems: 2
+      description: One or two fingers; the ids must be unique.
+      items:
+        $ref: "#/components/schemas/StreamContact"
+
+    StreamEvent:
+      description: A message from the server on `GET /v1/stream`, a JSON object in a text frame. `ev` selects the kind.
+      oneOf:
+        - type: object
+          title: ready
+          required: [ev, api]
+          properties:
+            ev:
+              const: ready
+            api:
+              type: integer
+              description: The API version (1).
+        - type: object
+          title: ack
+          required: [ev, seq]
+          properties:
+            ev:
+              const: ack
+            seq:
+              type: integer
+        - type: object
+          title: error
+          description: The message was refused and did nothing.
+          required: [ev, code, detail]
+          properties:
+            ev:
+              const: error
+            seq:
+              type: integer
+              description: The `seq` of the refused message, when it had a valid one.
+            code:
+              $ref: "#/components/schemas/Problem/properties/code"
+            detail:
+              type: string
+        - type: object
+          title: interrupted
+          required: [ev, reason]
+          properties:
+            ev:
+              const: interrupted
+            reason:
+              type: string
+              enum: [user, cancelled, session_ended, idle]
+              description: |
+                `user`, `cancelled` and `session_ended` end the stream (everything was lifted and released). `idle`
+                (the dead-man) lifted and released everything but the stream stays open.
+        - type: object
+          title: pong
+          required: [ev]
+          properties:
+            ev:
+              const: pong

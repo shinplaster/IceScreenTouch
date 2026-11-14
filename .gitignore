@@ -13,3 +13,8 @@ TestResults/
 
 # Published builds (tools/publish.ps1)
 artifacts/
+
+# Python client
+clients/python/dist/
+*.egg-info/
+.pytest_cache/

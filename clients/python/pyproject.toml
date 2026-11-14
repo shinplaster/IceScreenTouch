@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "icescreentouch"
+version = "0.1.0"
+description = "Python client and MCP server for the IceScreen Touch external API (control an iPhone or iPad from Windows)."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "Shin-plaster" }]
+keywords = ["iphone", "ipad", "automation", "mcp", "icescreentouch"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+# The client itself uses the standard library only.
+dependencies = []
+
+[project.optional-dependencies]
+# Client.stream(): the WebSocket for low-level touch and key control.
+stream = ["websockets>=15"]
+# Screenshot.to_pil().
+image = ["Pillow>=10"]
+# The MCP server (icescreentouch-mcp). Pillow shrinks screenshots the app did not shrink itself.
+mcp = ["mcp>=1.22", "Pillow>=10"]
+
+[project.scripts]
+icescreentouch-mcp = "icescreentouch.mcp.server:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "jsonschema>=4.18", "pyyaml>=6"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/icescreentouch"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

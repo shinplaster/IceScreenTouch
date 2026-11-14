@@ -88,3 +88,14 @@ jobs:
         run: |
           python test_geometry.py
           python test_analyze.py
+
+      # The Python client and MCP server (clients/python) run against fake servers, so no phone or app is needed.
+      # The versions come from the committed lockfile (uv.lock; --locked fails when it is out of date), with every
+      # extra (websockets, Pillow, the MCP SDK) and the dev group; nothing is published or uploaded.
+      - name: Python client tests
+        working-directory: clients/python
+        shell: bash
+        run: |
+          python -m pip install uv==0.11.23
+          uv sync --locked --all-extras
+          uv run pytest -q
