@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text.Json.Serialization;
+using IceScreenTouch.Api;
 using IceScreenTouch.App.Resources;
 using IceScreenTouch.Core;
 
@@ -119,6 +120,15 @@ public sealed record AppSettings
     /// <summary>The Bluetooth name of <see cref="TargetDevice"/>, to show it while it is not connected.</summary>
     public string? TargetDeviceName { get; init; }
 
+    /// <summary>
+    /// The external API (a local REST server on 127.0.0.1 for scripts) is switched on. Off by default; the token is not
+    /// stored here but in its own file (<see cref="Services.ApiTokenStore"/>).
+    /// </summary>
+    public bool ApiEnabled { get; init; }
+
+    /// <summary>The TCP port of the external API on 127.0.0.1 (<see cref="MinApiPort"/> to <see cref="MaxApiPort"/>).</summary>
+    public int ApiPort { get; init; } = DefaultApiPort;
+
     /// <summary>The landscape rotation as the core type.</summary>
     [JsonIgnore]
     public Rotation Rotation => (Rotation)LandscapeRotation;
@@ -157,6 +167,25 @@ public sealed record AppSettings
     /// <inheritdoc cref="MinWheelStepPercent"/>
     public const int MaxLongPressMilliseconds = 3000;
 
+    /// <inheritdoc cref="MinWheelStepPercent"/>
+    public const int MinApiPort = 1024;
+
+    /// <summary>The API's default port.</summary>
+    public const int DefaultApiPort = ApiServer.DefaultPort;
+
+    /// <inheritdoc cref="MinWheelStepPercent"/>
+    public const int MaxApiPort = 65535;
+
+    /// <summary>
+    /// The port of the probe page server (<c>WindowsProbeService.DefaultPort</c>; the self-check compares them). The probe page
+    /// is served to the LAN on it, so the external API must never take it: a request meant for the API would reach (or be
+    /// refused by) the wrong server.
+    /// </summary>
+    public const int ProbePort = 8000;
+
+    /// <summary>A port the external API may use: <see cref="MinApiPort"/> to <see cref="MaxApiPort"/>, but not <see cref="ProbePort"/>.</summary>
+    public static bool IsValidApiPort(int port) => port is >= MinApiPort and <= MaxApiPort && port != ProbePort;
+
     /// <summary>A copy with every value in range (hand-edited or older files).</summary>
     public AppSettings Normalize()
     {
@@ -175,6 +204,7 @@ public sealed record AppSettings
             LongPressMilliseconds = Math.Clamp(LongPressMilliseconds, MinLongPressMilliseconds, MaxLongPressMilliseconds),
             WheelStepPercent = Math.Clamp(WheelStepPercent, MinWheelStepPercent, MaxWheelStepPercent),
             WheelMomentumPercent = Math.Clamp(WheelMomentumPercent, 0, MaxWheelMomentumPercent),
+            ApiPort = IsValidApiPort(ApiPort) ? ApiPort : defaults.ApiPort,
             Language = AppLanguage.Normalize(Language),
             Theme = AppTheme.Normalize(Theme),
             TargetDevice = string.IsNullOrWhiteSpace(TargetDevice) ? null : TargetDevice.Trim(),
@@ -185,7 +215,7 @@ public sealed record AppSettings
     /// <summary>
     /// Whether going from <paramref name="before"/> to <paramref name="after"/> needs the session restarted. The
     /// looks and the window (theme, language, close to tray, position) do not, nor does the target device (the
-    /// running session takes it as it is).
+    /// running session takes it as it is), nor the external API (it runs apart from the session).
     /// </summary>
     public static bool NeedsRestart(AppSettings before, AppSettings after)
     {
@@ -194,6 +224,6 @@ public sealed record AppSettings
         return SessionPart(before) != SessionPart(after);
 
         static AppSettings SessionPart(AppSettings s) =>
-            s.Normalize() with { Theme = null, Language = null, CloseToTray = false, Window = null, TargetDevice = null, TargetDeviceName = null };
+            s.Normalize() with { Theme = null, Language = null, CloseToTray = false, Window = null, TargetDevice = null, TargetDeviceName = null, ApiEnabled = false, ApiPort = ApiServer.DefaultPort };
     }
 }

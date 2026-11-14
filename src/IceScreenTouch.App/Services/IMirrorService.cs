@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Shin-plaster
 // SPDX-License-Identifier: MIT
 
+using IceScreenTouch.Api;
 using IceScreenTouch.App.Settings;
 using IceScreenTouch.Core;
 
@@ -132,4 +133,41 @@ public interface IMirrorService : IAsyncDisposable
 
     /// <summary>Raised (on any thread) when the landscape rotation changed (Ctrl+R or <see cref="ToggleRotation"/>).</summary>
     event EventHandler<Rotation>? LandscapeRotationChanged;
+
+    /// <summary>
+    /// The running session as the external API uses it (its sinks, input arbitration and bridge state), or null while the
+    /// session is stopped. The object belongs to one session: after a restart this returns a new one. Any thread.
+    /// </summary>
+    IApiSession? ApiSession => null;
+}
+
+/// <summary>
+/// What the external API needs from one running mirror session: where touches, keys and the home button go (the chosen
+/// target device), the arbiter that lets the API take the input from the user's mouse and keys, and the bridge's view of the
+/// picture. Everything may be called from any thread.
+/// </summary>
+public interface IApiSession
+{
+    /// <summary>Touch reports go to the chosen target device (<see cref="ITouchSink.IsSubscribed"/>: some device subscribed).</summary>
+    ITouchSink Touch { get; }
+
+    /// <summary>Keyboard reports; <see cref="IKeyboardSink.HasKeyboard"/> is false when the session has no HID keyboard (dry run, no Bluetooth).</summary>
+    IKeyboardSink Keyboard { get; }
+
+    /// <summary>The home button; <see cref="IHomeButtonSink.HasHomeButton"/> is false without the consumer keys.</summary>
+    IHomeButtonSink HomeButton { get; }
+
+    /// <summary>The session's input arbitration (created with the same clock as the API controller).</summary>
+    ArbiterInput Input { get; }
+
+    /// <summary>What the bridge saw in its last tick: the picture in screen pixels, the rotations, whether a measurement suspended it.</summary>
+    BridgeStatus Bridge { get; }
+
+    /// <summary>
+    /// Asks the bridge to set the assumed rotation (landscape 90 or 270 and/or portrait 0 or 180) as a command of the API (it does
+    /// not count as user input and is applied while the API holds the input). A landscape change is reported through
+    /// <see cref="IMirrorService.LandscapeRotationChanged"/> (and saved) like Ctrl+R. Only posts the command and returns (the bridge applies it on its
+    /// next tick, a few milliseconds later); the API shows the requested value until the bridge has caught up.
+    /// </summary>
+    void SetRotation(Rotation? landscape, Rotation? portrait);
 }

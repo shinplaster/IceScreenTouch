@@ -97,6 +97,15 @@ internal sealed class FakeLease : IInputLease
     /// <summary>Giving the input back fails (the lease is still counted as disposed).</summary>
     public bool ThrowOnDispose { get; set; }
 
+    public bool SessionEnded { get; private set; }
+
+    /// <summary>The session ends while the lease is held: the arbiter fires the same token as for the user's input.</summary>
+    public void SimulateSessionEnd()
+    {
+        SessionEnded = true;
+        _user.Cancel();
+    }
+
     /// <summary>The user touches the mirror.</summary>
     public void SimulateUserInput() => _user.Cancel();
 

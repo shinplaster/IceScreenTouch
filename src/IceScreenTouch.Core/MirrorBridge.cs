@@ -40,11 +40,14 @@ public enum BridgeCommandKind
 
     /// <summary>Set the landscape rotation to <see cref="BridgeCommand.Rotation"/>.</summary>
     SetRotation,
+
+    /// <summary>Set the portrait rotation (0, or 180 for an upside-down iPad) to <see cref="BridgeCommand.Rotation"/>. Not saved, like the toggle.</summary>
+    SetPortraitRotation,
 }
 
 /// <summary>A request to the bridge loop.</summary>
 /// <param name="Kind">What to do.</param>
-/// <param name="Rotation">The rotation for <see cref="BridgeCommandKind.SetRotation"/>.</param>
+/// <param name="Rotation">The rotation for <see cref="BridgeCommandKind.SetRotation"/> and <see cref="BridgeCommandKind.SetPortraitRotation"/>.</param>
 /// <param name="FromApi">
 /// The command comes from the external API, not from the user: it is applied at once even while the API holds the
 /// input (see <see cref="ApiInputArbiter"/>), and it does not count as user input.
@@ -589,6 +592,10 @@ public sealed class MirrorBridge
                 Engine.LandscapeRotation = command.Rotation;
                 SetRotation(command.Rotation, "command");
                 break;
+            case BridgeCommandKind.SetPortraitRotation when command.Rotation is Rotation.R0 or Rotation.R180:
+                Engine.PortraitRotation = command.Rotation;
+                _log(string.Create(CultureInfo.InvariantCulture, $"[rot ] portrait rotation = {(int)command.Rotation} deg (command)"));
+                break;
         }
     }
 
@@ -622,7 +629,7 @@ public sealed class MirrorBridge
             var idle = !Holding && _commands.All(c => c.FromApi);
             if (arbiter.CompleteAcquire(idle))
             {
-                Verbose("[api  ] the external API has the input");
+                Verbose("[api] the external API has the input");
                 return true;
             }
 
@@ -645,7 +652,7 @@ public sealed class MirrorBridge
 
         if (userInput)
         {
-            Verbose("[api  ] user input while the external API has the input: held back");
+            Verbose("[api] user input while the external API has the input: held back");
             arbiter.NotifyUserInput();
         }
 

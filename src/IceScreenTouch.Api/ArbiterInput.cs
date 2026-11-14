@@ -28,6 +28,8 @@ internal sealed class ArbiterInputLease(ApiInputLease inner) : IInputLease
 {
     public CancellationToken UserInput => inner.UserInput;
 
+    public bool SessionEnded => inner.SessionEnded;
+
     public ValueTask DisposeAsync() => inner.DisposeAsync();
 }
 

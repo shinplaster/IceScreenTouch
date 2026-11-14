@@ -763,11 +763,16 @@ LimitTotal(EstimateTypingMs(text, interval), "split the text into several reques
         return await _host.AcquireInputAsync(linked.Token).ConfigureAwait(false);
     }
 
-    /// <summary>Why a cancelled operation stopped: the user wins over a cancel.</summary>
+    /// <summary>
+    /// Why a cancelled operation stopped: a session that ended (it takes the lease away, which fires the same token as the
+    /// user's input) is <c>not_running</c>; otherwise the user wins over a cancel.
+    /// </summary>
     internal static ApiError InterruptionError(IInputLease? lease) =>
-        lease is { UserInput.IsCancellationRequested: true }
-            ? ApiError.Create(ApiErrorCodes.UserInterrupted, "the user used the mirror; every finger and key was released")
-            : ApiError.Create(ApiErrorCodes.Cancelled, "the operation was cancelled; every finger and key was released");
+        lease is { SessionEnded: true }
+            ? ApiError.Create(ApiErrorCodes.NotRunning, "the mirroring session ended; every finger and key was released")
+            : lease is { UserInput.IsCancellationRequested: true }
+                ? ApiError.Create(ApiErrorCodes.UserInterrupted, "the user used the mirror; every finger and key was released")
+                : ApiError.Create(ApiErrorCodes.Cancelled, "the operation was cancelled; every finger and key was released");
 
     /// <summary>
     /// The preconditions in their fixed order, from <c>not_running</c> on, and the gate. On success the caller owns

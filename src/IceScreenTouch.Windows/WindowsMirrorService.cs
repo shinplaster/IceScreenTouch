@@ -8,6 +8,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
+using IceScreenTouch.Api;
 using IceScreenTouch.App.Logging;
 using IceScreenTouch.App.Resources;
 using IceScreenTouch.App.Services;
@@ -23,9 +24,16 @@ namespace IceScreenTouch.Windows;
 /// The session on Windows: BLE HID peripheral, low-level mouse hook, UxPlay (or a running receiver) and the
 /// bridge loop. Same wiring as the M3 console (tools/IceScreenTouch.Bridge), but failures become status instead
 /// of exit codes, and it can be restarted with new settings.
+/// <para>
+/// Every session creates its own <see cref="ApiInputArbiter"/> (the external API's hand-over of the input) whether or not
+/// the API is on: without a lease it is inert (the bridge and the keyboard relay behave exactly as without it), and creating
+/// it always keeps the session free of any knowledge about the API's switch. <paramref name="time"/> must be the clock the
+/// API controller uses (the arbiter stamps the user's last input with it).
+/// </para>
 /// </summary>
-internal sealed class WindowsMirrorService(AppLog log) : IMirrorService
+internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null) : IMirrorService
 {
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private Session? _session;
 
@@ -38,7 +46,7 @@ internal sealed class WindowsMirrorService(AppLog log) : IMirrorService
         try
         {
             await StopCoreAsync().ConfigureAwait(false);
-            var session = new Session(settings, log, r => LandscapeRotationChanged?.Invoke(this, r));
+            var session = new Session(settings, log, _time, r => LandscapeRotationChanged?.Invoke(this, r));
             _session = session;
             await session.StartAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -62,6 +70,9 @@ internal sealed class WindowsMirrorService(AppLog log) : IMirrorService
     }
 
     public MirrorStatus GetStatus() => _session?.GetStatus() ?? MirrorStatus.Idle;
+
+    // Only once the session has finished starting (the bridge exists): before that there is nothing to give the API.
+    public IApiSession? ApiSession => _session is { IsReady: true } session ? session : null;
 
     /// <summary>What the probe borrows from the running session, or null when stopped.</summary>
     internal ProbeTarget? GetProbeTarget() => _session?.ProbeTarget;
@@ -95,8 +106,13 @@ internal sealed class WindowsMirrorService(AppLog log) : IMirrorService
     internal sealed record ProbeTarget(HidPeripheral? Hid, MirrorBridge? Bridge, AppSettings Settings, CancellationToken Stopping);
 
     /// <summary>One start..stop of everything.</summary>
-    private sealed class Session(AppSettings settings, AppLog log, Action<Rotation> rotationChanged) : IAsyncDisposable
+    private sealed class Session(AppSettings settings, AppLog log, TimeProvider time, Action<Rotation> rotationChanged) : IApiSession, IAsyncDisposable
     {
+        // The external API's hand-over of the input: one per session, closed by the bridge when its loop ends.
+        private readonly ApiInputArbiter _arbiter = new(time);
+        private ITouchSink _sink = OfflineSink.Instance;
+        private ArbiterInput? _arbiterInput;
+
         private readonly CancellationTokenSource _stop = new();
         private readonly Channel<MouseInputEvent> _input = Channel.CreateUnbounded<MouseInputEvent>(new UnboundedChannelOptions { SingleReader = true });
         private volatile BleState _ble = BleState.Starting;
@@ -126,6 +142,37 @@ internal sealed class WindowsMirrorService(AppLog log) : IMirrorService
         public ProbeTarget ProbeTarget => new(_hid, _bridge, settings, _stopping);
 
         public void Post(BridgeCommand command) => _bridge?.Post(command);
+
+        /// <summary>The bridge exists: the API can use this session.</summary>
+        public bool IsReady => _bridge is not null;
+
+        public ITouchSink Touch => _sink;
+
+        public IKeyboardSink Keyboard => _sink as IKeyboardSink ?? NoKeyboard.Instance;
+
+        public IHomeButtonSink HomeButton => _sink as IHomeButtonSink ?? NoHomeButton.Instance;
+
+        public ArbiterInput Input => _arbiterInput ??= new ArbiterInput(_arbiter);
+
+        public BridgeStatus Bridge => _bridge?.Status ?? BridgeStatus.Initial;
+
+        public void SetRotation(Rotation? landscape, Rotation? portrait)
+        {
+            if (_bridge is not { } bridge)
+            {
+                return;
+            }
+
+            if (landscape is { } l)
+            {
+                bridge.Post(new BridgeCommand(BridgeCommandKind.SetRotation, l, FromApi: true));
+            }
+
+            if (portrait is { } p)
+            {
+                bridge.Post(new BridgeCommand(BridgeCommandKind.SetPortraitRotation, p, FromApi: true));
+            }
+        }
 
         public void ChooseTarget(string? deviceId)
         {
@@ -272,6 +319,7 @@ internal sealed class WindowsMirrorService(AppLog log) : IMirrorService
             log.Write("[app ] starting the session");
             _stopping = _stop.Token;
             var sink = await StartBluetoothAsync(cancellationToken).ConfigureAwait(false);
+            _sink = sink;
             _video = StartReceiver();
             if (_hid is { } targetHid)
             {
@@ -308,7 +356,8 @@ internal sealed class WindowsMirrorService(AppLog log) : IMirrorService
                 settings.KeyboardInput,
                 HidKeyboardLayout.Us, // iOS treats the HID keyboard as US whatever its own layout setting says
                 log.Write,
-                settings.VerboseLog);
+                settings.VerboseLog,
+                _arbiter);
             log.Write(_keyboard.Forwarding
                 ? "[keys] keys typed in the mirror window go to the device (as a US keyboard)"
                 : $"[keys] keys stay with Windows ({(settings.KeyboardInput ? "no HID keyboard" : "turned off in the settings")})");
@@ -332,7 +381,8 @@ internal sealed class WindowsMirrorService(AppLog log) : IMirrorService
                     WheelScroll = settings.WheelScroll,
                     Verbose = settings.VerboseLog,
                 },
-                log: log.Write);
+                log: log.Write,
+                arbiter: _arbiter);
             bridge.LandscapeRotationChanged += (_, r) =>
             {
                 _uxplay?.Mark(string.Create(CultureInfo.InvariantCulture, $"bridge landscape_rot={(int)r}"));
@@ -633,6 +683,26 @@ internal sealed class WindowsMirrorService(AppLog log) : IMirrorService
         public bool IsSubscribed => false;
 
         public ValueTask SendAsync(ReadOnlyMemory<TouchContact> contacts, CancellationToken cancellationToken) => ValueTask.CompletedTask;
+    }
+
+    /// <summary>The session has no HID keyboard (dry run, no Bluetooth): the API is told so (<c>no_keyboard</c>) before it sends anything.</summary>
+    private sealed class NoKeyboard : IKeyboardSink
+    {
+        public static readonly NoKeyboard Instance = new();
+
+        public bool HasKeyboard => false;
+
+        public ValueTask SendKeyboardAsync(byte modifiers, ReadOnlyMemory<byte> keys, CancellationToken cancellationToken) => ValueTask.CompletedTask;
+    }
+
+    /// <summary>The session has no home button (dry run, no Bluetooth).</summary>
+    private sealed class NoHomeButton : IHomeButtonSink
+    {
+        public static readonly NoHomeButton Instance = new();
+
+        public bool HasHomeButton => false;
+
+        public ValueTask PressHomeAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
     }
 
     /// <summary>Dry run: always "subscribed"; optionally logs each report.</summary>

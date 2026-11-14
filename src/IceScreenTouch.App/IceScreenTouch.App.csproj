@@ -44,6 +44,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IceScreenTouch.Core\IceScreenTouch.Core.csproj" />
+    <!-- The external API (REST server, controller) is run by the app's ApiService; the Windows head only supplies the session. -->
+    <ProjectReference Include="..\IceScreenTouch.Api\IceScreenTouch.Api.csproj" />
   </ItemGroup>
 
 </Project>

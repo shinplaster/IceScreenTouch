@@ -28,11 +28,14 @@ public sealed record AppServices(IMirrorService Mirror, SettingsStore Store, App
 /// Avalonia application shared by every platform head. Lives in the notification area: closing the window
 /// hides it (unless turned off in the settings); Exit in the tray menu stops the session and quits.
 /// </summary>
+// ApiService is IDisposable only for its lock; the process ends right after StopAsync, and Application has no Dispose to hang it on.
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification = "The only disposable field is the API service's lock; the process ends after the service stops")]
 public partial class App : Application
 {
     private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(5);
 
     private MainViewModel? _vm;
+    private ApiService? _api;
     private MainWindow? _window;
     private bool _windowClosed;
     private TrayIcon? _tray;
@@ -84,7 +87,13 @@ public partial class App : Application
         }
 
         services.Log.Write($"[app ] settings: {services.Store.Path}{(firstRun ? " (first run)" : string.Empty)}");
-        _vm = new MainViewModel(services.Mirror, services.Store, services.Log, settings, a => Dispatcher.UIThread.Post(a), services.Probe, services.Receivers, services.License);
+
+        // The external API runs apart from the session, for the app's lifetime. It uses the license of the window (a build of
+        // your own has none: nothing is checked) and the system clock, as the session does (the session's input arbitration
+        // and the API's controller must share one clock).
+        var license = services.License ?? new LicenseService(null, log: services.Log);
+        _api = new ApiService(services.Mirror, license, AppPaths.Root, () => _vm?.Settings ?? settings, services.Log.Write);
+        _vm = new MainViewModel(services.Mirror, services.Store, services.Log, settings, a => Dispatcher.UIThread.Post(a), services.Probe, services.Receivers, license, _api);
         services.Log.LineAdded += (_, line) => Dispatcher.UIThread.Post(() => _vm.AppendLog(line));
         _vm.SettingsApplied += (_, _) => RequestedThemeVariant = AppTheme.ToVariant(_vm.Settings.Theme);
 
@@ -111,6 +120,12 @@ public partial class App : Application
         {
             await license.RefreshAsync().ConfigureAwait(true);
             license.StartMonitoring();
+        }
+
+        if (!_exiting && _api is not null && _vm is not null)
+        {
+            // Off by default; on when the user switched it on (and the license, now read, allows it).
+            await _api.ConfigureAsync(_vm.Settings.ApiEnabled, _vm.Settings.ApiPort).ConfigureAwait(true);
         }
 
         if (!_exiting)
@@ -174,6 +189,9 @@ public partial class App : Application
 
         // The state comes first, as a line that does nothing (the tooltip says the same).
         var state = new NativeMenuItem(vm.Headline) { IsEnabled = false };
+
+        // The external API's state under it, only while the API is on.
+        var apiState = new NativeMenuItem(vm.ApiStatusText) { IsEnabled = false, IsVisible = vm.HasApiStatus };
         var show = new NativeMenuItem(Strings.TrayShow);
         show.Click += (_, _) => ShowWindow();
         var home = new NativeMenuItem(Strings.ButtonHome) { Command = vm.HomeCommand };
@@ -186,8 +204,8 @@ public partial class App : Application
         var tray = new TrayIcon
         {
             Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://IceScreenTouch.App/Assets/icon.ico"))),
-            ToolTipText = Loc.Format(Strings.FormatTrayTooltip, vm.Headline),
-            Menu = [state, new NativeMenuItemSeparator(), show, home, rotate, new NativeMenuItemSeparator(), startStop, restart, new NativeMenuItemSeparator(), exit],
+            ToolTipText = TrayTooltip(vm),
+            Menu = [state, apiState, new NativeMenuItemSeparator(), show, home, rotate, new NativeMenuItemSeparator(), startStop, restart, new NativeMenuItemSeparator(), exit],
             IsVisible = true,
         };
         vm.PropertyChanged += (_, e) =>
@@ -195,7 +213,13 @@ public partial class App : Application
             if (e.PropertyName == nameof(MainViewModel.Headline))
             {
                 state.Header = vm.Headline;
-                tray.ToolTipText = Loc.Format(Strings.FormatTrayTooltip, vm.Headline);
+                tray.ToolTipText = TrayTooltip(vm);
+            }
+            else if (e.PropertyName == nameof(MainViewModel.ApiStatusText))
+            {
+                apiState.Header = vm.ApiStatusText;
+                apiState.IsVisible = vm.HasApiStatus;
+                tray.ToolTipText = TrayTooltip(vm);
             }
             else if (e.PropertyName == nameof(MainViewModel.StartStopText))
             {
@@ -206,6 +230,10 @@ public partial class App : Application
         TrayIcon.SetIcons(this, [tray]);
         return tray;
     }
+
+    // "IceScreen Touch: Ready", and the external API's line under it while the API is on.
+    private static string TrayTooltip(MainViewModel vm) =>
+        Loc.Format(Strings.FormatTrayTooltip, vm.Headline) + (vm.HasApiStatus ? Environment.NewLine + vm.ApiStatusText : string.Empty);
 
     private MainWindow NewWindow(IClassicDesktopStyleApplicationLifetime desktop, WindowPlacement? placement)
     {
@@ -293,7 +321,10 @@ public partial class App : Application
 
         _window?.Hide();
         _vm.Probe?.Cancel();
-        await Task.WhenAny(_vm.StopAsync(), Task.Delay(StopTimeout)).ConfigureAwait(true);
+
+        // The session and the API stop together; the API's stop deletes api.json (a script must not find a stale one).
+        var stopped = Task.WhenAll(_vm.StopAsync(), _api?.StopAsync() ?? Task.CompletedTask);
+        await Task.WhenAny(stopped, Task.Delay(StopTimeout)).ConfigureAwait(true);
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.Shutdown();
@@ -315,6 +346,15 @@ public partial class App : Application
         {
             // The session uses ConfigureAwait(false) throughout, so waiting here cannot deadlock the UI thread.
             _ = Task.Run(services.Mirror.StopAsync).Wait(StopTimeout);
+        }
+
+        // Also after Exit: stopping is idempotent, and api.json must be gone whichever way the app ended (the same
+        // ConfigureAwait(false) holds for the API).
+        if (_api is not null)
+        {
+            _ = Task.Run(_api.StopAsync).Wait(StopTimeout);
+
+            // Not disposed: a license event may still be reconciling (it would find a disposed lock). The process ends next.
         }
     }
 }

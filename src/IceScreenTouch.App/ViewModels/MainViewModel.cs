@@ -47,6 +47,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly AppLog _log;
     private readonly Action<Action> _post;
     private readonly LicenseService _license;
+    private readonly ApiService? _api;
     private AppSettings _settings;
     private MirrorStatus _status = MirrorStatus.Idle;
     private bool _busy;
@@ -79,6 +80,15 @@ public sealed class MainViewModel : ObservableObject
     private TargetOption? _selectedTarget;
     private bool _updatingTargets;
 
+    // The external API: its status line (status tab, tray) and the token controls of the settings tab.
+    private string _apiStatusText = string.Empty;
+    private StatusLevel _apiStatusLevel;
+    private bool _apiAvailable = true;
+    private string _apiToken = string.Empty;
+    private bool _apiTokenVisible;
+    private bool _apiConfirmingRegenerate;
+    private bool _apiTokenCopied;
+
     // The settings form (applied with ApplySettings).
     private string _airPlayName = string.Empty;
     private bool _startUxPlay;
@@ -97,6 +107,8 @@ public sealed class MainViewModel : ObservableObject
     private bool _verboseLog;
     private bool _closeToTray;
     private bool _dryRun;
+    private bool _apiEnabled;
+    private decimal _apiPort;
     private LanguageChoice? _language;
     private ThemeChoice? _theme;
     private bool _settingsDirty;
@@ -121,9 +133,10 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>
     /// Creates the view model with the loaded <paramref name="settings"/>. Without <paramref name="probe"/> there
     /// is no probe tab; without <paramref name="receivers"/> the setup tab lists no receivers; without
-    /// <paramref name="license"/> there is no license check (like a build of your own).
+    /// <paramref name="license"/> there is no license check (like a build of your own). Without <paramref name="api"/> the
+    /// external API is not part of the window (no status line, the settings section does nothing).
     /// </summary>
-    public MainViewModel(IMirrorService mirror, SettingsStore store, AppLog log, AppSettings settings, Action<Action> post, IProbeService? probe = null, IReceiverFinder? receivers = null, LicenseService? license = null)
+    public MainViewModel(IMirrorService mirror, SettingsStore store, AppLog log, AppSettings settings, Action<Action> post, IProbeService? probe = null, IReceiverFinder? receivers = null, LicenseService? license = null, ApiService? api = null)
     {
         ArgumentNullException.ThrowIfNull(mirror);
         ArgumentNullException.ThrowIfNull(store);
@@ -136,6 +149,7 @@ public sealed class MainViewModel : ObservableObject
         _settings = settings;
         _post = post;
         _license = license ?? new LicenseService(null, log: log);
+        _api = api;
 
         HomeCommand = new RelayCommand(_mirror.Home, () => CanHome);
         ToggleRotationCommand = new RelayCommand(_mirror.ToggleRotation, () => _status.Running);
@@ -156,6 +170,10 @@ public sealed class MainViewModel : ObservableObject
         RevertSettingsCommand = new RelayCommand(LoadForm, () => SettingsDirty);
         Setup = new SetupViewModel(receivers, post, UseReceiverAsync);
         OpenProbeCommand = new RelayCommand(() => SelectedTab = ProbeTab, () => HasProbe);
+        ToggleApiTokenCommand = new RelayCommand(() => ApiTokenVisible = !ApiTokenVisible);
+        RegenerateApiTokenCommand = new RelayCommand(() => ApiConfirmingRegenerate = true, () => HasApiToken && !ApiConfirmingRegenerate);
+        ConfirmRegenerateApiTokenCommand = new AsyncRelayCommand(RegenerateApiTokenAsync, () => ApiConfirmingRegenerate);
+        CancelRegenerateApiTokenCommand = new RelayCommand(() => ApiConfirmingRegenerate = false, () => ApiConfirmingRegenerate);
 
         foreach (var line in log.Recent())
         {
@@ -164,6 +182,14 @@ public sealed class MainViewModel : ObservableObject
 
         _mirror.LandscapeRotationChanged += (_, r) => _post(() => OnRotationChanged(r));
         _license.Changed += (_, _) => _post(() => LicenseChange = OnLicenseChangedAsync());
+        if (_api is not null)
+        {
+            // Requests of scripts that change what the app saves: the same save as the status tab and Ctrl+R. They come from
+            // the API's threads; the settings belong to the UI thread.
+            _api.LandscapeRotationSetWhileStopped += r => _post(() => OnRotationChanged(r));
+            _api.TargetChosen += id => _post(() => OnTargetChosenByApi(id));
+        }
+
         LoadForm();
         Refresh();
     }
@@ -492,6 +518,155 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Settings form: no Bluetooth (testing).</summary>
     public bool DryRun { get => _dryRun; set => SetForm(ref _dryRun, value); }
 
+    /// <summary>Settings form: the external API is on (applied with the form; it needs the purchased app, see <see cref="ApiAvailable"/>).</summary>
+    public bool ApiEnabled { get => _apiEnabled; set => SetForm(ref _apiEnabled, value); }
+
+    /// <summary>Settings form: the API's port on 127.0.0.1.</summary>
+    public decimal? ApiPort
+    {
+        get => _apiPort;
+        set
+        {
+            // An emptied box (null) keeps the last number: the form always holds a port.
+            if (value is { } port)
+            {
+                var rounded = Math.Round(port);
+
+                // The probe page server owns 8000: the API falls back to its default (and the box shows it).
+                if (rounded == AppSettings.ProbePort)
+                {
+                    rounded = AppSettings.DefaultApiPort;
+                    OnPropertyChanged();
+                }
+
+                SetForm(ref _apiPort, rounded);
+            }
+        }
+    }
+
+    /// <summary>The license includes the API (the switch is enabled). False during the trial: the section says it works after the purchase.</summary>
+    public bool ApiAvailable
+    {
+        get => _apiAvailable;
+        private set
+        {
+            if (Set(ref _apiAvailable, value))
+            {
+                OnPropertyChanged(nameof(ApiNeedsPurchase));
+            }
+        }
+    }
+
+    /// <summary>The trial runs: the API can be used after buying the app.</summary>
+    public bool ApiNeedsPurchase => !_apiAvailable && IsTrial;
+
+    /// <summary>The API line of the status tab and the tray ("External API: listening on 127.0.0.1:47821"); empty while the API is off.</summary>
+    public string ApiStatusText
+    {
+        get => _apiStatusText;
+        private set
+        {
+            if (Set(ref _apiStatusText, value))
+            {
+                OnPropertyChanged(nameof(HasApiStatus));
+            }
+        }
+    }
+
+    /// <summary>There is an <see cref="ApiStatusText"/> to show.</summary>
+    public bool HasApiStatus => _apiStatusText.Length > 0;
+
+    /// <summary>Colour of the API line.</summary>
+    public StatusLevel ApiStatusLevel
+    {
+        get => _apiStatusLevel;
+        private set
+        {
+            if (Set(ref _apiStatusLevel, value))
+            {
+                OnPropertyChanged(nameof(ApiOk));
+                OnPropertyChanged(nameof(ApiWaiting));
+                OnPropertyChanged(nameof(ApiError));
+            }
+        }
+    }
+
+    /// <inheritdoc cref="BleOk"/>
+    public bool ApiOk => ApiStatusLevel == StatusLevel.Ok;
+
+    /// <inheritdoc cref="BleOk"/>
+    public bool ApiWaiting => ApiStatusLevel == StatusLevel.Waiting;
+
+    /// <inheritdoc cref="BleOk"/>
+    public bool ApiError => ApiStatusLevel == StatusLevel.Error;
+
+    /// <summary>The API token (empty before the API was first switched on). The view hides it until the user asks.</summary>
+    public string ApiToken
+    {
+        get => _apiToken;
+        private set
+        {
+            if (Set(ref _apiToken, value))
+            {
+                OnPropertyChanged(nameof(HasApiToken));
+                ((RelayCommand)RegenerateApiTokenCommand).Refresh();
+            }
+        }
+    }
+
+    /// <summary>A token exists (the token row and its buttons are shown).</summary>
+    public bool HasApiToken => _apiToken.Length > 0;
+
+    /// <summary>The token is shown in clear text (it is hidden by default).</summary>
+    public bool ApiTokenVisible
+    {
+        get => _apiTokenVisible;
+        private set
+        {
+            if (Set(ref _apiTokenVisible, value))
+            {
+                OnPropertyChanged(nameof(ApiTokenToggleText));
+            }
+        }
+    }
+
+    /// <summary>"Show" while the token is hidden, "Hide" while it is shown.</summary>
+    public string ApiTokenToggleText => ApiTokenVisible ? Strings.ButtonHideToken : Strings.ButtonShowToken;
+
+    /// <summary>"Regenerate" was clicked: the question is shown (scripts that use the old token stop working).</summary>
+    public bool ApiConfirmingRegenerate
+    {
+        get => _apiConfirmingRegenerate;
+        private set
+        {
+            if (Set(ref _apiConfirmingRegenerate, value))
+            {
+                ((RelayCommand)RegenerateApiTokenCommand).Refresh();
+                ((RelayCommand)CancelRegenerateApiTokenCommand).Refresh();
+                ConfirmRegenerateApiTokenCommand.Refresh();
+            }
+        }
+    }
+
+    /// <summary>The token was just copied (the view shows "Copied." for a moment; set by the view).</summary>
+    public bool ApiTokenCopied { get => _apiTokenCopied; set => Set(ref _apiTokenCopied, value); }
+
+    /// <summary>Where scripts find the port and the token while the API is on (the file's path as other programs see it).</summary>
+    public string ApiConnectionFileText =>
+        Loc.Format(Strings.FormatApiConnectionFile, AppPaths.ForExternalProgram(_api?.ConnectionFilePath ?? Path.Combine(AppPaths.Root, Api.ApiConnectionFile.FileName)));
+
+    /// <summary>Show or hide the token.</summary>
+    public System.Windows.Input.ICommand ToggleApiTokenCommand { get; }
+
+    /// <summary>Ask whether to regenerate the token.</summary>
+    public System.Windows.Input.ICommand RegenerateApiTokenCommand { get; }
+
+    /// <summary>Regenerate the token (after the question).</summary>
+    public AsyncRelayCommand ConfirmRegenerateApiTokenCommand { get; }
+
+    /// <summary>Do not regenerate the token.</summary>
+    public System.Windows.Input.ICommand CancelRegenerateApiTokenCommand { get; }
+
     /// <summary>Settings form: the languages, "automatic" first.</summary>
     public IReadOnlyList<LanguageChoice> Languages { get; } = AppLanguage.Choices;
 
@@ -564,8 +739,39 @@ public sealed class MainViewModel : ObservableObject
         ((RelayCommand)ToggleRotationCommand).Refresh();
         Hint = IsExpired ? Strings.TrialEndedBody : checking ? Strings.LicenseCheckingHint : DescribeNextStep(s, _settings);
         RefreshTargets(s);
+        RefreshApi();
         Probe?.Refresh(s);
         Setup.Refresh(s, _settings, Probe?.TouchVerified ?? false);
+    }
+
+    /// <summary>
+    /// The external API line: text and colour. Empty while the API is off (nothing to say); the license note for a trial that
+    /// has it on; the port in use, "operating", or why it could not start.
+    /// </summary>
+    public static (string Text, StatusLevel Level) DescribeApi(ApiServiceStatus status)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        return status.State switch
+        {
+            ApiRunState.Listening => (Loc.Format(Strings.FormatApiListening, status.Port), StatusLevel.Ok),
+            ApiRunState.Operating => (Strings.ApiOperating, StatusLevel.Ok),
+            ApiRunState.PortInUse => (Loc.Format(Strings.FormatApiPortInUse, status.Port), StatusLevel.Error),
+            ApiRunState.Failed => (Strings.ApiFailed, StatusLevel.Error), // fixed sentence: the details are in the log only
+            ApiRunState.NotAllowed => (Strings.ApiNeedsPurchase, StatusLevel.Waiting),
+            _ => (string.Empty, StatusLevel.Idle),
+        };
+    }
+
+    // The API line and the token controls follow the service (cheap: runs from Refresh).
+    private void RefreshApi()
+    {
+        if (_api is null)
+        {
+            return;
+        }
+
+        (ApiStatusText, ApiStatusLevel) = DescribeApi(_api.Status);
+        ApiToken = _api.Token ?? string.Empty;
     }
 
     /// <summary>The target line: which device gets the input and why (empty without one).</summary>
@@ -784,6 +990,10 @@ public sealed class MainViewModel : ObservableObject
             StartStopCommand.Refresh();
         }
 
+        // The API is for the licenses that include it, and only once the first read says which one this is (until then the
+        // state is a guess that counts as usable): the switch stays disabled meanwhile.
+        ApiAvailable = ApiService.Allows(state) && !_license.IsChecking;
+
         if (state is { Kind: LicenseKind.Trial, Expiration: { } end })
         {
             var minutes = (long)Math.Floor((end - _license.UtcNow).TotalMinutes);
@@ -887,6 +1097,15 @@ public sealed class MainViewModel : ObservableObject
         Save();
         LoadForm();
         SettingsApplied?.Invoke(this, EventArgs.Empty);
+
+        // The API runs apart from the session: it starts, stops or moves to another port without a restart. Applying again
+        // retries a start that failed (the port was in use).
+        if (_api is not null)
+        {
+            await _api.ConfigureAsync(_settings.ApiEnabled, _settings.ApiPort).ConfigureAwait(true);
+            RefreshApi();
+        }
+
         if (!AppSettings.NeedsRestart(before, _settings))
         {
             _log.Write("[app ] settings saved");
@@ -935,6 +1154,33 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    private async Task RegenerateApiTokenAsync()
+    {
+        ApiConfirmingRegenerate = false;
+        if (_api is null)
+        {
+            return;
+        }
+
+        // The service logs what happened (distinct lines for each outcome); the token itself is never written anywhere but its file.
+        _ = await _api.RegenerateTokenAsync().ConfigureAwait(true);
+        RefreshApi();
+    }
+
+    // A script chose the target device through the API: remember it like the choice on the status tab (the session has it already).
+    private void OnTargetChosenByApi(string? id)
+    {
+        if (id == _settings.TargetDevice)
+        {
+            return;
+        }
+
+        var name = _status.Devices.FirstOrDefault(d => d.Id == id)?.Name;
+        _settings = _settings with { TargetDevice = id, TargetDeviceName = id is null ? null : name };
+        Save();
+        Refresh();
+    }
+
     private void OnRotationChanged(Rotation rotation)
     {
         if ((int)rotation != _settings.LandscapeRotation)
@@ -977,6 +1223,8 @@ public sealed class MainViewModel : ObservableObject
         VerboseLog = VerboseLog,
         CloseToTray = CloseToTray,
         DryRun = DryRun,
+        ApiEnabled = ApiEnabled,
+        ApiPort = (int)_apiPort,
         Language = Language?.Code,
         Theme = Theme?.Code,
     }).Normalize();
@@ -1001,11 +1249,13 @@ public sealed class MainViewModel : ObservableObject
         _verboseLog = s.VerboseLog;
         _closeToTray = s.CloseToTray;
         _dryRun = s.DryRun;
+        _apiEnabled = s.ApiEnabled;
+        _apiPort = s.ApiPort;
         _language = Languages.FirstOrDefault(l => l.Code == s.Language) ?? Languages[0];
         _theme = Themes.FirstOrDefault(t => t.Code == s.Theme) ?? Themes[0];
         foreach (var name in (string[])[nameof(AirPlayName), nameof(StartUxPlay), nameof(AttachToProcess), nameof(UxPlayPath), nameof(MsysBin),
             nameof(AttachProcessName), nameof(DetectPicture), nameof(Screen), nameof(FollowVideoSize), nameof(RightButtonLongPress), nameof(LongPressMilliseconds), nameof(WheelScroll),
-            nameof(WheelStepPercent), nameof(WheelMomentumPercent), nameof(KeyboardInput), nameof(VerboseLog), nameof(CloseToTray), nameof(DryRun), nameof(Language), nameof(Theme)])
+            nameof(WheelStepPercent), nameof(WheelMomentumPercent), nameof(KeyboardInput), nameof(VerboseLog), nameof(CloseToTray), nameof(DryRun), nameof(ApiEnabled), nameof(ApiPort), nameof(Language), nameof(Theme)])
         {
             OnPropertyChanged(name);
         }

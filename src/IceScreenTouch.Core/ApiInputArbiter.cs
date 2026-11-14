@@ -42,6 +42,7 @@ public sealed class ApiInputLease : IAsyncDisposable
     private readonly CancellationTokenSource _userInput = new();
     private readonly TaskCompletionSource _released = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _fired;
+    private int _sessionEnded;
 
     internal ApiInputLease(ApiInputArbiter owner)
     {
@@ -69,6 +70,11 @@ public sealed class ApiInputLease : IAsyncDisposable
     }
 
     internal void MarkReleased() => _released.TrySetResult();
+
+    /// <summary>The arbiter was closed (the session ended) while the lease was held: <see cref="UserInput"/> fired for that reason, not because of the user.</summary>
+    public bool SessionEnded => Volatile.Read(ref _sessionEnded) == 1;
+
+    internal void MarkSessionEnded() => Volatile.Write(ref _sessionEnded, 1);
 
     /// <summary>Gives the input back. Idempotent.</summary>
     public ValueTask DisposeAsync()
@@ -248,6 +254,7 @@ public sealed class ApiInputArbiter
             _phase = ApiPhase.Idle;
         }
 
+        lease?.MarkSessionEnded(); // before the token fires: whoever sees it cancelled must be able to tell why
         lease?.Fire();
         lease?.MarkReleased(); // a relay that waits for it carries on
         ack?.TrySetResult(ApiInputRefusal.Closed);

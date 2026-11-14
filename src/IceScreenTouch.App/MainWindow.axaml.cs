@@ -5,6 +5,7 @@ using System.Collections.Specialized;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -25,6 +26,7 @@ public partial class MainWindow : Window
     private MainViewModel? _subscribed;
     private Window? _notices;
     private int _copies;
+    private int _tokenCopies;
 
     /// <summary>Creates the window; the view model comes in as the DataContext.</summary>
     public MainWindow()
@@ -161,6 +163,77 @@ public partial class MainWindow : Window
                 }
             },
             TimeSpan.FromSeconds(3));
+    }
+
+    // Copies the API token (the box shows it hidden); the clipboard is the way to hand it to a script. A token is a password:
+    // it is kept out of the Windows clipboard history and the cloud clipboard (the three formats Windows documents for that:
+    // ExcludeClipboardContentFromMonitorProcessing, CanIncludeInClipboardHistory = 0, CanUploadToCloudClipboard = 0), and,
+    // because another program may read the clipboard or those formats may not be honoured, the clipboard is cleared after
+    // TokenClipboardLifetime if it still holds this token.
+    private static readonly TimeSpan TokenClipboardLifetime = TimeSpan.FromSeconds(60);
+    private static readonly byte[] ZeroDword = [0, 0, 0, 0];
+
+    private async void CopyApiToken(object? sender, RoutedEventArgs e)
+    {
+        if (Clipboard is not { } clipboard || ViewModel is not { HasApiToken: true } vm)
+        {
+            return;
+        }
+
+        var token = vm.ApiToken;
+        try
+        {
+            var item = new DataTransferItem();
+            item.SetText(token);
+            item.Set(DataFormat.CreateBytesPlatformFormat("ExcludeClipboardContentFromMonitorProcessing"), ZeroDword);
+            item.Set(DataFormat.CreateBytesPlatformFormat("CanIncludeInClipboardHistory"), ZeroDword);
+            item.Set(DataFormat.CreateBytesPlatformFormat("CanUploadToCloudClipboard"), ZeroDword);
+            var data = new DataTransfer();
+            data.Add(item);
+            await clipboard.SetDataAsync(data);
+        }
+        catch (Exception ex) when (ex is TimeoutException or System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            // Another program holds the clipboard. An exception here would end the app (async void handler).
+            vm.WriteLog($"[api] cannot copy the token: {ex.Message}");
+            return;
+        }
+
+        vm.ApiTokenCopied = true;
+        var copy = ++_tokenCopies;
+        DispatcherTimer.RunOnce(
+            () =>
+            {
+                if (copy == _tokenCopies)
+                {
+                    vm.ApiTokenCopied = false;
+                }
+            },
+            TimeSpan.FromSeconds(3));
+        DispatcherTimer.RunOnce(() => ClearClipboardIfStillHolds(clipboard, token, copy), TokenClipboardLifetime);
+    }
+
+    // Only the latest copy's timer may clear, and only when the clipboard still holds exactly this token (the user may have
+    // copied something else meanwhile: that is theirs).
+    private async void ClearClipboardIfStillHolds(IClipboard clipboard, string token, int copy)
+    {
+        if (copy != _tokenCopies)
+        {
+            return;
+        }
+
+        try
+        {
+            if (await clipboard.TryGetTextAsync() == token)
+            {
+                await clipboard.ClearAsync();
+                ViewModel?.WriteLog("[api] the token was cleared from the clipboard");
+            }
+        }
+        catch (Exception ex) when (ex is TimeoutException or System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            ViewModel?.WriteLog($"[api] cannot clear the token from the clipboard: {ex.Message}");
+        }
     }
 
     // The full notices (about 430 KB): one virtualized line per item, so the window opens at once.

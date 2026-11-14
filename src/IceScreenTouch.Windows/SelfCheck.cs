@@ -4,7 +4,10 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Net;
+using System.Text.Json;
+using IceScreenTouch.Api;
 using IceScreenTouch.App;
+using IceScreenTouch.App.Logging;
 using IceScreenTouch.App.Resources;
 using IceScreenTouch.App.Services;
 using IceScreenTouch.App.Settings;
@@ -166,6 +169,68 @@ internal static class SelfCheck
             var events = server.Snapshot();
             Expect(events is [{ Type: "pointerdown", Nx: 5000, Ny: 2500 }], "the posted event was not recorded");
             return "pages served, event recorded";
+        }).ConfigureAwait(false);
+
+        await Check("external api", async () =>
+        {
+            // The whole API stack in the trimmed build: the service (token file, api.json), Kestrel on 127.0.0.1 with an
+            // ephemeral port (never the user's port), the controller and the host over a session that is not running, the
+            // embedded OpenAPI document and the JSON source generation. Nothing touches Bluetooth or the user's files.
+            var dir = Path.Combine(Path.GetTempPath(), $"icescreentouch-selfcheck-api-{Guid.NewGuid():N}");
+            using var log = new AppLog(null);
+            await using var mirror = new WindowsMirrorService(log);
+            using var license = new LicenseService(null);
+            var settings = new AppSettings();
+            using var service = new ApiService(mirror, license, dir, () => settings, log.Write, anyPort: true);
+            try
+            {
+                Expect(AppSettings.ProbePort == WindowsProbeService.DefaultPort, "the port the API must never take is not the probe server's port");
+                Expect(!AppSettings.IsValidApiPort(WindowsProbeService.DefaultPort), "the probe server's port is accepted for the API");
+                await service.ConfigureAsync(enabled: true, port: 0).ConfigureAwait(false);
+                Expect(service.Status.State == ApiRunState.Listening, $"the API did not start: {service.Status.State} {service.Status.Error}");
+                var token = service.Token;
+                Expect(ApiToken.IsValid(token), "no valid token");
+                var connection = JsonDocument.Parse(await File.ReadAllTextAsync(service.ConnectionFilePath).ConfigureAwait(false)).RootElement;
+                Expect(connection.GetProperty("port").GetInt32() == service.Status.Port && connection.GetProperty("token").GetString() == token, "api.json does not match the server");
+
+                using var http = new HttpClient { BaseAddress = new Uri(string.Create(CultureInfo.InvariantCulture, $"http://127.0.0.1:{service.Status.Port}")) };
+                var openApi = JsonDocument.Parse(await http.GetStringAsync(new Uri("/v1/openapi.json", UriKind.Relative)).ConfigureAwait(false)).RootElement;
+                Expect(openApi.TryGetProperty("openapi", out _), "the embedded OpenAPI document has no \"openapi\" member");
+
+                using (var anonymous = await http.GetAsync(new Uri("/v1/status", UriKind.Relative)).ConfigureAwait(false))
+                {
+                    Expect(anonymous.StatusCode == HttpStatusCode.Unauthorized, $"a request without the token got {(int)anonymous.StatusCode}, not 401");
+                }
+
+                using var request = new HttpRequestMessage(HttpMethod.Get, new Uri("/v1/status", UriKind.Relative));
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                using var response = await http.SendAsync(request).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+                var status = JsonDocument.Parse(await response.Content.ReadAsStringAsync().ConfigureAwait(false)).RootElement;
+                Expect(status.GetProperty("apiVersion").GetInt32() == 1 && !status.GetProperty("running").GetBoolean(), "unexpected /v1/status");
+
+                await service.StopAsync().ConfigureAwait(false);
+                Expect(!File.Exists(service.ConnectionFilePath), "api.json was not removed when the API stopped");
+                return $"listening, openapi.json and /v1/status served, token file and api.json handled (api {status.GetProperty("apiVersion").GetInt32()})";
+            }
+            finally
+            {
+                // Whatever failed above, the server is stopped (api.json removed) and the temporary folder removed; neither may
+                // hide the real failure.
+                try
+                {
+                    await service.StopAsync().ConfigureAwait(false);
+                    if (Directory.Exists(dir))
+                    {
+                        Directory.Delete(dir, recursive: true);
+                    }
+                }
+#pragma warning disable CA1031 // cleanup is best effort
+                catch (Exception)
+#pragma warning restore CA1031
+                {
+                }
+            }
         }).ConfigureAwait(false);
 
         await Check("picture", () =>

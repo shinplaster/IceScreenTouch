@@ -39,6 +39,23 @@ public class InterruptionTests : ApiTestBase
     }
 
     [Fact]
+    public async Task TheEndOfTheSessionDuringASwipeIsNotRunningNotUserInterrupted()
+    {
+        var running = Controller.SwipeAsync(LongSwipe).AsTask();
+        Time.Wait(170);
+        Assert.NotEmpty(Touch.Downs);
+
+        Host.Lease!.SimulateSessionEnd(); // the arbiter closes: it fires the same token as the user's input
+        var result = await running;
+
+        AssertError(result, ApiErrorCodes.NotRunning);
+        Assert.True(Touch.Frames[^2].IsLift); // everything was still lifted before the lease was given back
+        Assert.True(Touch.Frames[^1].IsEmpty);
+        Assert.True(Host.Lease.Disposed);
+        Assert.False(Controller.IsOperating);
+    }
+
+    [Fact]
     public async Task TheLeaseIsGivenBackOnlyAfterTheLift()
     {
         var running = Controller.SwipeAsync(LongSwipe).AsTask();

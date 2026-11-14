@@ -455,6 +455,26 @@ public class ApiInputArbiterTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task APortraitRotationCommandFromTheApiIsAppliedAtOnceAndNotSaved()
+    {
+        await using var lease = await AcquireAsync();
+
+        _bridge.Post(new BridgeCommand(BridgeCommandKind.SetPortraitRotation, Rotation.R180, FromApi: true));
+        await Tick();
+
+        Assert.Equal(Rotation.R180, _bridge.Engine.PortraitRotation);
+        Assert.Equal(Rotation.R180, _bridge.Status.PortraitRotation);
+        Assert.Empty(_rotations); // the upside-down portrait is never saved
+        Assert.False(lease.UserInput.IsCancellationRequested);
+        Assert.Null(_arbiter.LastUserInput);
+
+        // Only 0 and 180 are portrait rotations: anything else is ignored.
+        _bridge.Post(new BridgeCommand(BridgeCommandKind.SetPortraitRotation, Rotation.R90, FromApi: true));
+        await Tick();
+        Assert.Equal(Rotation.R180, _bridge.Engine.PortraitRotation);
+    }
+
+    [Fact]
     public async Task ACommandFromTheApiDoesNotCountAsUserInputWithoutALeaseEither()
     {
         _bridge.Post(new BridgeCommand(BridgeCommandKind.SetRotation, Rotation.R270, FromApi: true));
@@ -566,6 +586,19 @@ public class ApiInputArbiterTests : IAsyncDisposable
         Assert.Null(_arbiter.LastUserInput); // not the user's doing
         await lease.DisposeAsync();
         Assert.Equal(ApiInputRefusal.Closed, (await _arbiter.TryAcquireAsync()).Refusal);
+    }
+
+    [Fact]
+    public async Task OnlyAClosedArbiterMarksTheLeaseAsEndedWithTheSession()
+    {
+        var lease = await AcquireAsync();
+        Assert.False(lease.SessionEnded);
+
+        Assert.False(lease.UserInput.IsCancellationRequested);
+        _arbiter.Close();
+
+        Assert.True(lease.SessionEnded); // set before the token fires: whoever sees the token cancelled can tell why
+        Assert.True(lease.UserInput.IsCancellationRequested);
     }
 
     [Fact]

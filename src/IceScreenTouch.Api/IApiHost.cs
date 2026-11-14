@@ -61,6 +61,12 @@ public interface IInputLease : IAsyncDisposable
     /// The bridge does not forward that input until the lease is disposed; it only reports that it happened.
     /// </summary>
     CancellationToken UserInput { get; }
+
+    /// <summary>
+    /// The mirroring session ended while the lease was held (<see cref="UserInput"/> fired because of that, not because the user
+    /// touched the mirror): an interrupted operation is then reported as <c>not_running</c>. False by default.
+    /// </summary>
+    bool SessionEnded => false;
 }
 
 /// <summary>One device of the status.</summary>

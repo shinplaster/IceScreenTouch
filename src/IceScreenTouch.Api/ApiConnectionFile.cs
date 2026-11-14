@@ -52,21 +52,25 @@ public sealed class ApiConnectionFile
         var temp = System.IO.Path.Combine(Directory, $"{FileName}.{Guid.NewGuid():N}.tmp");
         try
         {
-            using (File.Create(temp))
-            {
-            }
-
             if (_secure is { } hook)
             {
+                using (File.Create(temp))
+                {
+                }
+
                 hook(temp);
+
+                // A client or a virus scanner may hold the file for a moment (a sharing violation): try again a few times.
+                Retry(() => File.WriteAllBytes(temp, bytes));
             }
             else
             {
-                RestrictToCurrentUser(temp);
+                // Created with the current-user-only ACL in the same call: there is no moment at which another account could
+                // open the file, and the token goes in through the handle that created it.
+                using var stream = CreateProtected(temp);
+                stream.Write(bytes);
             }
 
-            // A client or a virus scanner may hold the file for a moment (a sharing violation): try again a few times.
-            Retry(() => File.WriteAllBytes(temp, bytes));
             Retry(() => File.Move(temp, Path, overwrite: true));
         }
         catch
@@ -138,6 +142,82 @@ public sealed class ApiConnectionFile
         {
             File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
+    }
+
+    /// <summary>
+    /// Creates a NEW file (fails if it exists) that only the current user can open, in one step: on Windows with a protected
+    /// DACL that has the current user only (inheritance off) given to the create call itself, on Unix with mode 0600. Nothing
+    /// is ever readable by another account, not even for a moment. Returns the stream, open for writing.
+    /// </summary>
+    public static FileStream CreateProtected(string path)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return CreateProtectedWindows(path);
+        }
+
+        return new FileStream(path, new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+            Share = FileShare.None,
+            UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite,
+        });
+    }
+
+    /// <summary>
+    /// True when only the current user can read the file: on Windows the current user owns it and its DACL is protected and
+    /// names only the current user; on Unix no group or other permission is set. A file that does not pass is not to be trusted
+    /// with a secret (it may have been planted or copied by another account).
+    /// </summary>
+    /// <exception cref="IOException">The file cannot be examined for another reason than permission.</exception>
+    public static bool IsProtectedToCurrentUser(string path)
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                return IsProtectedWindows(path);
+            }
+
+            if (OperatingSystem.IsBrowser() || OperatingSystem.IsWasi())
+            {
+                return true;
+            }
+
+            return (File.GetUnixFileMode(path) & ~(UnixFileMode.UserRead | UnixFileMode.UserWrite)) == 0;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false; // not even the ACL can be read: not ours
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static FileStream CreateProtectedWindows(string path)
+    {
+        var user = WindowsIdentity.GetCurrent().User
+            ?? throw new InvalidOperationException("the current Windows user has no SID");
+        var security = new FileSecurity();
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        security.AddAccessRule(new FileSystemAccessRule(user, FileSystemRights.FullControl, AccessControlType.Allow));
+        return new FileInfo(path).Create(FileMode.CreateNew, FileSystemRights.FullControl, FileShare.None, 4096, FileOptions.None, security);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static bool IsProtectedWindows(string path)
+    {
+        var user = WindowsIdentity.GetCurrent().User
+            ?? throw new InvalidOperationException("the current Windows user has no SID");
+        var security = new FileInfo(path).GetAccessControl();
+        if (security.GetOwner(typeof(SecurityIdentifier)) is not SecurityIdentifier owner || owner != user || !security.AreAccessRulesProtected)
+        {
+            return false;
+        }
+
+        return security.GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier))
+            .Cast<FileSystemAccessRule>()
+            .All(rule => rule.IdentityReference == user);
     }
 
     [SupportedOSPlatform("windows")]
