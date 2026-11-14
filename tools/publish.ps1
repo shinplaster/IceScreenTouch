@@ -127,6 +127,16 @@ for ($attempt = 1; ; $attempt++) {
         $f = $_ -split "`t"
         [pscustomobject]@{ Path = $f[0]; Package = $f[1]; Version = $(if ($f.Count -gt 2) { $f[2] } else { '' }) }
     })
+    # A project of this repository can come with a package id of its own name (IceScreenTouch.Api, which references the
+    # ASP.NET Core shared framework): it is our own code, not a third-party package, so it is checked and counted as such.
+    # Only the names of the projects under src\ count, so a NuGet package that merely looks like ours is still checked.
+    $ownProjects = @(Get-ChildItem (Join-Path $root 'src') -Filter '*.csproj' -Recurse | ForEach-Object { $_.BaseName })
+    foreach ($e in $entries) {
+        if ($ownProjects -contains $e.Package -and [IO.Path]::GetFileNameWithoutExtension($e.Path) -eq $e.Package) {
+            $e.Package = ''
+            $e.Version = ''
+        }
+    }
     $problems = @()
     foreach ($e in $entries) {
         if ($e.Path -match $forbidden -or $e.Package -match $forbidden) {
