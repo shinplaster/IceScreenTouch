@@ -116,7 +116,11 @@ if ($Remove) {
         Where-Object { $_.FriendlyName -eq $friendlyName } | ForEach-Object Thumbprint)
     $isTest = { $_.FriendlyName -eq $friendlyName -or $ourThumbprints -contains $_.Thumbprint }
     foreach ($store in 'Cert:\CurrentUser\My', 'Cert:\CurrentUser\TrustedPeople') {
-        foreach ($cert in @(Get-ChildItem $store | Where-Object $isTest)) {
+        # A CurrentUser store also lists the certificates of the LocalMachine store of the same name. Those cannot be removed
+        # here (Access is denied, which stopped the whole run before the elevated step); they go in the LocalMachine step below.
+        $machineThumbprints = @(Get-ChildItem ($store -replace '^Cert:\\CurrentUser', 'Cert:\LocalMachine') -ErrorAction SilentlyContinue |
+            ForEach-Object Thumbprint)
+        foreach ($cert in @(Get-ChildItem $store | Where-Object $isTest | Where-Object { $machineThumbprints -notcontains $_.Thumbprint })) {
             Write-Host "  removing $($cert.Thumbprint) from $store"
             if ($store -eq 'Cert:\CurrentUser\My') { Remove-Item $cert.PSPath -DeleteKey } else { Remove-Item $cert.PSPath }
         }
