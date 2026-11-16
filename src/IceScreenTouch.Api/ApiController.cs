@@ -6,7 +6,7 @@ using IceScreenTouch.Core;
 namespace IceScreenTouch.Api;
 
 /// <summary>
-/// The transport-independent core of the external API (docs/API-DESIGN.md): runs one operation at a time,
+/// The transport-independent core of the automation API (docs/API-DESIGN.md): runs one operation at a time,
 /// checks the preconditions in a fixed order, converts coordinates, enforces the limits, and gives way to the
 /// user (the user's input on the mirror stops the operation, lifts every finger and releases every key).
 /// </summary>

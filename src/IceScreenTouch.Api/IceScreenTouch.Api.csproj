@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- The external API: transport-independent controller (serialization of operations, coordinates, limits,
+  <!-- The automation API: transport-independent controller (serialization of operations, coordinates, limits,
        arbitration with the user). The HTTP / WebSocket server (ASP.NET Core) is added on top of it. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>

@@ -342,10 +342,10 @@
   <data name="AboutLicenseNotPackaged" xml:space="preserve"><value>License: Self-built (no license check)</value></data>
   <data name="AboutLicenseUnknown" xml:space="preserve"><value>License: Could not be checked</value></data>
 
-  <!-- External API (settings tab, status tab, tray) -->
-  <data name="SectionApi" xml:space="preserve"><value>External API</value></data>
+  <!-- Automation API (settings tab, status tab, tray) -->
+  <data name="SectionApi" xml:space="preserve"><value>Automation API</value></data>
   <data name="OptionApiEnabled" xml:space="preserve"><value>Let scripts on this PC operate the device</value></data>
-  <data name="ApiTrialNote" xml:space="preserve"><value>The external API can be used after you buy IceScreen Touch.</value></data>
+  <data name="ApiTrialNote" xml:space="preserve"><value>The automation API can be used after you buy IceScreen Touch.</value></data>
   <data name="LabelApiPort" xml:space="preserve"><value>Port (the API listens on 127.0.0.1 only)</value></data>
   <data name="LabelApiToken" xml:space="preserve"><value>Token (scripts use it to authenticate)</value></data>
   <data name="ApiTokenPending" xml:space="preserve"><value>The token is created when you save and apply with this switch on.</value></data>
@@ -357,9 +357,9 @@
   <data name="ApiRegenerateQuestion" xml:space="preserve"><value>Scripts that use the current token stop working until you give them the new one. Regenerate it?</value></data>
   <data name="FormatApiConnectionFile" xml:space="preserve"><value>While the API is on, scripts find the port and the token in {0} (only you can read it).</value></data>
   <data name="ApiWarning" xml:space="preserve"><value>A script can do everything you can do on the device, including typing the passcode and confirming purchases. Turn this on only for scripts you trust. Only programs on this PC can reach the API.</value></data>
-  <data name="FormatApiListening" xml:space="preserve"><value>External API: listening on 127.0.0.1:{0}</value></data>
-  <data name="ApiOperating" xml:space="preserve"><value>External API: a script is operating the device</value></data>
-  <data name="FormatApiPortInUse" xml:space="preserve"><value>External API: could not start (port {0} is in use by another program)</value></data>
-  <data name="ApiFailed" xml:space="preserve"><value>External API: could not start (see the Log tab)</value></data>
-  <data name="ApiNeedsPurchase" xml:space="preserve"><value>External API: available after you buy IceScreen Touch</value></data>
+  <data name="FormatApiListening" xml:space="preserve"><value>Automation API: listening on 127.0.0.1:{0}</value></data>
+  <data name="ApiOperating" xml:space="preserve"><value>Automation API: a script is operating the device</value></data>
+  <data name="FormatApiPortInUse" xml:space="preserve"><value>Automation API: could not start (port {0} is in use by another program)</value></data>
+  <data name="ApiFailed" xml:space="preserve"><value>Automation API: could not start (see the Log tab)</value></data>
+  <data name="ApiNeedsPurchase" xml:space="preserve"><value>Automation API: available after you buy IceScreen Touch</value></data>
 </root>

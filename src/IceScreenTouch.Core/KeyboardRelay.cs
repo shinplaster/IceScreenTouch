@@ -134,7 +134,7 @@ public sealed class KeyboardRelay
     /// <param name="log">Every report sent, without the keys (the verbose log).</param>
     /// <param name="problems">Reports that could not be sent.</param>
     /// <param name="arbiter">
-    /// Gives the keyboard to the external API on request. While it has it, nothing is sent: the first key press that
+    /// Gives the keyboard to the automation API on request. While it has it, nothing is sent: the first key press that
     /// would reach the device interrupts the API, and that event and the ones after it wait (the loop waits, the hook is
     /// never blocked) until the API gives the keyboard back; then they are applied and sent in order. Null = no API.
     /// </param>

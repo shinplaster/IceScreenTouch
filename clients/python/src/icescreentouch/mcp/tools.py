@@ -71,7 +71,7 @@ def describe_error(exc: IceScreenTouchError) -> str:
     if isinstance(exc, NotRunningError):
         return "Mirroring is not running in IceScreen Touch. Ask the user to start it."
     if isinstance(exc, PurchaseRequiredError):
-        return "The external API is not available in the trial (it needs the purchased or a self-built app)."
+        return "The automation API is not available in the trial (it needs the purchased or a self-built app)."
     if isinstance(exc, UnauthorizedError):
         return "IceScreen Touch refused the token (it may have been regenerated). Restart this MCP server or set ICESCREENTOUCH_TOKEN."
     if isinstance(exc, (NoKeyboardError, NoHomeButtonError)):
@@ -93,7 +93,7 @@ def describe_error(exc: IceScreenTouchError) -> str:
             " The connection broke after the request was sent, so the action may have run: take a screenshot to "
             "check before repeating it.")
         return ("IceScreen Touch could not be reached. Ask the user to start IceScreen Touch and switch on "
-                "Settings > External API." + note)
+                "Settings > Automation API." + note)
     if isinstance(exc, ConnectionDiscoveryError):
         return str(exc)  # already says what is wrong and what to do (the token was not sent, the file was not found...)
     return str(exc)

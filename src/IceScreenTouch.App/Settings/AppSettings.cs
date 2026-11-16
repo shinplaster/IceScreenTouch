@@ -121,12 +121,12 @@ public sealed record AppSettings
     public string? TargetDeviceName { get; init; }
 
     /// <summary>
-    /// The external API (a local REST server on 127.0.0.1 for scripts) is switched on. Off by default; the token is not
+    /// The automation API (a local REST server on 127.0.0.1 for scripts) is switched on. Off by default; the token is not
     /// stored here but in its own file (<see cref="Services.ApiTokenStore"/>).
     /// </summary>
     public bool ApiEnabled { get; init; }
 
-    /// <summary>The TCP port of the external API on 127.0.0.1 (<see cref="MinApiPort"/> to <see cref="MaxApiPort"/>).</summary>
+    /// <summary>The TCP port of the automation API on 127.0.0.1 (<see cref="MinApiPort"/> to <see cref="MaxApiPort"/>).</summary>
     public int ApiPort { get; init; } = DefaultApiPort;
 
     /// <summary>The landscape rotation as the core type.</summary>
@@ -178,12 +178,12 @@ public sealed record AppSettings
 
     /// <summary>
     /// The port of the probe page server (<c>WindowsProbeService.DefaultPort</c>; the self-check compares them). The probe page
-    /// is served to the LAN on it, so the external API must never take it: a request meant for the API would reach (or be
+    /// is served to the LAN on it, so the automation API must never take it: a request meant for the API would reach (or be
     /// refused by) the wrong server.
     /// </summary>
     public const int ProbePort = 8000;
 
-    /// <summary>A port the external API may use: <see cref="MinApiPort"/> to <see cref="MaxApiPort"/>, but not <see cref="ProbePort"/>.</summary>
+    /// <summary>A port the automation API may use: <see cref="MinApiPort"/> to <see cref="MaxApiPort"/>, but not <see cref="ProbePort"/>.</summary>
     public static bool IsValidApiPort(int port) => port is >= MinApiPort and <= MaxApiPort && port != ProbePort;
 
     /// <summary>A copy with every value in range (hand-edited or older files).</summary>
@@ -215,7 +215,7 @@ public sealed record AppSettings
     /// <summary>
     /// Whether going from <paramref name="before"/> to <paramref name="after"/> needs the session restarted. The
     /// looks and the window (theme, language, close to tray, position) do not, nor does the target device (the
-    /// running session takes it as it is), nor the external API (it runs apart from the session).
+    /// running session takes it as it is), nor the automation API (it runs apart from the session).
     /// </summary>
     public static bool NeedsRestart(AppSettings before, AppSettings after)
     {

@@ -185,7 +185,7 @@ def test_user_priority_errors_say_not_to_retry_blindly(tools, phone, error):
     (ist.PurchaseRequiredError("x", code="purchase_required"), "purchased"),
     (ist.ScreenshotUnsupportedError("x", code="not_found"), "Update the app"),
     (ist.InvalidRequestError("x", code="invalid_request", detail="position is outside the screenshot"), "outside the screenshot"),
-    (ist.ApiUnavailableError("could not be reached"), "switch on Settings > External API"),
+    (ist.ApiUnavailableError("could not be reached"), "switch on Settings > Automation API"),
     (ist.RateLimitedError("x", code="rate_limited"), "at most 10 screenshots in any second"),
 ])
 def test_other_errors_are_explained(tools, phone, error, word):
@@ -196,12 +196,12 @@ def test_other_errors_are_explained(tools, phone, error, word):
 
 def test_discovery_errors_are_relayed_once_without_a_repeated_hint(tools, phone):
     message = ("IceScreen Touch's connection file (api.json) was not found. Start the app and switch on "
-               "Settings > External API, or set ICESCREENTOUCH_API and ICESCREENTOUCH_TOKEN.")
+               "Settings > Automation API, or set ICESCREENTOUCH_API and ICESCREENTOUCH_TOKEN.")
     phone.fail = ist.ConnectionDiscoveryError(message)
     with pytest.raises(ToolError) as info:
         tools.home()
     assert str(info.value) == message  # not followed by the same advice again
-    assert str(info.value).count("External API") == 1
+    assert str(info.value).count("Automation API") == 1
 
 
 def test_a_stale_connection_is_relayed_as_it_is(tools, phone):

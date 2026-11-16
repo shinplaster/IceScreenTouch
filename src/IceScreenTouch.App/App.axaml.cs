@@ -88,7 +88,7 @@ public partial class App : Application
 
         services.Log.Write($"[app ] settings: {services.Store.Path}{(firstRun ? " (first run)" : string.Empty)}");
 
-        // The external API runs apart from the session, for the app's lifetime. It uses the license of the window (a build of
+        // The automation API runs apart from the session, for the app's lifetime. It uses the license of the window (a build of
         // your own has none: nothing is checked) and the system clock, as the session does (the session's input arbitration
         // and the API's controller must share one clock).
         var license = services.License ?? new LicenseService(null, log: services.Log);
@@ -190,7 +190,7 @@ public partial class App : Application
         // The state comes first, as a line that does nothing (the tooltip says the same).
         var state = new NativeMenuItem(vm.Headline) { IsEnabled = false };
 
-        // The external API's state under it, only while the API is on.
+        // The automation API's state under it, only while the API is on.
         var apiState = new NativeMenuItem(vm.ApiStatusText) { IsEnabled = false, IsVisible = vm.HasApiStatus };
         var show = new NativeMenuItem(Strings.TrayShow);
         show.Click += (_, _) => ShowWindow();
@@ -231,7 +231,7 @@ public partial class App : Application
         return tray;
     }
 
-    // "IceScreen Touch: Ready", and the external API's line under it while the API is on.
+    // "IceScreen Touch: Ready", and the automation API's line under it while the API is on.
     private static string TrayTooltip(MainViewModel vm) =>
         Loc.Format(Strings.FormatTrayTooltip, vm.Headline) + (vm.HasApiStatus ? Environment.NewLine + vm.ApiStatusText : string.Empty);
 

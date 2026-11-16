@@ -18,14 +18,14 @@ info:
   summary: Control an iPhone or iPad from scripts through IceScreen Touch on the same Windows PC.
   description: |
     IceScreen Touch mirrors an iPhone or iPad to a Windows PC and sends mouse input to the device as Bluetooth LE
-    HID touches. This local API lets a script or an AI agent do the same with programmatic input: touch gestures
+    HID touches. This automation API lets a script or an AI agent do the same with programmatic input: touch gestures
     (tap, long press, swipe, path, pinch), keys and text, the home button, and low-level multi-touch over a
     WebSocket. The version of this document is the version of the API (`apiVersion` in `GET /v1/status` is its
     major number, `1`).
 
     ## Availability
 
-    * The API is **off by default**. The user switches it on in the app (Settings, "External API"). It listens on
+    * The API is **off by default**. The user switches it on in the app (Settings, "Automation API"). It listens on
       `127.0.0.1` only (never on `::1` or another address) on port 47821 by default; the user can choose another
       port (1024 to 65535, not the probe page's port 8000). A port that is in use is an error in the app, the app
       never looks for another one.

@@ -7,7 +7,7 @@ using IceScreenTouch.Core;
 
 namespace IceScreenTouch.App.Services;
 
-/// <summary>What the external API is doing, for the status tab and the tray.</summary>
+/// <summary>What the automation API is doing, for the status tab and the tray.</summary>
 public enum ApiRunState
 {
     /// <summary>The setting is off: nothing listens.</summary>
@@ -43,7 +43,7 @@ public sealed record ApiServiceStatus(ApiRunState State, int Port, string? Error
 }
 
 /// <summary>
-/// Runs the external API for the application's lifetime: the <see cref="ApiController"/> and the <see cref="ApiServer"/> on
+/// Runs the automation API for the application's lifetime: the <see cref="ApiController"/> and the <see cref="ApiServer"/> on
 /// 127.0.0.1, while the setting is on AND the license includes the API (docs/API-DESIGN.md, chapter 5). It is independent of
 /// the mirror session: the server keeps listening while the session is stopped or restarted (requests get <c>not_running</c>),
 /// and it reads the current session through <see cref="IMirrorService.ApiSession"/> on every request.

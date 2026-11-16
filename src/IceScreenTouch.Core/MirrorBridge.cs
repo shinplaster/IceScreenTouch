@@ -49,7 +49,7 @@ public enum BridgeCommandKind
 /// <param name="Kind">What to do.</param>
 /// <param name="Rotation">The rotation for <see cref="BridgeCommandKind.SetRotation"/> and <see cref="BridgeCommandKind.SetPortraitRotation"/>.</param>
 /// <param name="FromApi">
-/// The command comes from the external API, not from the user: it is applied at once even while the API holds the
+/// The command comes from the automation API, not from the user: it is applied at once even while the API holds the
 /// input (see <see cref="ApiInputArbiter"/>), and it does not count as user input.
 /// </param>
 public readonly record struct BridgeCommand(BridgeCommandKind Kind, Rotation Rotation = Rotation.R0, bool FromApi = false);
@@ -123,7 +123,7 @@ public sealed class MirrorBridge
     private bool _publishFailureLogged;
     private readonly ApiInputArbiter? _arbiter;
 
-    // What the user did while the external API held the input; processed in order once it is given back.
+    // What the user did while the automation API held the input; processed in order once it is given back.
     private readonly Queue<MouseInputEvent> _replay = new();
     private readonly List<BridgeCommand> _heldCommands = [];
     private int _heldHome;
@@ -131,7 +131,7 @@ public sealed class MirrorBridge
 
     /// <summary>
     /// Creates a bridge. <paramref name="input"/> is written by the OS hook. With an <paramref name="arbiter"/>, the
-    /// bridge gives the input to the external API on request (and keeps the user's input back meanwhile); without one it
+    /// bridge gives the input to the automation API on request (and keeps the user's input back meanwhile); without one it
     /// behaves as before.
     /// </summary>
     public MirrorBridge(
@@ -239,7 +239,7 @@ public sealed class MirrorBridge
         }
         finally
         {
-            // Nobody answers the external API any more (stopped or failed): refuse it, interrupt a lease it holds.
+            // Nobody answers the automation API any more (stopped or failed): refuse it, interrupt a lease it holds.
             _arbiter?.Close();
         }
     }
@@ -376,7 +376,7 @@ public sealed class MirrorBridge
         {
             if (_arbiter is { HoldsInput: true })
             {
-                // The probe wants the phone while the external API has it: interrupt the API like a user would, and
+                // The probe wants the phone while the automation API has it: interrupt the API like a user would, and
                 // suspend once it has given the input back (the tick goes on as a normal one).
                 _arbiter.InterruptForProbe();
                 return false;
@@ -605,7 +605,7 @@ public sealed class MirrorBridge
         }
     }
 
-    // ---- the external API holds the input ----------------------------------------------------------------------
+    // ---- the automation API holds the input ----------------------------------------------------------------------
 
     // The user's input is held back while the API has the input: it waits in _replay (mouse), _heldHome / _heldRotate
     // (shortcuts) and _heldCommands (UI commands) and is processed, in this order, by the first normal tick.
@@ -635,7 +635,7 @@ public sealed class MirrorBridge
             var idle = !Holding && _commands.All(c => c.FromApi);
             if (arbiter.CompleteAcquire(idle))
             {
-                Verbose("[api] the external API has the input");
+                Verbose("[api] the automation API has the input");
                 return true;
             }
 
@@ -658,7 +658,7 @@ public sealed class MirrorBridge
 
         if (userInput)
         {
-            Verbose("[api] user input while the external API has the input: held back");
+            Verbose("[api] user input while the automation API has the input: held back");
             arbiter.NotifyUserInput();
         }
 

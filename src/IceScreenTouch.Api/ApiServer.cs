@@ -40,7 +40,7 @@ public sealed record ApiRoute(string Method, string Path, RequestDelegate Handle
 public sealed record ApiServerStartResult(bool IsSuccess, int Port, string? Error, bool PortInUse);
 
 /// <summary>
-/// The HTTP server of the external API (docs/API-DESIGN.md, chapters 4, 7 and 10). It listens on 127.0.0.1 only, answers
+/// The HTTP server of the automation API (docs/API-DESIGN.md, chapters 4, 7 and 10). It listens on 127.0.0.1 only, answers
 /// JSON (errors as <c>application/problem+json</c>) and hands every operation to the <see cref="ApiController"/>.
 /// A request passes, in this order: the Origin check (any <c>Origin</c> header is 403 <c>forbidden_origin</c>, there is no
 /// CORS), the Host check (only <c>127.0.0.1:port</c> and <c>localhost:port</c> with the bound port, else 403

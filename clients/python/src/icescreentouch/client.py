@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Shin-plaster
 # SPDX-License-Identifier: MIT
 
-"""The synchronous REST client of the IceScreen Touch external API (docs/API-DESIGN.md, chapter 7).
+"""The synchronous REST client of the IceScreen Touch automation API (docs/API-DESIGN.md, chapter 7).
 
 Every time value in this module is in milliseconds and its name ends in ``_ms``, exactly as the API names them
 (``hold_ms`` is ``holdMs``). Positions are ``(x, y)`` pairs in one of three spaces:
@@ -409,7 +409,7 @@ class Client:
                 # Refused or unreachable: nothing was written, so the operation did not run and a retry is safe.
                 unavailable = ApiUnavailableError(
                     f"IceScreen Touch could not be reached on 127.0.0.1:{connection.port} ({type(exc).__name__}): "
-                    "is the app running with the External API switched on?")
+                    "is the app running with the Automation API switched on?")
                 unavailable.request_sent = False
                 raise unavailable from None
             try:
@@ -423,7 +423,7 @@ class Client:
             except (OSError, http.client.HTTPException) as exc:
                 raise ApiUnavailableError(
                     f"IceScreen Touch could not be reached on 127.0.0.1:{connection.port} ({type(exc).__name__}): "
-                    "is the app running with the External API switched on?") from None
+                    "is the app running with the Automation API switched on?") from None
         finally:
             http_connection.close()
         if len(data) > _MAX_RESPONSE_BYTES:

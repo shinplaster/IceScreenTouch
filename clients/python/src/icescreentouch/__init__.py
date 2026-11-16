@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Shin-plaster
 # SPDX-License-Identifier: MIT
 
-"""Python client for the IceScreen Touch external API.
+"""Python client for the IceScreen Touch automation API.
 
 ::
 

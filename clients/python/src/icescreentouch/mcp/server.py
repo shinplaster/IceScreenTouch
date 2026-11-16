@@ -97,7 +97,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="icescreentouch-mcp",
         description="MCP server (stdio) for IceScreen Touch: look at and operate an iPhone or iPad from an AI agent. "
-                    "Needs the app's External API switched on (or ICESCREENTOUCH_API and ICESCREENTOUCH_TOKEN).")
+                    "Needs the app's Automation API switched on (or ICESCREENTOUCH_API and ICESCREENTOUCH_TOKEN).")
     parser.add_argument("--version", action="version", version=f"icescreentouch-mcp {__version__}")
     parser.parse_args(argv)
     create_server().run(transport="stdio")

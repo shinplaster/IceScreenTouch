@@ -179,7 +179,7 @@ internal static class SelfCheck
             return "pages served, event recorded";
         }).ConfigureAwait(false);
 
-        await Check("external api", async () =>
+        await Check("automation api", async () =>
         {
             // The whole API stack in the trimmed build: the service (token file, api.json), Kestrel on 127.0.0.1 with an
             // ephemeral port (never the user's port), the controller and the host over a session that is not running, the

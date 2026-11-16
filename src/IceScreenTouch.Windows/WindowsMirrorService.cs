@@ -25,7 +25,7 @@ namespace IceScreenTouch.Windows;
 /// bridge loop. Same wiring as the M3 console (tools/IceScreenTouch.Bridge), but failures become status instead
 /// of exit codes, and it can be restarted with new settings.
 /// <para>
-/// Every session creates its own <see cref="ApiInputArbiter"/> (the external API's hand-over of the input) whether or not
+/// Every session creates its own <see cref="ApiInputArbiter"/> (the automation API's hand-over of the input) whether or not
 /// the API is on: without a lease it is inert (the bridge and the keyboard relay behave exactly as without it), and creating
 /// it always keeps the session free of any knowledge about the API's switch. <paramref name="time"/> must be the clock the
 /// API controller uses (the arbiter stamps the user's last input with it).
@@ -108,7 +108,7 @@ internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null
     /// <summary>One start..stop of everything.</summary>
     private sealed class Session(AppSettings settings, AppLog log, TimeProvider time, Action<Rotation> rotationChanged) : IApiSession, IAsyncDisposable
     {
-        // The external API's hand-over of the input: one per session, closed by the bridge when its loop ends.
+        // The automation API's hand-over of the input: one per session, closed by the bridge when its loop ends.
         private readonly ApiInputArbiter _arbiter = new(time);
         private ITouchSink _sink = OfflineSink.Instance;
         private ArbiterInput? _arbiterInput;
@@ -174,7 +174,7 @@ internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null
             }
         }
 
-        // ---- Screenshots (the external API) ---------------------------------------------------------------------
+        // ---- Screenshots (the automation API) ---------------------------------------------------------------------
 
         // One capture at a time, with a time limit; a stuck capture makes later screenshots fail at once (see CaptureRunner).
         private CaptureRunner? _captureRunner;

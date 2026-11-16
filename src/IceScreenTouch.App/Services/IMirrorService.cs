@@ -135,14 +135,14 @@ public interface IMirrorService : IAsyncDisposable
     event EventHandler<Rotation>? LandscapeRotationChanged;
 
     /// <summary>
-    /// The running session as the external API uses it (its sinks, input arbitration and bridge state), or null while the
+    /// The running session as the automation API uses it (its sinks, input arbitration and bridge state), or null while the
     /// session is stopped. The object belongs to one session: after a restart this returns a new one. Any thread.
     /// </summary>
     IApiSession? ApiSession => null;
 }
 
 /// <summary>
-/// What the external API needs from one running mirror session: where touches, keys and the home button go (the chosen
+/// What the automation API needs from one running mirror session: where touches, keys and the home button go (the chosen
 /// target device), the arbiter that lets the API take the input from the user's mouse and keys, and the bridge's view of the
 /// picture. Everything may be called from any thread.
 /// </summary>

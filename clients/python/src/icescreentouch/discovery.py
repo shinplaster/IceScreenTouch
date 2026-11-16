@@ -161,7 +161,7 @@ def check_owner(connection: Connection) -> None:
         if connection.from_file or connection.pid is not None:
             raise StaleConnectionError(
                 f"api.json ({connection.source}) names a port nobody listens on: IceScreen Touch is not running "
-                "or its external API is off (the file is stale)")
+                "or its automation API is off (the file is stale)")
         return  # the call itself will say that the API cannot be reached
     if connection.pid is not None and owners != {connection.pid}:
         raise StaleConnectionError(
@@ -231,4 +231,4 @@ def discover(base_url: Optional[str] = None, token: Optional[str] = None,
         raise first_error
     raise ConnectionDiscoveryError(
         "IceScreen Touch's connection file (api.json) was not found. Start the app and switch on "
-        "Settings > External API, or set ICESCREENTOUCH_API and ICESCREENTOUCH_TOKEN.")
+        "Settings > Automation API, or set ICESCREENTOUCH_API and ICESCREENTOUCH_TOKEN.")

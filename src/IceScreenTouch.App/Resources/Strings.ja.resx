@@ -340,10 +340,10 @@
   <data name="AboutLicenseNotPackaged" xml:space="preserve"><value>ライセンス: 自分でビルドしたもの（ライセンスの確認なし）</value></data>
   <data name="AboutLicenseUnknown" xml:space="preserve"><value>ライセンス: 確認できませんでした</value></data>
 
-  <!-- External API (settings tab, status tab, tray) -->
-  <data name="SectionApi" xml:space="preserve"><value>外部 API</value></data>
+  <!-- Automation API (settings tab, status tab, tray) -->
+  <data name="SectionApi" xml:space="preserve"><value>自動操作 API</value></data>
   <data name="OptionApiEnabled" xml:space="preserve"><value>この PC のスクリプトから端末を操作できるようにする</value></data>
-  <data name="ApiTrialNote" xml:space="preserve"><value>外部 API は、IceScreen Touch を購入すると使えます。</value></data>
+  <data name="ApiTrialNote" xml:space="preserve"><value>自動操作 API は、IceScreen Touch を購入すると使えます。</value></data>
   <data name="LabelApiPort" xml:space="preserve"><value>ポート（API は 127.0.0.1 だけで待ち受けます）</value></data>
   <data name="LabelApiToken" xml:space="preserve"><value>トークン（スクリプトが認証に使う文字列）</value></data>
   <data name="ApiTokenPending" xml:space="preserve"><value>このスイッチをオンにして「保存して適用」を押すと、トークンが作られます。</value></data>
@@ -355,9 +355,9 @@
   <data name="ApiRegenerateQuestion" xml:space="preserve"><value>今のトークンを使っているスクリプトは、新しいトークンを渡すまで動かなくなります。作り直しますか？</value></data>
   <data name="FormatApiConnectionFile" xml:space="preserve"><value>API がオンの間、スクリプトはポートとトークンを {0} から読めます（読めるのはあなただけです）。</value></data>
   <data name="ApiWarning" xml:space="preserve"><value>スクリプトは、パスコードの入力や購入の承認も含め、あなたと同じ操作を端末に行えます。信頼できるスクリプトにだけ使ってください。API に接続できるのは、この PC のプログラムだけです。</value></data>
-  <data name="FormatApiListening" xml:space="preserve"><value>外部 API: 127.0.0.1:{0} で待ち受け中</value></data>
-  <data name="ApiOperating" xml:space="preserve"><value>外部 API: スクリプトが操作中</value></data>
-  <data name="FormatApiPortInUse" xml:space="preserve"><value>外部 API: 起動できません（ポート {0} はほかのプログラムが使っています）</value></data>
-  <data name="ApiFailed" xml:space="preserve"><value>外部 API: 起動できません（詳しくは「ログ」タブを見てください）</value></data>
-  <data name="ApiNeedsPurchase" xml:space="preserve"><value>外部 API: 購入すると使えます</value></data>
+  <data name="FormatApiListening" xml:space="preserve"><value>自動操作 API: 127.0.0.1:{0} で待ち受け中</value></data>
+  <data name="ApiOperating" xml:space="preserve"><value>自動操作 API: スクリプトが操作中</value></data>
+  <data name="FormatApiPortInUse" xml:space="preserve"><value>自動操作 API: 起動できません（ポート {0} はほかのプログラムが使っています）</value></data>
+  <data name="ApiFailed" xml:space="preserve"><value>自動操作 API: 起動できません（詳しくは「ログ」タブを見てください）</value></data>
+  <data name="ApiNeedsPurchase" xml:space="preserve"><value>自動操作 API: 購入すると使えます</value></data>
 </root>

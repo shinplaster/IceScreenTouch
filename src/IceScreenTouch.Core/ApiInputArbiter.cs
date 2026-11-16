@@ -32,7 +32,7 @@ public readonly record struct ApiInputAcquisition(ApiInputRefusal Refusal, ApiIn
 }
 
 /// <summary>
-/// The right of the external API to send input while the user's own input is held back. Disposing it gives the
+/// The right of the automation API to send input while the user's own input is held back. Disposing it gives the
 /// input back (the bridge and the keyboard relay then process what the user did meanwhile). Lift every finger and
 /// release every key BEFORE disposing.
 /// </summary>
@@ -85,7 +85,7 @@ public sealed class ApiInputLease : IAsyncDisposable
 }
 
 /// <summary>
-/// Hands the input to the external API and back, and gives the user priority (docs/API-DESIGN.md, 9.2). While an
+/// Hands the input to the automation API and back, and gives the user priority (docs/API-DESIGN.md, 9.2). While an
 /// <see cref="ApiInputLease"/> is held, <see cref="MirrorBridge"/> and <see cref="KeyboardRelay"/> send nothing to the
 /// device; the first user input that would have reached it fires <see cref="ApiInputLease.UserInput"/> and is HELD
 /// (together with everything after it) until the lease is disposed, and then goes through as if it had just

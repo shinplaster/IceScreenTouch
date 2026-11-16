@@ -197,7 +197,7 @@ class Stream:
             # Opening a session is not an operation: nothing has run, so a retry (after a new discovery) is safe.
             unavailable = ApiUnavailableError(
                 f"IceScreen Touch could not be reached on 127.0.0.1:{connection.port} ({type(exc).__name__}): "
-                "is the app running with the External API switched on?")
+                "is the app running with the Automation API switched on?")
             unavailable.request_sent = False
             raise unavailable from None
 

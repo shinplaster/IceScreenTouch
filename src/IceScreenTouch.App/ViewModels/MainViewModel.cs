@@ -80,7 +80,7 @@ public sealed class MainViewModel : ObservableObject
     private TargetOption? _selectedTarget;
     private bool _updatingTargets;
 
-    // The external API: its status line (status tab, tray) and the token controls of the settings tab.
+    // The automation API: its status line (status tab, tray) and the token controls of the settings tab.
     private string _apiStatusText = string.Empty;
     private StatusLevel _apiStatusLevel;
     private bool _apiAvailable = true;
@@ -134,7 +134,7 @@ public sealed class MainViewModel : ObservableObject
     /// Creates the view model with the loaded <paramref name="settings"/>. Without <paramref name="probe"/> there
     /// is no probe tab; without <paramref name="receivers"/> the setup tab lists no receivers; without
     /// <paramref name="license"/> there is no license check (like a build of your own). Without <paramref name="api"/> the
-    /// external API is not part of the window (no status line, the settings section does nothing).
+    /// automation API is not part of the window (no status line, the settings section does nothing).
     /// </summary>
     public MainViewModel(IMirrorService mirror, SettingsStore store, AppLog log, AppSettings settings, Action<Action> post, IProbeService? probe = null, IReceiverFinder? receivers = null, LicenseService? license = null, ApiService? api = null)
     {
@@ -518,7 +518,7 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Settings form: no Bluetooth (testing).</summary>
     public bool DryRun { get => _dryRun; set => SetForm(ref _dryRun, value); }
 
-    /// <summary>Settings form: the external API is on (applied with the form; it needs the purchased app, see <see cref="ApiAvailable"/>).</summary>
+    /// <summary>Settings form: the automation API is on (applied with the form; it needs the purchased app, see <see cref="ApiAvailable"/>).</summary>
     public bool ApiEnabled { get => _apiEnabled; set => SetForm(ref _apiEnabled, value); }
 
     /// <summary>Settings form: the API's port on 127.0.0.1.</summary>
@@ -560,7 +560,7 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>The trial runs: the API can be used after buying the app.</summary>
     public bool ApiNeedsPurchase => !_apiAvailable && IsTrial;
 
-    /// <summary>The API line of the status tab and the tray ("External API: listening on 127.0.0.1:47821"); empty while the API is off.</summary>
+    /// <summary>The API line of the status tab and the tray ("Automation API: listening on 127.0.0.1:47821"); empty while the API is off.</summary>
     public string ApiStatusText
     {
         get => _apiStatusText;
@@ -745,7 +745,7 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The external API line: text and colour. Empty while the API is off (nothing to say); the license note for a trial that
+    /// The automation API line: text and colour. Empty while the API is off (nothing to say); the license note for a trial that
     /// has it on; the port in use, "operating", or why it could not start.
     /// </summary>
     public static (string Text, StatusLevel Level) DescribeApi(ApiServiceStatus status)

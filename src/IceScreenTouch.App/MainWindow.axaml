@@ -124,7 +124,7 @@
             <Button Content="{x:Static res:Strings.ButtonRestart}" Command="{Binding RestartCommand}" ToolTip.Tip="{x:Static res:Strings.TipRestart}" />
           </WrapPanel>
 
-          <!-- The external API (only while it is on): listening, a script operating, or why it could not start. -->
+          <!-- The automation API (only while it is on): listening, a script operating, or why it could not start. -->
           <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasApiStatus}">
             <Ellipse Classes="dot" Classes.ok="{Binding ApiOk}" Classes.waiting="{Binding ApiWaiting}" Classes.error="{Binding ApiError}" />
             <TextBlock Text="{Binding ApiStatusText}" TextWrapping="Wrap" VerticalAlignment="Center" />
@@ -295,40 +295,6 @@
               <TextBlock Text="{x:Static res:Strings.OptionKeyboardInput}" TextWrapping="Wrap" />
             </CheckBox>
 
-            <!-- The external API (local REST for scripts): the switch and the port are saved with the form; the token acts at once. -->
-            <TextBlock Classes="section" Text="{x:Static res:Strings.SectionApi}" />
-            <CheckBox IsChecked="{Binding ApiEnabled}" IsEnabled="{Binding ApiAvailable}">
-              <TextBlock Text="{x:Static res:Strings.OptionApiEnabled}" TextWrapping="Wrap" />
-            </CheckBox>
-            <TextBlock Classes="note" Text="{x:Static res:Strings.ApiTrialNote}" IsVisible="{Binding ApiNeedsPurchase}" />
-            <StackPanel Spacing="6" IsEnabled="{Binding ApiAvailable}">
-              <TextBlock Classes="label" Text="{x:Static res:Strings.LabelApiPort}" TextWrapping="Wrap" />
-              <NumericUpDown Value="{Binding ApiPort}" Minimum="1024" Maximum="65535"
-                             Increment="1" FormatString="0" HorizontalAlignment="Left" MinWidth="140" />
-              <TextBlock Classes="label" Text="{x:Static res:Strings.LabelApiToken}" TextWrapping="Wrap" IsVisible="{Binding HasApiToken}" />
-              <TextBox Text="{Binding ApiToken, Mode=OneWay}" IsReadOnly="True" PasswordChar="•" RevealPassword="{Binding ApiTokenVisible}"
-                       FontFamily="Cascadia Mono, Consolas, monospace" IsVisible="{Binding HasApiToken}" />
-              <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8" IsVisible="{Binding HasApiToken}">
-                <Button Content="{Binding ApiTokenToggleText}" Command="{Binding ToggleApiTokenCommand}" />
-                <Button Content="{x:Static res:Strings.ButtonCopyToken}" Click="CopyApiToken" />
-                <Button Content="{x:Static res:Strings.ButtonRegenerateToken}" Command="{Binding RegenerateApiTokenCommand}" />
-                <TextBlock Text="{x:Static res:Strings.InfoCopied}" IsVisible="{Binding ApiTokenCopied}" VerticalAlignment="Center" Classes="note" />
-              </WrapPanel>
-              <!-- "Regenerate" asks first: scripts that use the current token stop working. -->
-              <Border Classes="banner waiting" IsVisible="{Binding ApiConfirmingRegenerate}">
-                <StackPanel Spacing="8">
-                  <TextBlock Text="{x:Static res:Strings.ApiRegenerateQuestion}" TextWrapping="Wrap" />
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="{x:Static res:Strings.ButtonRegenerateToken}" Command="{Binding ConfirmRegenerateApiTokenCommand}" />
-                    <Button Content="{x:Static res:Strings.ButtonCancelRegenerate}" Command="{Binding CancelRegenerateApiTokenCommand}" />
-                  </StackPanel>
-                </StackPanel>
-              </Border>
-              <TextBlock Classes="note" Text="{x:Static res:Strings.ApiTokenPending}" IsVisible="{Binding !HasApiToken}" />
-              <TextBlock Classes="note" Text="{Binding ApiConnectionFileText}" />
-            </StackPanel>
-            <TextBlock Classes="note" Text="{x:Static res:Strings.ApiWarning}" />
-
             <TextBlock Classes="section" Text="{x:Static res:Strings.SectionApp}" />
             <CheckBox Content="{x:Static res:Strings.OptionCloseToTray}" IsChecked="{Binding CloseToTray}" />
             <TextBlock Classes="label" Text="{x:Static res:Strings.LabelLanguage}" Margin="0,4,0,0" />
@@ -337,7 +303,45 @@
             <TextBlock Classes="label" Text="{x:Static res:Strings.LabelTheme}" Margin="0,4,0,0" />
             <ComboBox ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}" HorizontalAlignment="Stretch" />
 
-            <Expander Header="{x:Static res:Strings.SectionAdvanced}" Margin="0,10,0,0">
+            <!-- The automation API (local REST for scripts), folded like the advanced settings: the switch and the port are saved with the
+                 form; the token acts at once. -->
+            <Expander Header="{x:Static res:Strings.SectionApi}" Margin="0,10,0,0">
+              <StackPanel Spacing="8">
+                <CheckBox IsChecked="{Binding ApiEnabled}" IsEnabled="{Binding ApiAvailable}">
+                  <TextBlock Text="{x:Static res:Strings.OptionApiEnabled}" TextWrapping="Wrap" />
+                </CheckBox>
+                <TextBlock Classes="note" Text="{x:Static res:Strings.ApiTrialNote}" IsVisible="{Binding ApiNeedsPurchase}" />
+                <StackPanel Spacing="6" IsEnabled="{Binding ApiAvailable}">
+                  <TextBlock Classes="label" Text="{x:Static res:Strings.LabelApiPort}" TextWrapping="Wrap" />
+                  <NumericUpDown Value="{Binding ApiPort}" Minimum="1024" Maximum="65535"
+                                 Increment="1" FormatString="0" HorizontalAlignment="Left" MinWidth="140" />
+                  <TextBlock Classes="label" Text="{x:Static res:Strings.LabelApiToken}" TextWrapping="Wrap" IsVisible="{Binding HasApiToken}" />
+                  <TextBox Text="{Binding ApiToken, Mode=OneWay}" IsReadOnly="True" PasswordChar="•" RevealPassword="{Binding ApiTokenVisible}"
+                           FontFamily="Cascadia Mono, Consolas, monospace" IsVisible="{Binding HasApiToken}" />
+                  <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8" IsVisible="{Binding HasApiToken}">
+                    <Button Content="{Binding ApiTokenToggleText}" Command="{Binding ToggleApiTokenCommand}" />
+                    <Button Content="{x:Static res:Strings.ButtonCopyToken}" Click="CopyApiToken" />
+                    <Button Content="{x:Static res:Strings.ButtonRegenerateToken}" Command="{Binding RegenerateApiTokenCommand}" />
+                    <TextBlock Text="{x:Static res:Strings.InfoCopied}" IsVisible="{Binding ApiTokenCopied}" VerticalAlignment="Center" Classes="note" />
+                  </WrapPanel>
+                  <!-- "Regenerate" asks first: scripts that use the current token stop working. -->
+                  <Border Classes="banner waiting" IsVisible="{Binding ApiConfirmingRegenerate}">
+                    <StackPanel Spacing="8">
+                      <TextBlock Text="{x:Static res:Strings.ApiRegenerateQuestion}" TextWrapping="Wrap" />
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="{x:Static res:Strings.ButtonRegenerateToken}" Command="{Binding ConfirmRegenerateApiTokenCommand}" />
+                        <Button Content="{x:Static res:Strings.ButtonCancelRegenerate}" Command="{Binding CancelRegenerateApiTokenCommand}" />
+                      </StackPanel>
+                    </StackPanel>
+                  </Border>
+                  <TextBlock Classes="note" Text="{x:Static res:Strings.ApiTokenPending}" IsVisible="{Binding !HasApiToken}" />
+                  <TextBlock Classes="note" Text="{Binding ApiConnectionFileText}" />
+                </StackPanel>
+                <TextBlock Classes="note" Text="{x:Static res:Strings.ApiWarning}" />
+              </StackPanel>
+            </Expander>
+
+            <Expander Header="{x:Static res:Strings.SectionAdvanced}">
               <StackPanel Spacing="8">
                 <StackPanel Spacing="6" IsVisible="{Binding StartUxPlay}">
                   <TextBlock Classes="label" Text="{x:Static res:Strings.LabelMsysBin}" TextWrapping="Wrap" />

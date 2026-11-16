@@ -7,7 +7,7 @@ using IceScreenTouch.Api;
 namespace IceScreenTouch.App.Services;
 
 /// <summary>
-/// Keeps the bearer token of the external API in its own file (<c>api-token</c> in the app's data folder), apart from
+/// Keeps the bearer token of the automation API in its own file (<c>api-token</c> in the app's data folder), apart from
 /// settings.json (which users copy into bug reports). The token is created the first time the API is switched on and kept
 /// until the user regenerates it.
 /// <para>

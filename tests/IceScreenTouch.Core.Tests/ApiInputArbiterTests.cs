@@ -7,7 +7,7 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace IceScreenTouch.Core.Tests;
 
-// The user has priority over the external API (docs/API-DESIGN.md, 9.2): while an ApiInputLease is held the bridge and the
+// The user has priority over the automation API (docs/API-DESIGN.md, 9.2): while an ApiInputLease is held the bridge and the
 // keyboard relay send nothing, the first user input interrupts the API and is replayed once the lease is disposed.
 public class ApiInputArbiterTests : IAsyncDisposable
 {

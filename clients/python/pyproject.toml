@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "icescreentouch"
 version = "0.1.0"
-description = "Python client and MCP server for the IceScreen Touch external API (control an iPhone or iPad from Windows)."
+description = "Python client and MCP server for the IceScreen Touch automation API (control an iPhone or iPad from Windows)."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

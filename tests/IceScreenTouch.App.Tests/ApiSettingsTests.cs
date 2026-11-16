@@ -7,7 +7,7 @@ using IceScreenTouch.App.Settings;
 
 namespace IceScreenTouch.App.Tests;
 
-/// <summary>The external API's settings: defaults, the file, ranges, and that they never restart the session.</summary>
+/// <summary>The automation API's settings: defaults, the file, ranges, and that they never restart the session.</summary>
 public sealed class ApiSettingsTests : IDisposable
 {
     private readonly TempFolder _dir = new();

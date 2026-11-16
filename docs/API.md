@@ -2,7 +2,7 @@
 
 [日本語](API.ja.md)
 
-IceScreen Touch has a local API. A script or an AI agent on the same PC can operate the iPhone or iPad the way you do with the mouse and the keyboard: taps, swipes, pinches, typing, the Home button. The input takes the same Bluetooth path as your own input (the PC poses as a touch input device and a keyboard; see [USER-GUIDE.md](USER-GUIDE.md)). The API can be reached from this PC only.
+IceScreen Touch has an automation API. A script or an AI agent on the same PC can operate the iPhone or iPad the way you do with the mouse and the keyboard: taps, swipes, pinches, typing, the Home button. The input takes the same Bluetooth path as your own input (the PC poses as a touch input device and a keyboard; see [USER-GUIDE.md](USER-GUIDE.md)). The API can be reached from this PC only.
 
 This page is the guide. The full reference (every field, default, limit and error) is the OpenAPI document [api/openapi.yaml](api/openapi.yaml); the running app serves the same document as `GET /v1/openapi.json`.
 
@@ -32,12 +32,12 @@ The API operates the one device the app currently sends input to ("Input to" in 
 
 The API is **off by default**.
 
-1. In IceScreen Touch, open the **Settings** tab and find the **External API** section.
+1. In IceScreen Touch, open the **Settings** tab and find the **Automation API** section.
 2. Turn on "Let scripts on this PC operate the device".
 3. Check the port. The default is **47821**. It can be 1024 to 65535, except 8000 (the measurement page uses it). If the port is in use by another program, the app says so; it never picks another port by itself.
 4. Press **Save and apply**. The token is created now.
 
-The app then shows "External API: listening on 127.0.0.1:<port>", and "External API: a script is operating the device" while a call or stream is running. If it cannot start, it shows "External API: could not start" (the port is in use by another program, or see the **Log** tab).
+The app then shows "Automation API: listening on 127.0.0.1:<port>", and "Automation API: a script is operating the device" while a call or stream is running. If it cannot start, it shows "Automation API: could not start" (the port is in use by another program, or see the **Log** tab).
 
 **Token.** Scripts authenticate with the token shown in the section (**Show** / **Hide**). **Copy** puts it on the clipboard. **Regenerate** makes a new one after a confirmation: the old token stops working at once, and any open WebSocket stream is closed.
 

@@ -14,7 +14,7 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace IceScreenTouch.App.Tests;
 
-/// <summary>The status line, the settings section and the token controls of the external API in the window's view model.</summary>
+/// <summary>The status line, the settings section and the token controls of the automation API in the window's view model.</summary>
 #pragma warning disable CA1001 // disposed by DisposeAsync (IAsyncLifetime), which CA1001 does not know
 public sealed class ApiViewModelTests : IAsyncLifetime
 {
@@ -79,14 +79,14 @@ public sealed class ApiViewModelTests : IAsyncLifetime
     [Fact]
     public void TheStatusLineSaysWhatTheApiIsDoing()
     {
-        Assert.Equal("外部 API: 127.0.0.1:47821 で待ち受け中", MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.Listening, 47821)).Text);
+        Assert.Equal("自動操作 API: 127.0.0.1:47821 で待ち受け中", MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.Listening, 47821)).Text);
         Assert.Equal(StatusLevel.Ok, MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.Listening, 47821)).Level);
-        Assert.Equal("外部 API: スクリプトが操作中", MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.Operating, 47821)).Text);
+        Assert.Equal("自動操作 API: スクリプトが操作中", MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.Operating, 47821)).Text);
         var inUse = MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.PortInUse, 50000));
-        Assert.Equal("外部 API: 起動できません（ポート 50000 はほかのプログラムが使っています）", inUse.Text);
+        Assert.Equal("自動操作 API: 起動できません（ポート 50000 はほかのプログラムが使っています）", inUse.Text);
         Assert.Equal(StatusLevel.Error, inUse.Level);
         // The details (paths, exception texts) stay in the log: the window and the tray say one fixed sentence.
-        Assert.Equal("外部 API: 起動できません（詳しくは「ログ」タブを見てください）", MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.Failed, 1, "cannot write a file in the data folder")).Text);
+        Assert.Equal("自動操作 API: 起動できません（詳しくは「ログ」タブを見てください）", MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.Failed, 1, "cannot write a file in the data folder")).Text);
         Assert.Equal(StatusLevel.Waiting, MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.NotAllowed, 47821)).Level);
         Assert.Equal(string.Empty, MainViewModel.DescribeApi(ApiServiceStatus.Off).Text); // off: nothing to say
     }
@@ -96,9 +96,9 @@ public sealed class ApiViewModelTests : IAsyncLifetime
     {
         using var _ = new UiCulture("en-US");
 
-        Assert.Equal("External API: listening on 127.0.0.1:47821", MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.Listening, 47821)).Text);
-        Assert.Equal("External API: a script is operating the device", MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.Operating, 47821)).Text);
-        Assert.Equal("External API: could not start (port 50000 is in use by another program)", MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.PortInUse, 50000)).Text);
+        Assert.Equal("Automation API: listening on 127.0.0.1:47821", MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.Listening, 47821)).Text);
+        Assert.Equal("Automation API: a script is operating the device", MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.Operating, 47821)).Text);
+        Assert.Equal("Automation API: could not start (port 50000 is in use by another program)", MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.PortInUse, 50000)).Text);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public sealed class ApiViewModelTests : IAsyncLifetime
         Assert.Empty(_mirror.Calls); // the API runs apart from the session
         Assert.Equal(ApiRunState.Listening, _api!.Status.State);
         Assert.True(Vm.HasApiStatus);
-        Assert.Equal($"外部 API: 127.0.0.1:{port} で待ち受け中", Vm.ApiStatusText);
+        Assert.Equal($"自動操作 API: 127.0.0.1:{port} で待ち受け中", Vm.ApiStatusText);
         Assert.True(Vm.ApiOk);
         Assert.True(Vm.HasApiToken);
         Assert.Equal(_api.Token, Vm.ApiToken);
@@ -158,7 +158,7 @@ public sealed class ApiViewModelTests : IAsyncLifetime
         Vm.ApiPort = port;
         await ApplyAsync();
 
-        Assert.Equal($"外部 API: 起動できません（ポート {port} はほかのプログラムが使っています）", Vm.ApiStatusText);
+        Assert.Equal($"自動操作 API: 起動できません（ポート {port} はほかのプログラムが使っています）", Vm.ApiStatusText);
         Assert.True(Vm.ApiError);
         Assert.Contains(_log.Recent(), l => l.Contains("[api]", StringComparison.Ordinal) && l.Contains("port in use", StringComparison.Ordinal));
     }
@@ -177,7 +177,7 @@ public sealed class ApiViewModelTests : IAsyncLifetime
         Vm.ApiEnabled = true;
         Vm.ApiPort = FreePort();
         await ApplyAsync();
-        Assert.Equal("外部 API: 購入すると使えます", Vm.ApiStatusText);
+        Assert.Equal("自動操作 API: 購入すると使えます", Vm.ApiStatusText);
         Assert.Equal(StatusLevel.Waiting, Vm.ApiStatusLevel);
         Assert.False(Vm.HasApiToken);
 
@@ -188,7 +188,7 @@ public sealed class ApiViewModelTests : IAsyncLifetime
 
         Assert.True(Vm.ApiAvailable);
         Assert.False(Vm.ApiNeedsPurchase);
-        Assert.StartsWith("外部 API: 127.0.0.1:", Vm.ApiStatusText, StringComparison.Ordinal);
+        Assert.StartsWith("自動操作 API: 127.0.0.1:", Vm.ApiStatusText, StringComparison.Ordinal);
         Assert.True(Vm.HasApiToken);
     }
 
@@ -268,7 +268,7 @@ public sealed class ApiViewModelTests : IAsyncLifetime
 
         var text = MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.Failed, 1, @"cannot write C:\Users\someone\api.json")).Text;
 
-        Assert.Equal("External API: could not start (see the Log tab)", text);
+        Assert.Equal("Automation API: could not start (see the Log tab)", text);
     }
 
     [Fact]
@@ -285,7 +285,7 @@ public sealed class ApiViewModelTests : IAsyncLifetime
         vm.ApplySettingsCommand.Execute(null);
         await vm.ApplySettingsCommand.Last;
 
-        Assert.Equal("外部 API: 起動できません（詳しくは「ログ」タブを見てください）", vm.ApiStatusText);
+        Assert.Equal("自動操作 API: 起動できません（詳しくは「ログ」タブを見てください）", vm.ApiStatusText);
         Assert.DoesNotContain(blocked, vm.ApiStatusText, StringComparison.Ordinal);
         Assert.Contains(_log.Recent(), l => l.Contains("[api]", StringComparison.Ordinal) && l.Contains("token file", StringComparison.Ordinal));
         await api.StopAsync();
