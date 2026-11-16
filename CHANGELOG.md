@@ -22,6 +22,23 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The **Automation API**: scripts and AI agents on the same PC can operate the iPhone or iPad the way the mouse and
+  keyboard do (tap, long press, swipe, pinch, type with a US keyboard, press keys and Home, set the rotation) and take
+  screenshots of the receiver window. It is a REST (HTTP/JSON) and WebSocket server on `127.0.0.1` only that web pages
+  cannot call, protected by a token, and **off by default**: switch it on in Settings > "Automation API", where the
+  token is created, copied and regenerated. The user's own mouse and keys take priority and interrupt a script. It is
+  available in the purchased Store version and in builds of your own, not in the trial. See `docs/API.md`.
+- A Python client library and an MCP server for AI agents (`clients/python`; not on PyPI, installed from the repository
+  with uv).
+
+### Changed
+
+- Builds of your own: while the receiver window is covered by other windows, the app now finds the picture with
+  Windows.Graphics.Capture, which draws no border, so LonelyScreen no longer flickers. The Microsoft Store version keeps
+  `PrintWindow`, because Windows does not allow a borderless capture there without asking the user.
+
 ## [0.2.0] - 2026-11-10
 
 ### Added

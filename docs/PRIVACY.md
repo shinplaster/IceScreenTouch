@@ -2,7 +2,7 @@
 
 [日本語](PRIVACY.ja.md)
 
-Effective date: 2026-11-08
+Effective date: 2026-11-17
 
 This policy covers IceScreen Touch ("the app"), both the Microsoft Store version and a build you make yourself from the source code on GitHub. Both are built from the same source code and behave the same way with respect to data.
 
@@ -11,6 +11,7 @@ This policy covers IceScreen Touch ("the app"), both the Microsoft Store version
 - The app does not send any data to the developer or to any other third party. It has no accounts, no advertising, no analytics, no crash reporting and no update check.
 - Everything the app does with your input stays between your PC and your own iPhone or iPad, over Bluetooth and your local network.
 - The app keeps a small settings file and log files on your PC. They are not uploaded anywhere. You can delete them at any time.
+- The Automation API, for scripts and AI agents on your PC, is off by default. When you turn it on, it can be reached only from programs on this PC, and each call needs a token. Screenshots it takes go only to the program that asked for them.
 - The Microsoft Store version asks Windows for its license (trial or purchased); see "Other software and services". A build you make yourself does not.
 
 ## What the app does
@@ -23,9 +24,11 @@ The app writes your data only to its own data folder, `%LOCALAPPDATA%\IceScreenT
 
 | File | What it holds |
 |---|---|
-| `settings.json` | Your settings: the name the app announces for AirPlay, which receiver app to use and its file path, the screen shape, the rotation, scroll and long-press options, whether keys are sent, the language and theme, and the position of the app window, plus some technical options. If you pick the device that receives input on the Status tab, it also holds that device's Bluetooth identifier and its Bluetooth name (for example "Taro's iPhone"). |
+| `settings.json` | Your settings: the name the app announces for AirPlay, which receiver app to use and its file path, the screen shape, the rotation, scroll and long-press options, whether keys are sent, the language and theme, and the position of the app window, plus some technical options. If you pick the device that receives input on the Status tab, it also holds that device's Bluetooth identifier and its Bluetooth name (for example "Taro's iPhone"). It also holds whether the Automation API is on and its port number. |
 | `logs\IceScreenTouch-<date>-<time>.log` | A diagnostic log, one file per run. The app keeps the latest 10 and deletes older ones. |
 | `logs\uxplay-<date>-<time>.log` | Only if you turn on the detailed log and the app starts UxPlay itself: the output of UxPlay. The latest 10 are kept. |
+| `api-token` | Only if you turn on the Automation API: the token that scripts use to authenticate, made by the app. It stays until you regenerate it. Only your Windows user can read it. |
+| `api.json` | Only while the Automation API is on: the port and the token, so that scripts on this PC can find the API. The app deletes it when the API is turned off. Only your Windows user can read it. |
 
 Besides the data folder, the following use the Windows temp folder, and none of it is your data. In both builds, the first time the app starts, .NET extracts the app's native libraries (graphics and text rendering) to `%TEMP%\.net`. The diagnostic switch `--self-check` (run from a terminal; the app does not use it on its own) makes a temporary folder for a test file and deletes it when it finishes.
 
@@ -40,9 +43,10 @@ The log is meant for finding problems. It contains times, the app version, and w
 - the local network addresses (IP addresses) and host names of the devices connected to the receiver app, and the PC's own local address in the address of the test page;
 - the name and model of the device that UxPlay reports, when the app starts UxPlay;
 - if the PC cannot act as a Bluetooth peripheral, the PC's Bluetooth adapter address.
-- in the Store version, the license kind (trial or purchased) and the time the trial ends, each time they change.
+- in the Store version, the license kind (trial or purchased) and the time the trial ends, each time they change;
+- if you turn on the Automation API: that it started or stopped (with its port number), when the token was regenerated, and a line for each operation a script ran or the app refused (the kind of operation, such as tap or screenshot, the result and how long it took; refusals are counted, not listed one by one).
 
-The log does **not** contain the keys you type (even the detailed log only records how many keys are held at a moment, never which keys), the positions of your clicks or touches, or any picture of the screen.
+The log does **not** contain the keys you type (even the detailed log only records how many keys are held at a moment, never which keys), the positions of your clicks or touches, the Automation API's token or the text a script types, or any picture of the screen.
 
 If you attach a log to a bug report, please look through it first. The detailed UxPlay log, which is off by default, also contains what UxPlay prints about the connection (for example the device's name, its operating system build and its network addresses). The app removes the hardware-style identifiers and the session keys that UxPlay prints, but not everything.
 
@@ -63,7 +67,7 @@ You can stop the session (the Stop button, or the tray menu), which removes both
 
 ## Screen content
 
-To find where the picture is inside the receiver app's window, the app reads the pixels of that window from the screen, and in the latency test it reads the brightness of a small square of the screen. These pixels are examined in memory and discarded. They are not saved, recorded or sent anywhere. The app does not record the screen, take screenshots, or look at any other window's content.
+To find where the picture is inside the receiver app's window, the app reads the pixels of that window from the screen, and in the latency test it reads the brightness of a small square of the screen. These pixels are examined in memory and discarded. They are not saved, recorded or sent anywhere. On its own, the app does not record the screen, take screenshots, or look at any other window's content. If you turn on the Automation API, a script on this PC can ask the app for a screenshot of the receiver app's window (only that window's own pixels, not other windows). The app hands the picture to that script. It does not store it or send it anywhere else. Windows shows a colored border around the receiver window for about 2 seconds after such a screenshot; the border is not in the picture.
 
 ## Bluetooth
 
@@ -80,6 +84,7 @@ The app does not connect to the internet itself (the Store version's license che
 - **Test page.** When you press a test button (touch, scroll, latency, typing), the app starts a small web server on TCP port 8000 on the PC. It runs only until the test ends. You open it from the iPhone or iPad in Safari (the app shows a QR code). The page sends back touch and key events to the PC for the measurement. They are kept in memory for the test, not saved, and are discarded when the test ends. Each test run uses a one-time random key, and only the first device that uses it can post results. For the iPhone to reach the page, Windows Firewall must let TCP port 8000 in, and this works differently in the two builds:
   - **Store (MSIX) build:** the package declares an inbound rule for TCP port 8000 (for all network profiles, from any remote address), which Windows creates when the app is installed and removes when it is uninstalled. The app only reads the firewall rules to show their state; it never changes them, and it writes no temporary file for this. The web server listens only while a test runs, each run needs a random key in the URL, and only the first device that sends an event with the key is accepted.
   - **A build of your own:** the Test tab has a button for this; Windows asks for administrator permission before anything is changed, the rule allows only the local subnet, and the app writes the short temporary file mentioned above while it runs.
+- **The Automation API** (off by default). When you turn it on, the app listens on `127.0.0.1`, the address of this PC itself, on a port you can choose (47821 by default). It cannot be reached from your network or from other computers, and the app adds no firewall rule for it. Web pages cannot call it either: it refuses requests that come from a browser. Every call needs the token. Input that a script sends goes over Bluetooth to the same one input target as your own input, and the app does not store it.
 - **The receiver app** you use shows the picture. See the next section.
 
 ## Other software and services
@@ -94,7 +99,7 @@ The app does not connect to the internet itself (the Store version's license che
 
 1. Close the app (tray menu > Exit).
 2. Uninstall it (Windows Settings > Apps). For the Microsoft Store version, Windows may remove the app's data with it, if the data is in the package's own storage; for a build of your own, only delete the folder where you put the exe.
-3. Delete the data folder: `%LOCALAPPDATA%\IceScreenTouch`. If the app was installed from the Microsoft Store, data may also be under `%LOCALAPPDATA%\Packages\<package family name>\LocalCache\Local\IceScreenTouch`; delete it too if it is still there. If you used an earlier version of the app under its former name (iScrMirror), also delete `%LOCALAPPDATA%\iScrMirror` if present.
+3. Delete the data folder: `%LOCALAPPDATA%\IceScreenTouch`. If the app was installed from the Microsoft Store, data may also be under `%LOCALAPPDATA%\Packages\<package family name>\LocalCache\Local\IceScreenTouch`; delete it too if it is still there. The data folder also holds the Automation API's token and connection file, so deleting it removes them; if you turn the API on again later, the app makes a new token.
 4. If you no longer want the pairing, remove the PC from the Bluetooth list on your iPhone or iPad and in Windows Settings > Bluetooth & devices.
 
 Because the app sends nothing to the developer, there is no data held by the developer to delete.

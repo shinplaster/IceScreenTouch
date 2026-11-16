@@ -30,6 +30,7 @@ It does in software what "wireless monitor with touch control" gadgets for iPhon
 - iPhone and iPad: the screen shape comes from the model the device reports over Bluetooth
 - Follows the window of an AirPlay receiver. Tested with 5KPlayer, AirServer, LonelyScreen, Reflector 4 and UxPlay (self-built; the app can start it). Other receivers can be followed by their process name, but they are not tested or supported yet
 - Several devices connected: touches and keys go to the one the mirror window shows (or the one you choose)
+- Automation API: scripts and AI agents on the same PC can tap, swipe, type and take screenshots through a local REST / WebSocket API (off by default, reachable from this PC only; a Python client and an MCP server are included). It is available in the purchased Store version and in builds of your own, not in the trial: see [docs/API.md](docs/API.md)
 - A setup checklist, and built-in tests that measure touch accuracy, scrolling and latency through a page in Safari on the iPhone
 - English and Japanese user interface
 - Get it from the [Microsoft Store](https://apps.microsoft.com/detail/9PBTCZ9BFFK5) (paid, with a 7-day free trial: signed by Microsoft, updates itself), or build it yourself from this repository for free: a single self-contained `IceScreenTouch.exe` (about 23 MB), no .NET install needed
@@ -79,9 +80,11 @@ The real-input tests move the mouse cursor for about 10 seconds and run only wit
 | `src/IceScreenTouch.Ble` | BLE HID peripheral (Windows GATT server) |
 | `src/IceScreenTouch.Platform.Windows` | Win32: mouse hook, windows, screen capture, firewall |
 | `src/IceScreenTouch.Video` | Receiver window adapters (any window; UxPlay started by the app) |
+| `src/IceScreenTouch.Api` | The Automation API: the local REST / WebSocket server for scripts |
 | `src/IceScreenTouch.App` | Avalonia UI and view models (platform-neutral); text in `Resources/Strings*.resx` |
 | `src/IceScreenTouch.Windows` | `IceScreenTouch.exe`: wires the Windows services into the UI |
 | `src/IceScreenTouch.Probe.Core` | The test pages and measurements used by the app and the console probe |
+| `clients/python/` | Python client and MCP server for the Automation API |
 | `tools/` | Console probe and bridge, publish and firewall scripts |
 | `tests/` | xUnit tests |
 | `poc/poc1-uxplay/`, `poc/poc2-ble-hid/`, `poc/poc3-integrated/` | The original proofs of concept (UxPlay build, BLE HID in Python, the first bridge) |

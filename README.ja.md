@@ -30,6 +30,7 @@ iPhone 用に売られている「ミラーリング + タッチ操作のワイ�
 - iPhone と iPad: 画面の形は、端末が Bluetooth で知らせる機種から判別します
 - AirPlay 受信ソフトのウィンドウを追います。確認しているのは 5KPlayer、AirServer、LonelyScreen、Reflector 4、UxPlay（自前でビルドしたもの。アプリから起動もできます）の 5 つです。ほかの受信ソフトもプロセス名を指定すれば追えますが、今のところ未確認のため、サポートの対象外です
 - 複数の端末がつながっているときは、ミラー画面に映っている端末（または選んだ端末）にだけタッチとキーを送ります
+- 自動操作 API: 同じ PC のスクリプトや AI エージェントが、タップ、スワイプ、文字入力、スクリーンショットなどを、ローカルの API（REST と WebSocket）から行えます。初期状態ではオフで、届くのはこの PC からだけです。Python のクライアントと、AI エージェント用の MCP サーバーもあります。購入した Store のバージョンと、自分でビルドしたもので使えます（試用中は使えません）。詳しくは [docs/API.ja.md](docs/API.ja.md) にあります
 - セットアップの手順の表示と、iPhone の Safari に開いたページで、タッチの精度・スクロール・遅延を測る検証の機能
 - 画面は英語と日本語
 - [Microsoft Store](https://apps.microsoft.com/detail/9PBTCZ9BFFK5) から入手できます（有料。7 日間の無料試用があります。Microsoft の署名つきで、自動で更新されます）。このリポジトリから自分でビルドすれば無料です。できるのは `IceScreenTouch.exe` 1 つ（約 23 MB）で、.NET の導入は要りません
@@ -79,9 +80,11 @@ dotnet run --project src\IceScreenTouch.Windows      # アプリ
 | `src/IceScreenTouch.Ble` | BLE の HID ペリフェラル（Windows の GATT サーバ） |
 | `src/IceScreenTouch.Platform.Windows` | Win32: マウスのフック、ウィンドウ、画面の取り込み、ファイアウォール |
 | `src/IceScreenTouch.Video` | 受信ソフトのウィンドウのアダプタ（任意のウィンドウ、アプリが起動する UxPlay） |
+| `src/IceScreenTouch.Api` | 自動操作 API: スクリプト向けのローカルの REST / WebSocket サーバー |
 | `src/IceScreenTouch.App` | Avalonia の画面と画面のモデル（OS に依存しない）。文言は `Resources/Strings*.resx` |
 | `src/IceScreenTouch.Windows` | `IceScreenTouch.exe`: Windows のサービスを画面に配線する |
 | `src/IceScreenTouch.Probe.Core` | アプリとコンソールの道具が使う、検証のページと計測 |
+| `clients/python/` | 自動操作 API の Python クライアントと MCP サーバー |
 | `tools/` | コンソールの検証の道具とブリッジ、発行とファイアウォールのスクリプト |
 | `tests/` | xUnit のテスト |
 | `poc/poc1-uxplay/`、`poc/poc2-ble-hid/`、`poc/poc3-integrated/` | 最初の試作（UxPlay のビルド、Python での BLE HID、最初のブリッジ） |
