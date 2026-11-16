@@ -323,6 +323,8 @@
   <data name="FormatComponents" xml:space="preserve"><value>{0} components</value></data>
 
   <!-- Store license (trial) -->
+  <data name="FormatTrialDaysLeft" xml:space="preserve"><value>Trial: {0} days left (until {1})</value></data>
+  <data name="FormatTrialDayLeft" xml:space="preserve"><value>Trial: 1 day left (until {0})</value></data>
   <data name="FormatTrialHoursLeft" xml:space="preserve"><value>Trial: {0} hours left (until {1})</value></data>
   <data name="FormatTrialMinutesLeft" xml:space="preserve"><value>Trial: {0} minutes left (until {1})</value></data>
   <data name="FormatTrialHourLeft" xml:space="preserve"><value>Trial: 1 hour left (until {0})</value></data>

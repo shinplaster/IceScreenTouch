@@ -321,6 +321,8 @@
   <data name="FormatComponents" xml:space="preserve"><value>部品の一覧（{0} 個）</value></data>
 
   <!-- Store license (trial) -->
+  <data name="FormatTrialDaysLeft" xml:space="preserve"><value>試用中: あと {0} 日（{1} まで）</value></data>
+  <data name="FormatTrialDayLeft" xml:space="preserve"><value>試用中: あと 1 日（{0} まで）</value></data>
   <data name="FormatTrialHoursLeft" xml:space="preserve"><value>試用中: あと {0} 時間（{1} まで）</value></data>
   <data name="FormatTrialMinutesLeft" xml:space="preserve"><value>試用中: あと {0} 分（{1} まで）</value></data>
   <data name="FormatTrialHourLeft" xml:space="preserve"><value>試用中: あと 1 時間（{0} まで）</value></data>

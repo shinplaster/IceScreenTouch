@@ -32,7 +32,7 @@ It does in software what "wireless monitor with touch control" gadgets for iPhon
 - Several devices connected: touches and keys go to the one the mirror window shows (or the one you choose)
 - A setup checklist, and built-in tests that measure touch accuracy, scrolling and latency through a page in Safari on the iPhone
 - English and Japanese user interface
-- Get it from the Microsoft Store (paid: signed by Microsoft, updates itself), or build it yourself from this repository for free: a single self-contained `IceScreenTouch.exe` (about 23 MB), no .NET install needed
+- Get it from the [Microsoft Store](https://apps.microsoft.com/detail/9PBTCZ9BFFK5) (paid, with a 7-day free trial: signed by Microsoft, updates itself), or build it yourself from this repository for free: a single self-contained `IceScreenTouch.exe` (about 23 MB), no .NET install needed
 
 ## Requirements
 
@@ -43,7 +43,7 @@ It does in software what "wireless monitor with touch control" gadgets for iPhon
 
 ## Getting started
 
-1. Install IceScreen Touch from the Microsoft Store (coming soon) <!-- TODO: Store URL -->, or build it yourself (see [Building from source](#building-from-source)). No official builds are published on GitHub.
+1. Install IceScreen Touch from the [Microsoft Store](https://apps.microsoft.com/detail/9PBTCZ9BFFK5), or build it yourself (see [Building from source](#building-from-source)). No official builds are published on GitHub.
 2. Install and start an AirPlay receiver (see [Installing an AirPlay receiver](docs/USER-GUIDE.md#installing-an-airplay-receiver)), then start IceScreen Touch and follow the setup steps in the **Status** tab.
 
 The full guide, including the controls and troubleshooting, is in [docs/USER-GUIDE.md](docs/USER-GUIDE.md).

@@ -11,8 +11,9 @@ namespace IceScreenTouch.App.ViewModels;
 public static class LicenseLines
 {
     /// <summary>
-    /// The trial line: "Trial: 23 hours left (until Nov 9, 14:00)". Hours are rounded down and shown from one hour
-    /// on; under an hour it counts minutes (rounded down, never below 1), so the line never says "0 hours".
+    /// The trial line: "Trial: 6 days left (until Nov 16, 14:00)". From 24 hours on it counts whole days (rounded
+    /// down); from one hour to under a day it counts hours (rounded down); under an hour it counts minutes (rounded
+    /// down, never below 1), so the line never says "0 days" or "0 hours".
     /// </summary>
     public static string TrialRemaining(DateTimeOffset expiration, DateTimeOffset now, TimeZoneInfo zone, CultureInfo culture)
     {
@@ -20,6 +21,14 @@ public static class LicenseLines
         ArgumentNullException.ThrowIfNull(culture);
         var left = expiration - now;
         var until = Until(expiration, zone, culture);
+        if (left >= TimeSpan.FromDays(1))
+        {
+            var days = (int)left.TotalDays;
+            return days == 1
+                ? Loc.Format(Strings.FormatTrialDayLeft, until)
+                : Loc.Format(Strings.FormatTrialDaysLeft, days, until);
+        }
+
         if (left >= TimeSpan.FromHours(1))
         {
             var hours = (int)left.TotalHours;
@@ -36,7 +45,7 @@ public static class LicenseLines
 
     /// <summary>
     /// The end of the trial in local time as short date and short time of the UI language: "Nov 9, 14:00" in English,
-    /// "11月9日 14:00" in Japanese (the year is left out: a trial lasts a day).
+    /// "11月9日 14:00" in Japanese (the year is left out: a trial lasts days at most).
     /// </summary>
     public static string Until(DateTimeOffset expiration, TimeZoneInfo zone, CultureInfo culture)
     {

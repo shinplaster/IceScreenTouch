@@ -32,7 +32,7 @@ iPhone 用に売られている「ミラーリング + タッチ操作のワイ�
 - 複数の端末がつながっているときは、ミラー画面に映っている端末（または選んだ端末）にだけタッチとキーを送ります
 - セットアップの手順の表示と、iPhone の Safari に開いたページで、タッチの精度・スクロール・遅延を測る検証の機能
 - 画面は英語と日本語
-- Microsoft Store から入手できます（有料。Microsoft の署名つきで、自動で更新されます）。このリポジトリから自分でビルドすれば無料です。できるのは `IceScreenTouch.exe` 1 つ（約 23 MB）で、.NET の導入は要りません
+- [Microsoft Store](https://apps.microsoft.com/detail/9PBTCZ9BFFK5) から入手できます（有料。7 日間の無料試用があります。Microsoft の署名つきで、自動で更新されます）。このリポジトリから自分でビルドすれば無料です。できるのは `IceScreenTouch.exe` 1 つ（約 23 MB）で、.NET の導入は要りません
 
 ## 必要なもの
 
@@ -43,7 +43,7 @@ iPhone 用に売られている「ミラーリング + タッチ操作のワイ�
 
 ## 使い始める
 
-1. Microsoft Store（近日公開）<!-- TODO: Store URL --> から入れるか、自分でビルドします（[ソースからビルドする](#ソースからビルドする)）。GitHub では公式のビルドを配っていません。
+1. [Microsoft Store](https://apps.microsoft.com/detail/9PBTCZ9BFFK5) から入れるか、自分でビルドします（[ソースからビルドする](#ソースからビルドする)）。GitHub では公式のビルドを配っていません。
 2. AirPlay 受信ソフトを入れて起動し（[受信ソフトを入れる](docs/USER-GUIDE.ja.md#受信ソフトを入れる)を見てください）、IceScreen Touch を起動して、「状態」タブの「準備」の手順に従います。
 
 操作の一覧と、困ったときの対処は [docs/USER-GUIDE.ja.md](docs/USER-GUIDE.ja.md) にあります。
