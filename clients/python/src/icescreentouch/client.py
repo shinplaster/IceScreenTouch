@@ -20,7 +20,7 @@ import http.client
 import json
 import re
 import socket
-from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Sequence, Tuple, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Mapping, Optional, Sequence, Tuple, TypeVar
 from urllib.parse import urlencode
 
 from . import discovery
@@ -29,6 +29,8 @@ from .errors import (
     ApiError,
     ApiTimeoutError,
     ApiUnavailableError,
+    ConnectionDiscoveryError,
+    InvalidArgumentError,
     NotFoundError,
     RateLimitedError,
     ScreenshotUnsupportedError,
@@ -38,11 +40,15 @@ from .errors import (
 )
 from .models import RotationInfo, Screenshot, Status, image_size, parse_source_size
 
+if TYPE_CHECKING:
+    from .stream import Stream
+
 Point = Tuple[float, float]
 Size = Tuple[int, int]
 T = TypeVar("T")
 
 _MAX_RESPONSE_BYTES = 64 * 1024 * 1024
+_COORDINATE_DECIMALS = 6  # path() coordinates are rounded to this many decimals (a millionth of the screen)
 _SPACES = ("screen", "pixel", "device")
 
 
@@ -53,16 +59,16 @@ def _size_of(ref: Any) -> Size:
         width, height = pair
         return (int(width), int(height))
     except (TypeError, ValueError):
-        raise ValueError("ref must be (width, height) of the screenshot, or an object with a .size") from None
+        raise InvalidArgumentError("ref must be (width, height) of the screenshot, or an object with a .size") from None
 
 
 def _space_fields(space: str, ref: Any) -> Dict[str, Any]:
     if space not in _SPACES:
-        raise ValueError(f"space must be one of {_SPACES}, not {space!r}")
+        raise InvalidArgumentError(f"space must be one of {_SPACES}, not {space!r}")
     fields: Dict[str, Any] = {"space": space}
     if space == "pixel":
         if ref is None:
-            raise ValueError("space='pixel' needs ref=(width, height): the size of the screenshot the position refers to")
+            raise InvalidArgumentError("space='pixel' needs ref=(width, height): the size of the screenshot the position refers to")
         width, height = _size_of(ref)
         fields["ref"] = {"width": width, "height": height}
     return fields
@@ -86,7 +92,7 @@ _MAX_RETRY_AFTER = 60  # seconds: the app sends 1; a larger value is not believe
 def _whole(name: str, value: Any) -> int:
     """``value`` as an int, but only if it is one (a bool or a float such as 16.9 is a mistake, not 16)."""
     if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{name} must be an integer")
+        raise InvalidArgumentError(f"{name} must be an integer")
     return value
 
 
@@ -167,7 +173,7 @@ class Client:
     def set_rotation(self, landscape: Optional[int] = None, portrait: Optional[int] = None) -> RotationInfo:
         """Sets the assumed landscape (90 or 270) and/or portrait (0 or 180) rotation, saved like Ctrl+R."""
         if landscape is None and portrait is None:
-            raise ValueError("set_rotation needs landscape and/or portrait")
+            raise InvalidArgumentError("set_rotation needs landscape and/or portrait")
         body: Dict[str, Any] = {}
         _put(body, "landscape", landscape)
         _put(body, "portrait", portrait)
@@ -226,8 +232,13 @@ class Client:
         """
         listed = []
         for p in points:
-            x, y, t = p
-            listed.append({"x": float(x), "y": float(y), "t": int(t)})
+            try:
+                x, y, t = p
+                # Rounded, and the body is sent compactly, so 1000 points stay far below the server's 64 KB limit.
+                listed.append({"x": round(float(x), _COORDINATE_DECIMALS), "y": round(float(y), _COORDINATE_DECIMALS),
+                               "t": int(t)})
+            except (TypeError, ValueError, OverflowError):
+                raise InvalidArgumentError("each point of a path must be (x, y, t_ms) with numbers") from None
         body = {**_space_fields(space, ref), "points": listed}
         last = max((p["t"] for p in listed), default=0)
         self._json("POST", "/v1/touch/path", body, op_seconds=last / 1000)
@@ -298,14 +309,14 @@ class Client:
         """
         fmt = {"jpg": "jpeg"}.get(format.lower(), format.lower())
         if fmt not in ("png", "jpeg"):
-            raise ValueError("format must be 'png' or 'jpeg'")
+            raise InvalidArgumentError("format must be 'png' or 'jpeg'")
         if max_size is not None and not 16 <= _whole("max_size", max_size) <= 8192:
-            raise ValueError("max_size must be 16 to 8192")
+            raise InvalidArgumentError("max_size must be 16 to 8192")
         if quality is not None:
             if fmt != "jpeg":
-                raise ValueError("quality only applies to format='jpeg'")
+                raise InvalidArgumentError("quality only applies to format='jpeg'")
             if not 1 <= _whole("quality", quality) <= 100:
-                raise ValueError("quality must be 1 to 100")
+                raise InvalidArgumentError("quality must be 1 to 100")
         query: Dict[str, Any] = {"format": fmt}
         _put(query, "maxSize", max_size)
         _put(query, "quality", quality)
@@ -333,7 +344,7 @@ class Client:
 
     # ---- WebSocket -----------------------------------------------------------------------------------------
 
-    def stream(self, **options: Any) -> "Any":
+    def stream(self, **options: Any) -> "Stream":
         """A WebSocket session for low-level control (needs the ``stream`` extra). Use it as a context manager.
 
         See :class:`icescreentouch.stream.Stream` for the options and the operations.
@@ -345,7 +356,7 @@ class Client:
     # ---- Transport -----------------------------------------------------------------------------------------
 
     def _json(self, method: str, path: str, body: Optional[Mapping[str, Any]] = None, *, op_seconds: float = 0.0) -> Dict[str, Any]:
-        payload = None if body is None else json.dumps(body, allow_nan=False, ensure_ascii=False).encode("utf-8")
+        payload = None if body is None else _encode(body)
         _status, _headers, data = self._call(method, path, payload, op_seconds, "application/json, application/problem+json")
         try:
             parsed = json.loads(data.decode("utf-8")) if data else {}
@@ -403,8 +414,11 @@ class Client:
             try:
                 http_connection.connect()
             except socket.timeout:
-                raise ApiTimeoutError(
-                    "IceScreen Touch did not accept the connection in time (nothing was sent)") from None
+                # Nothing was written, so the operation did not run (same as a refused connection).
+                timed_out = ApiTimeoutError(
+                    "IceScreen Touch did not accept the connection in time (nothing was sent)")
+                timed_out.request_sent = False
+                raise timed_out from None
             except OSError as exc:
                 # Refused or unreachable: nothing was written, so the operation did not run and a retry is safe.
                 unavailable = ApiUnavailableError(
@@ -412,10 +426,20 @@ class Client:
                     "is the app running with the Automation API switched on?")
                 unavailable.request_sent = False
                 raise unavailable from None
+            built = False
             try:
                 http_connection.request(method, path, body=payload, headers=headers)
+                built = True
                 response = http_connection.getresponse()
                 data = response.read(_MAX_RESPONSE_BYTES + 1)
+            except ValueError:
+                # http.client refuses an invalid header or request line before it writes anything. Its message quotes
+                # the offending value (the Authorization header holds the token), so it is never passed on.
+                if built:
+                    raise ApiError("the API answered with something that is not valid HTTP") from None
+                raise ConnectionDiscoveryError(
+                    "the request could not be sent: the token or the request is not valid in HTTP (nothing was sent)"
+                ) from None
             except socket.timeout:
                 raise ApiTimeoutError(
                     "IceScreen Touch did not answer in time (an operation that already started may still be running; "
@@ -431,6 +455,14 @@ class Client:
         if response.status >= 400:
             raise _problem(response.status, response.getheader("Content-Type") or "", data, response.getheader("Retry-After"))
         return response.status, response.headers, data
+
+
+def _encode(body: Mapping[str, Any]) -> bytes:
+    """The JSON body, compact (no spaces after the separators) so a long path stays under the server's 64 KB limit."""
+    try:
+        return json.dumps(body, allow_nan=False, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    except ValueError:
+        raise InvalidArgumentError("a number is not finite or a text cannot be encoded") from None
 
 
 def _problem(status: int, content_type: str, data: bytes, retry_after: Optional[str] = None) -> ApiError:

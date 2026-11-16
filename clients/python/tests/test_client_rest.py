@@ -248,8 +248,10 @@ def test_non_loopback_base_url_is_refused():
         Client(base_url="https://127.0.0.1:47821", token=TOKEN)
 
 
-def test_localhost_means_127_0_0_1(api):
-    client = Client(base_url=f"http://localhost:{api.port}", token=TOKEN)
+def test_localhost_is_refused_and_the_host_header_is_127_0_0_1(api):
+    with pytest.raises(ist.ConnectionDiscoveryError):
+        Client(base_url=f"http://localhost:{api.port}", token=TOKEN)
+    client = Client(base_url=f"http://127.0.0.1:{api.port}", token=TOKEN)
     client.get_status()
     assert last(api).headers["host"] == f"127.0.0.1:{api.port}"
 
@@ -537,3 +539,69 @@ def test_the_rotation_header_must_be_ascii_digits_naming_a_rotation(api, value, 
 def test_the_source_size_header_must_be_ascii_digits(api, value, expected):
     api.route("GET", "/v1/screenshot", Reply(200, "image/png", png_bytes(10, 20), {"X-IceScreenTouch-Source-Size": value}))
     assert api.client().screenshot().source_size == expected
+
+
+# ---- Request bodies are small, and nothing quotes the token ------------------------------------------------
+
+def test_request_bodies_are_compact_and_a_long_path_fits_the_servers_limit(api):
+    import random
+
+    rng = random.Random(1)
+    points = [(rng.random(), rng.random(), t * 60) for t in range(1000)]  # 1000 points, 60 s, full-length floats
+    api.client().path(points)
+    body = last(api).body
+    assert len(body) < 64 * 1024
+    assert b", " not in body and b": " not in body  # compact separators
+    sent = last(api).json["points"]
+    assert len(sent) == 1000 and all(len(repr(p["x"]).split(".")[-1]) <= 6 for p in sent)
+    assert abs(sent[7]["x"] - points[7][0]) < 1e-6
+
+
+def test_a_path_point_that_is_not_a_triple_is_an_argument_error(api):
+    with pytest.raises(ist.InvalidArgumentError):
+        api.client().path([(0.1, 0.2)])
+    with pytest.raises(ist.InvalidArgumentError):
+        api.client().path([(0.1, "x", 0)])
+    assert api.requests == []
+
+
+def test_a_number_that_is_not_finite_is_an_argument_error_and_sends_nothing(api):
+    with pytest.raises(ist.InvalidArgumentError):
+        api.client().tap(float("nan"), 0.5)
+    assert api.requests == []
+
+
+def test_a_token_http_refuses_never_reaches_an_exception_text(api):
+    from icescreentouch import Connection
+
+    secret = "S3CRET" * 8
+    bad = secret + "\n"  # would have passed the old "$" check; http.client refuses it as a header value
+    client = api.client(verify_owner=False)
+    client._connection = Connection(port=api.port, token=bad)
+    with pytest.raises(ist.IceScreenTouchError) as info:
+        client.get_status()
+    assert secret not in str(info.value) and secret not in repr(info.value)
+    assert info.value.__cause__ is None and info.value.__suppress_context__
+    assert api.requests == []  # nothing was sent
+
+
+def test_a_token_with_a_trailing_newline_is_stripped_and_works(api):
+    client = Client(base_url=api.url, token=TOKEN + "\n", verify_owner=False)
+    assert client.get_status().version == "0.3.0"
+    assert last(api).headers["authorization"] == f"Bearer {TOKEN}"
+
+
+# ---- A connection that was never made did not run anything -------------------------------------------------
+
+def test_a_connect_timeout_says_nothing_was_sent(api, monkeypatch):
+    import http.client
+    import socket
+
+    def slow_connect(self):
+        raise socket.timeout("timed out")
+
+    monkeypatch.setattr(http.client.HTTPConnection, "connect", slow_connect)
+    with pytest.raises(ist.ApiTimeoutError) as info:
+        api.client().home()
+    assert info.value.request_sent is False
+    assert api.requests == []

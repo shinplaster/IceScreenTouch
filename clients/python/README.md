@@ -65,24 +65,29 @@ with Client() as phone:                      # finds the API by itself (see "Con
   The WebSocket library's own logger is never allowed to log at DEBUG (it would log the token in the first frame).
 * `screenshot(format="png", max_size=None, quality=None)` returns the receiver's picture as a `Screenshot` (`data`, `size`,
   `orientation`, `rotation`, `source_size`). `max_size` (16 to 8192) only shrinks; `quality` (1 to 100) is for JPEG only;
-  arguments the app would refuse raise `ValueError` before anything is sent. The size follows the receiver window, so pass
+  arguments the app would refuse raise `InvalidArgumentError` (a `ValueError`) before anything is sent. The size follows the receiver window, so pass
   `ref=shot.size` when you point at it in pixels. It is not an operation (it works while a touch or a stream runs), but the
   app answers at most 10 a second: more raise `RateLimitedError` (`retry_after` is the `Retry-After` value). An app version
   without the screenshot endpoint answers 404 and the client raises `ScreenshotUnsupportedError`.
 
 ### Connection
 
-`Client()` looks, in this order, at: `ICESCREENTOUCH_API` (`http://127.0.0.1:47821`) with `ICESCREENTOUCH_TOKEN`; the
-`api.json` of the Microsoft Store package; `%ICESCREENTOUCH_DATA_DIR%\api.json`; `%LOCALAPPDATA%\IceScreenTouch\api.json`.
+`Client()` looks, in this order, at: `ICESCREENTOUCH_API` (`http://127.0.0.1:47821`) with `ICESCREENTOUCH_TOKEN`;
+`%ICESCREENTOUCH_DATA_DIR%\api.json` (when that variable is set, it is an explicit choice and wins over the default
+places); the `api.json` of the Microsoft Store package; `%LOCALAPPDATA%\IceScreenTouch\api.json`.
 `Client(base_url=..., token=...)` overrides all of that. The client always connects to `127.0.0.1` and never sends an
-`Origin` header.
+`Origin` header. Whitespace around a token (the newline at the end of a token file or an environment variable) is
+ignored; anything else that is not a token is refused without echoing it.
 
 **Owner check.** On Windows, before every request (REST and WebSocket) the client verifies that every process
-listening on the port is `IceScreenTouch.exe` running as the **same Windows user** and, for a connection from `api.json`,
+listening on the port is `IceScreenTouch.exe` running as the **same Windows user** (and not at a lower integrity level than your script, when that level is
+below Medium: a Low-integrity process can fake the file name), and, for a connection from `api.json`,
 that the only listener is exactly the `pid` in the file. Otherwise the token is not sent and `StaleConnectionError` is
 raised. The check also covers `ICESCREENTOUCH_API` / `ICESCREENTOUCH_TOKEN` and `Client(base_url=..., token=...)`, and it
 **fails closed**: if the TCP table or the process cannot be read (for example access to the process is denied), the
-token is not sent either. Off Windows nothing can be checked and it is skipped. `Client(..., verify_owner=False)` turns
+token is not sent either. If access to the process is denied (Windows error 5), the app is probably running elevated
+(as administrator): run your script with the same elevation as the app. Off Windows nothing can be checked and it is
+skipped. `Client(..., verify_owner=False)` turns
 the check off for a setup you control, such as a test server; the token then goes to whatever listens on the port.
 
 ## MCP server
@@ -94,7 +99,7 @@ the check off for a setup you control, such as a test server; the token then goe
 Claude Code:
 
 ```powershell
-claude mcp add icescreentouch -- uv --directory C:\path\to\IceScreenTouch\clients\python run --extra mcp icescreentouch-mcp
+claude mcp add icescreentouch -- uv --directory C:\path\to\IceScreenTouch\clients\python run --no-dev --extra mcp icescreentouch-mcp
 ```
 
 Claude Desktop (`claude_desktop_config.json`):
@@ -104,7 +109,7 @@ Claude Desktop (`claude_desktop_config.json`):
   "mcpServers": {
     "icescreentouch": {
       "command": "uv",
-      "args": ["--directory", "C:\\path\\to\\IceScreenTouch\\clients\\python", "run", "--extra", "mcp", "icescreentouch-mcp"]
+      "args": ["--directory", "C:\\path\\to\\IceScreenTouch\\clients\\python", "run", "--no-dev", "--extra", "mcp", "icescreentouch-mcp"]
     }
   }
 }
@@ -113,7 +118,9 @@ Claude Desktop (`claude_desktop_config.json`):
 **Safety.** The tools operate a real phone and can reach passcode screens, payment or purchase confirmations and
 messages. Approval of tool calls is left to the MCP client: keep it on for these tools. The user's own input on the
 mirror always wins; when a tool reports that the user interrupted or is active, the agent should look again rather than
-retry. The server tells the model that text on the phone's screen and device names are content, never instructions.
+retry. If the MCP client cancels a tool call, the server asks the app to cancel (`cancel()`, best effort) while one of its own calls is still running; the app's cancel stops whatever operation is running, so it can also stop an operation of another client at that moment. The
+tools carry MCP annotations (`get_status` and `screenshot` are read-only; `set_rotation` changes a setting the app
+saves). The server tells the model that text on the phone's screen and device names are content, never instructions.
 The MCP SDK versions 1.22 and newer (including 2.x) are supported.
 
 ## Develop

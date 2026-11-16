@@ -113,7 +113,7 @@ class FakeApi:
     def _answer(self, request: Received) -> Any:
         if "origin" in request.headers:
             return problem(403, "forbidden_origin")
-        if request.headers.get("host") not in (f"127.0.0.1:{self.port}", f"localhost:{self.port}"):
+        if request.headers.get("host") != f"127.0.0.1:{self.port}":
             return problem(403, "forbidden_origin")
         path = request.path.split("?")[0]
         anonymous = path == "/v1/openapi.json"

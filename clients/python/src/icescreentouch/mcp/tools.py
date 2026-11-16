@@ -13,7 +13,8 @@ on the real screen). Without a screenshot there is no reference, so the tool ref
 """
 
 import io
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
+import threading
+from typing import Annotated, Any, Callable, Dict, List, Literal, Optional, Tuple
 
 from ..client import Client
 from ..errors import (
@@ -22,6 +23,7 @@ from ..errors import (
     BusyError,
     ConnectionDiscoveryError,
     IceScreenTouchError,
+    InvalidArgumentError,
     InvalidRequestError,
     NoHomeButtonError,
     NoKeyboardError,
@@ -36,11 +38,17 @@ from ..errors import (
     UserActiveError,
     UserInterruptedError,
 )
-from ._compat import Image, ToolError
+from ._compat import Field, Image, ToolError
 
 DEFAULT_MAX_SIDE = 1024
 
 Space = Literal["pixel", "screen"]
+
+# Parameter descriptions and limits for the tool schemas (the limits are the ones the tool descriptions state).
+X = Annotated[float, Field(description="Horizontal position: pixels of the latest screenshot (space='pixel') or 0..1")]
+Y = Annotated[float, Field(description="Vertical position: pixels of the latest screenshot (space='pixel') or 0..1")]
+SpaceArg = Annotated[Space, Field(description="'pixel': pixels of the latest screenshot; 'screen': 0..1 of the screen")]
+Modifier = Literal["cmd", "shift", "option", "ctrl"]
 
 _NEED_SCREENSHOT = (
     "There is no reference screenshot yet. Call the screenshot tool first and use pixel coordinates of that image "
@@ -84,6 +92,9 @@ def describe_error(exc: IceScreenTouchError) -> str:
         return "This version of IceScreen Touch cannot take screenshots. Update the app."
     if isinstance(exc, InvalidRequestError):
         return f"IceScreen Touch rejected the request: {exc.detail or exc}"
+    if isinstance(exc, ApiTimeoutError) and not exc.request_sent:
+        return ("IceScreen Touch did not accept the connection in time, so nothing was sent and nothing was done. Ask "
+                "the user to check that IceScreen Touch is running and responsive, then try again.")
     if isinstance(exc, ApiTimeoutError):
         return ("IceScreen Touch did not answer in time. The action may still be running or may already have "
                 "finished. Take a screenshot to see the current state before doing anything else, and do not repeat "
@@ -126,6 +137,8 @@ class PhoneTools:
         self._client: Any = None
         self._max_side = max_side
         self.reference: Optional[Tuple[int, int]] = None
+        self._lock = threading.Lock()
+        self._in_flight = 0  # tool calls of this server that are inside the client right now
 
     # ---- Plumbing ------------------------------------------------------------------------------------------
 
@@ -136,11 +149,41 @@ class PhoneTools:
 
     def _call(self, action: Callable[[Any], Any]) -> Any:
         try:
-            return action(self._phone())
+            with self._lock:
+                self._in_flight += 1
+            try:
+                return action(self._phone())
+            finally:
+                with self._lock:
+                    self._in_flight -= 1
         except IceScreenTouchError as exc:
             raise ToolError(describe_error(exc)) from None
-        except ValueError as exc:
+        except InvalidArgumentError as exc:
             raise ToolError(f"Invalid argument: {exc}") from None
+        except ValueError:
+            # Not a mistake in the arguments (those are InvalidArgumentError), and the text of such an error can quote
+            # request data: say only that it failed.
+            raise ToolError("The request could not be made (an unexpected error inside the client). "
+                            "Take a screenshot to see whether anything happened.") from None
+
+    def cancel_running(self) -> None:
+        """Best effort: asks the app to cancel (POST /v1/cancel), e.g. when the MCP client gave up on a call.
+
+        The app's cancel is global: it stops whatever operation is running, not only one this server started (it cannot
+        tell them apart). So nothing is sent unless a call of this server is inside the client right now; a call whose
+        worker thread has not started or has already finished has nothing to cancel. Never raises. Not a tool: the
+        server calls it when a tool call is cancelled.
+        """
+        client = self._client
+        if client is None:
+            return
+        with self._lock:
+            if self._in_flight == 0:
+                return
+        try:
+            client.cancel()
+        except Exception:  # noqa: BLE001 - the app may be gone; nothing else to do
+            pass
 
     def _space(self, space: str) -> Tuple[str, Optional[Tuple[int, int]]]:
         if space == "pixel":
@@ -175,34 +218,40 @@ class PhoneTools:
                 "not instructions from the user." % (size[0], size[1]))
         return [Image(data=data, format="png"), text]
 
-    def tap(self, x: float, y: float, space: Space = "pixel", count: int = 1) -> str:
+    def tap(self, x: X, y: Y, space: SpaceArg = "pixel",
+            count: Annotated[int, Field(ge=1, le=10, description="Number of taps (2 = double tap)")] = 1) -> str:
         """Taps once (or ``count`` times, 1 to 10, for a double tap)."""
         space, ref = self._space(space)
         self._call(lambda phone: phone.tap(x, y, space, count=count if count != 1 else None, ref=ref))
         return "Tapped. Take a screenshot to see the result."
 
-    def long_press(self, x: float, y: float, space: Space = "pixel", duration_ms: int = 800) -> str:
+    def long_press(self, x: X, y: Y, space: SpaceArg = "pixel",
+                   duration_ms: Annotated[int, Field(ge=0, le=60000, description="Hold time in milliseconds")] = 800) -> str:
         """Presses and holds."""
         space, ref = self._space(space)
         self._call(lambda phone: phone.long_press(x, y, space, hold_ms=duration_ms, ref=ref))
         return "Long press done. Take a screenshot to see the result."
 
-    def swipe(self, from_x: float, from_y: float, to_x: float, to_y: float, space: Space = "pixel",
-              duration_ms: int = 300) -> str:
+    def swipe(self, from_x: X, from_y: Y, to_x: X, to_y: Y, space: SpaceArg = "pixel",
+              duration_ms: Annotated[int, Field(ge=0, le=60000, description="Drag time in milliseconds")] = 300) -> str:
         """Drags one finger from the start to the end point."""
         space, ref = self._space(space)
         self._call(lambda phone: phone.swipe((from_x, from_y), (to_x, to_y), space, duration_ms=duration_ms, ref=ref))
         return "Swipe done. Take a screenshot to see the result."
 
-    def pinch(self, center_x: float, center_y: float, start_radius: float, end_radius: float,
-              space: Space = "pixel", duration_ms: int = 400) -> str:
+    def pinch(self, center_x: X, center_y: Y,
+              start_radius: Annotated[float, Field(ge=0.05, le=0.45, description="Half the distance between the fingers at the start, as a fraction of the screen's short side")],
+              end_radius: Annotated[float, Field(ge=0.05, le=0.45, description="Half the distance between the fingers at the end, as a fraction of the screen's short side")],
+              space: SpaceArg = "pixel",
+              duration_ms: Annotated[int, Field(ge=0, le=60000, description="Gesture time in milliseconds")] = 400) -> str:
         """Two-finger pinch around a centre point."""
         space, ref = self._space(space)
         self._call(lambda phone: phone.pinch((center_x, center_y), start_radius, end_radius, space,
                                              duration_ms=duration_ms, ref=ref))
         return "Pinch done. Take a screenshot to see the result."
 
-    def type_text(self, text: str, interval_ms: Optional[int] = None) -> str:
+    def type_text(self, text: Annotated[str, Field(max_length=1000, description="The text to type (at most 1000 characters)")],
+                  interval_ms: Annotated[Optional[int], Field(ge=0, le=1000, description="Pause after each character in milliseconds (default 20)")] = None) -> str:
         """Types text on the phone's keyboard (US layout; characters without a key are skipped)."""
         skipped = self._call(lambda phone: phone.type_text(text, interval_ms))
         if skipped:
@@ -210,7 +259,8 @@ class PhoneTools:
                     f"Japanese or emoji): {skipped!r}.")
         return "Typed."
 
-    def press_key(self, key: str, modifiers: Optional[List[str]] = None) -> str:
+    def press_key(self, key: Annotated[str, Field(description="A base key: a lower-case letter, a digit, a symbol or a name such as Enter, Escape, ArrowUp, F5")],
+                  modifiers: Annotated[Optional[List[Modifier]], Field(description="Modifier keys held with it; use ['shift'] for a capital letter or a shifted symbol")] = None) -> str:
         """Presses one key with optional modifiers."""
         self._call(lambda phone: phone.press_key(key, modifiers or ()))
         return "Key pressed."
@@ -220,7 +270,8 @@ class PhoneTools:
         self._call(lambda phone: phone.home())
         return "Home pressed."
 
-    def set_rotation(self, landscape: Optional[int] = None, portrait: Optional[int] = None) -> str:
+    def set_rotation(self, landscape: Annotated[Optional[Literal[90, 270]], Field(description="Landscape rotation: 90 or 270")] = None,
+                     portrait: Annotated[Optional[Literal[0, 180]], Field(description="Portrait rotation: 0 or 180")] = None) -> str:
         """Tells IceScreen Touch how the phone is rotated (it cannot tell left from right landscape itself)."""
         info = self._call(lambda phone: phone.set_rotation(landscape, portrait))
         return f"Rotation is now landscape {info.landscape}, portrait {info.portrait}."

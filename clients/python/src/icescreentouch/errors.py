@@ -36,6 +36,14 @@ class IceScreenTouchError(Exception):
         self.detail = detail
 
 
+class InvalidArgumentError(ValueError):
+    """An argument of a call is wrong (out of range, the wrong kind, missing). Nothing was sent.
+
+    It is a ``ValueError`` (what Python code expects for a bad argument) and deliberately not an
+    :class:`IceScreenTouchError`: it is the caller's mistake, not a failure of the API.
+    """
+
+
 # ---- Failures of the client side (nothing reached the API, or its answer was not understood) ----------------
 
 class ConnectionDiscoveryError(IceScreenTouchError):
@@ -267,7 +275,7 @@ def closed_error(close_code: Optional[int], reason: str, last_error: Optional[Ap
 
 
 __all__ = [
-    "IceScreenTouchError", "ConnectionDiscoveryError", "StaleConnectionError", "ApiUnavailableError",
+    "InvalidArgumentError", "IceScreenTouchError", "ConnectionDiscoveryError", "StaleConnectionError", "ApiUnavailableError",
     "ApiTimeoutError", "ApiError", "InvalidRequestError", "UnauthorizedError", "ForbiddenOriginError",
     "PurchaseRequiredError", "NotRunningError", "NotConnectedError", "NoPictureError", "BusyError",
     "UserInterruptedError", "UserActiveError", "NoKeyboardError", "NoHomeButtonError", "PictureChangedError",

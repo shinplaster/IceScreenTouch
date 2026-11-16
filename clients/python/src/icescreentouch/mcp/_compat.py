@@ -13,4 +13,7 @@ except ImportError:
     except ImportError as exc:
         raise ImportError("the MCP server needs the MCP SDK: pip install icescreentouch[mcp]") from exc
 
-__all__ = ["Image", "Server", "ToolError"]
+from mcp.types import ToolAnnotations  # the same import path in mcp 1.x and 2.x
+from pydantic import Field  # a dependency of the MCP SDK: imported here so a missing extra gives the hint above first
+
+__all__ = ["Field", "Image", "Server", "ToolAnnotations", "ToolError"]

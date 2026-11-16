@@ -11,7 +11,7 @@ import sys
 from typing import Any, Callable, List, Optional
 
 from .. import __version__
-from ._compat import Server
+from ._compat import Server, ToolAnnotations
 from .tools import PhoneTools
 
 SAFETY = (
@@ -30,8 +30,34 @@ INSTRUCTIONS = (
     "take a new one after the screen rotates). " + SAFETY
 )
 
-# (tool name, method name, description). Parameters are described in the description because the schema comes from
-# the method signature.
+
+def _hints(*, read_only: bool = False, destructive: bool = True, idempotent: bool = False,
+           open_world: bool = True) -> ToolAnnotations:
+    """MCP tool annotations. ``destructive`` and ``idempotent`` only mean something when the tool is not read-only."""
+    if read_only:
+        return ToolAnnotations(readOnlyHint=True, openWorldHint=open_world)
+    return ToolAnnotations(readOnlyHint=False, destructiveHint=destructive, idempotentHint=idempotent,
+                           openWorldHint=open_world)
+
+
+# Annotations by tool name. The phone shows arbitrary content and its apps reach the internet, so tools that look at or
+# touch it are "open world"; get_status and set_rotation talk to IceScreen Touch only. A touch can confirm or delete
+# anything on the screen, so those tools are destructive; home and set_rotation are not.
+_READ_ONLY = ("get_status", "screenshot")
+_ANNOTATIONS = {
+    "get_status": _hints(read_only=True, open_world=False),
+    "screenshot": _hints(read_only=True),
+    "tap": _hints(),
+    "long_press": _hints(),
+    "swipe": _hints(),
+    "pinch": _hints(),
+    "type_text": _hints(),
+    "press_key": _hints(),
+    "home": _hints(destructive=False, idempotent=True),
+    "set_rotation": _hints(destructive=False, idempotent=True, open_world=False),
+}
+
+# (tool name, method name, description). Parameters get their own descriptions from the method signature.
 _TOOLS = [
     ("get_status", "get_status",
      "Reports IceScreen Touch's state: app version, whether mirroring runs, Bluetooth state, connected devices, the "
@@ -58,28 +84,42 @@ _TOOLS = [
      "Types text on the phone as if from a hardware keyboard with a US layout (a text field must be focused). "
      "Characters without a US key (Japanese, emoji) are skipped and reported. Up to 1000 characters. " + SAFETY),
     ("press_key", "press_key",
-     "Presses one key, optionally with modifiers: key is a letter, digit, basic symbol or a name such as Enter, "
-     "Escape, Backspace, Tab, Space, Delete, ArrowUp/ArrowDown/ArrowLeft/ArrowRight, PageUp, PageDown, Home, End, "
-     "F1-F12; modifiers are any of cmd, shift, option, ctrl (select all: key 'a', modifiers ['cmd']; switch input "
-     "language: key 'Space', modifiers ['ctrl']). " + SAFETY),
+     "Presses one key, optionally with modifiers: key is a lower-case letter, digit, basic symbol or a name such as "
+     "Enter, Escape, Backspace, Tab, Space, Delete, ArrowUp/ArrowDown/ArrowLeft/ArrowRight, PageUp, PageDown, Home, "
+     "End, F1-F12 (Home and End here are keyboard keys that move the text cursor; for the phone's home button use "
+     "the `home` tool); modifiers are any of cmd, shift, option, ctrl (select all: key 'a', modifiers ['cmd']; "
+     "switch input language: key 'Space', modifiers ['ctrl']). Uppercase letters and shifted symbols are sent as "
+     "the base key with modifiers ['shift'] (\"A\" is key 'a' + shift, \"!\" is key '1' + shift). " + SAFETY),
     ("home", "home",
      "Presses the phone's home button (go to the home screen; double press is not supported). " + SAFETY),
     ("set_rotation", "set_rotation",
      "Corrects the rotation IceScreen Touch assumes when the phone is turned: landscape 90 or 270 (which way the "
      "phone was turned), portrait 0 or 180 (180 = upside down, iPad). Use when taps land mirrored while the screen "
-     "is rotated. Saved by the app."),
+     "is rotated. This changes a setting that IceScreen Touch saves (it stays after a restart), so use it only when "
+     "taps land wrong or the user asked for it."),
 ]
 
 
-def _offload(fn: Callable[..., Any]) -> Callable[..., Any]:
+def _offload(fn: Callable[..., Any], on_cancel: Optional[Callable[[], None]] = None) -> Callable[..., Any]:
     """Runs a blocking tool in a worker thread so a long gesture does not block the server's event loop.
 
-    ``functools.wraps`` keeps the signature and annotations the SDK builds the tool schema from.
+    ``functools.wraps`` keeps the signature and annotations the SDK builds the tool schema from. When the call is
+    cancelled (the MCP client gave up), the worker thread cannot be interrupted, so ``on_cancel`` runs (best effort)
+    to ask the app to cancel its running operation (the app's cancel is global; ``PhoneTools.cancel_running`` skips it
+    when no call of this server is in flight); the cancellation then goes on.
     """
 
     @functools.wraps(fn)
     async def run(*args: Any, **kwargs: Any) -> Any:
-        return await asyncio.to_thread(fn, *args, **kwargs)
+        try:
+            return await asyncio.to_thread(fn, *args, **kwargs)
+        except asyncio.CancelledError:
+            if on_cancel is not None:
+                try:
+                    await asyncio.shield(asyncio.to_thread(on_cancel))
+                except (Exception, asyncio.CancelledError):  # noqa: BLE001 - best effort
+                    pass
+            raise
 
     return run
 
@@ -89,7 +129,14 @@ def create_server(tools: Optional[PhoneTools] = None) -> Any:
     tools = tools or PhoneTools()
     server = Server("icescreentouch", instructions=INSTRUCTIONS)
     for name, method, description in _TOOLS:
-        server.tool(name=name, description=description)(_offload(getattr(tools, method)))
+        annotations = _ANNOTATIONS[name]
+        # Only tools that act on the phone ask for a cancel: a screenshot or a status call must not cancel an
+        # operation somebody else started. (The app's cancel is global, so even for these tools it can stop an
+        # operation of another client that runs at the same time; this is why it is skipped when nothing of this
+        # server is in flight.)
+        on_cancel = None if name in _READ_ONLY else tools.cancel_running
+        server.tool(name=name, description=description, annotations=annotations)(
+            _offload(getattr(tools, method), on_cancel))
     return server
 
 

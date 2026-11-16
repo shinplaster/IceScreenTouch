@@ -7,9 +7,9 @@ Order (docs/API-DESIGN.md, chapter 4):
 
 1. an explicit ``base_url`` / ``token`` given by the caller;
 2. the environment: ``ICESCREENTOUCH_API`` (``http://127.0.0.1:47821``) and ``ICESCREENTOUCH_TOKEN``;
-3. ``api.json`` of the Microsoft Store package (the MSIX redirects the app's %LOCALAPPDATA% writes into
+3. ``%ICESCREENTOUCH_DATA_DIR%\\api.json`` when that variable is set (an explicit choice of the data folder);
+4. ``api.json`` of the Microsoft Store package (the MSIX redirects the app's %LOCALAPPDATA% writes into
    ``%LOCALAPPDATA%\\Packages\\<family>\\LocalCache\\Local\\IceScreenTouch``);
-4. ``%ICESCREENTOUCH_DATA_DIR%\\api.json`` when that variable is set;
 5. ``%LOCALAPPDATA%\\IceScreenTouch\\api.json``.
 
 The client always talks to ``127.0.0.1`` (never ``localhost``, which may resolve to ``::1``; the server listens on IPv4
@@ -18,7 +18,9 @@ loopback only) and never sends an ``Origin`` header.
 Owner check. Before the token is handed to a port, this module asks Windows (``GetExtendedTcpTable``) which processes
 listen there, and about each of them (``OpenProcess``, ``OpenProcessToken``, ``QueryFullProcessImageNameW``) who runs it:
 
-* every listener on the port must run as the **current Windows user** and be ``IceScreenTouch.exe``;
+* every listener on the port must run as the **current Windows user** and be ``IceScreenTouch.exe``, and must not run
+  at a lower integrity level than this script when that level is below Medium (a Low-integrity process of the same user
+  can start a program with any file name and listen on a port);
 * for a connection from api.json, whose ``pid`` names the app, the only listener must also be exactly that pid (else the
   file is stale: a crash left it behind, or another program holds the port), and nobody listening means stale too;
 * for an environment variable or an explicit ``base_url``, nobody listening is not an error here (the call itself then
@@ -61,7 +63,8 @@ _STORE_SUBPATH = os.path.join("LocalCache", "Local", "IceScreenTouch", FILE_NAME
 
 # The server only accepts the tokens its own generator makes: 43 characters of the Base64url alphabet. A looser check
 # keeps this client usable if that changes, but still refuses anything that could break an HTTP header.
-_TOKEN_RE = re.compile(r"^[A-Za-z0-9_\-]{16,512}$")
+# Surrounding whitespace (the newline at the end of a token file or an environment variable) is stripped first.
+_TOKEN_RE = re.compile(r"[A-Za-z0-9_\-]{16,512}")
 
 
 @dataclass(frozen=True)
@@ -80,14 +83,18 @@ class Connection:
 
 
 def check_token(token: str, origin: str) -> str:
-    """Returns ``token`` when it looks like a token; raises ConnectionDiscoveryError (without the token) otherwise."""
-    if not isinstance(token, str) or not _TOKEN_RE.match(token):
+    """Returns ``token`` without surrounding whitespace when it looks like a token; raises ConnectionDiscoveryError
+    (without the token) otherwise."""
+    if not isinstance(token, str):
         raise ConnectionDiscoveryError(f"the token from {origin} is not a valid API token")
-    return token
+    stripped = token.strip()
+    if not _TOKEN_RE.fullmatch(stripped):
+        raise ConnectionDiscoveryError(f"the token from {origin} is not a valid API token")
+    return stripped
 
 
 def parse_base_url(base_url: str) -> int:
-    """The port of ``http://127.0.0.1:47821``. ``localhost`` is accepted and means 127.0.0.1; anything else is refused."""
+    """The port of ``http://127.0.0.1:47821``; any other host is refused. (The client always connects to 127.0.0.1.)"""
     try:
         parts = urlsplit(base_url if "//" in base_url else f"//{base_url}", scheme="http")
         host = (parts.hostname or "").lower()
@@ -96,7 +103,7 @@ def parse_base_url(base_url: str) -> int:
         raise ConnectionDiscoveryError(f"the API address {base_url!r} is not valid") from exc
     if parts.scheme != "http":
         raise ConnectionDiscoveryError("the API address must use http:// (the API listens on 127.0.0.1 without TLS)")
-    if host not in (HOST, "localhost"):
+    if host != HOST:
         # The token would go to another machine: refuse instead of trusting the caller.
         raise ConnectionDiscoveryError("the API address must be 127.0.0.1 (the API listens on the local machine only)")
     if parts.path not in ("", "/") or parts.query or parts.fragment or parts.username or parts.password:
@@ -109,6 +116,10 @@ def candidate_files(env: Optional[Mapping[str, str]] = None) -> List[Tuple[str, 
     env = os.environ if env is None else env
     local = env.get("LOCALAPPDATA")
     found: List[Tuple[str, str]] = []
+    # An explicitly set data folder comes first: the caller chose it over the default places.
+    data_dir = env.get(ENV_DATA_DIR)
+    if data_dir:
+        found.append((os.path.join(data_dir, FILE_NAME), f"{ENV_DATA_DIR}"))
     if local:
         store = os.path.join(local, "Packages", STORE_FAMILY, _STORE_SUBPATH)
         found.append((store, "Microsoft Store package"))
@@ -116,10 +127,6 @@ def candidate_files(env: Optional[Mapping[str, str]] = None) -> List[Tuple[str, 
         for path in sorted(glob.glob(pattern)):
             if os.path.normcase(path) != os.path.normcase(store):
                 found.append((path, "Microsoft Store package"))
-    data_dir = env.get(ENV_DATA_DIR)
-    if data_dir:
-        found.append((os.path.join(data_dir, FILE_NAME), f"{ENV_DATA_DIR}"))
-    if local:
         found.append((os.path.join(local, "IceScreenTouch", FILE_NAME), "the app data folder"))
     return found
 
@@ -178,6 +185,10 @@ def check_owner(connection: Connection) -> None:
         if not identity.same_user:
             raise StaleConnectionError(
                 f"the process that listens on port {port} does not run as the current Windows user; "
+                "the token was not sent")
+        if _winnet.integrity_too_low(identity.integrity, identity.own_integrity):
+            raise StaleConnectionError(
+                f"the process that listens on port {port} runs at a lower integrity level than this script; "
                 "the token was not sent")
         if os.path.basename(identity.image.replace("\\", "/")).lower() != IMAGE_NAME.lower():
             raise StaleConnectionError(

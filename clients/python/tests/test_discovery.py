@@ -66,7 +66,8 @@ def test_api_variable_without_token_is_an_error():
 
 
 @pytest.mark.parametrize("url", ["http://evil.example:47821", "https://127.0.0.1:47821", "http://127.0.0.1:47821/x",
-                                 "http://user:pw@127.0.0.1:47821", "http://[::1]:47821", "ftp://127.0.0.1:1"])
+                                 "http://user:pw@127.0.0.1:47821", "http://[::1]:47821", "ftp://127.0.0.1:1",
+                                 "http://localhost:47821", "localhost:5000"])
 def test_only_plain_loopback_urls(url):
     with pytest.raises(ist.ConnectionDiscoveryError):
         discovery.parse_base_url(url)
@@ -74,7 +75,7 @@ def test_only_plain_loopback_urls(url):
 
 def test_default_port():
     assert discovery.parse_base_url("http://127.0.0.1") == 47821
-    assert discovery.parse_base_url("localhost:5000") == 5000
+    assert discovery.parse_base_url("127.0.0.1:5000") == 5000
 
 
 @pytest.mark.parametrize("token", ["", "short", "has space " + "a" * 40, "new\nline" + "a" * 40, "ü" * 43])
@@ -84,14 +85,33 @@ def test_odd_tokens_are_refused_without_echoing_them(token):
     assert token not in str(info.value) or token == ""
 
 
+@pytest.mark.parametrize("suffix", ["\n", "\r\n", "  ", "\t\n"])
+def test_surrounding_whitespace_of_a_token_is_stripped(suffix, local):
+    assert discovery.check_token(TOKEN + suffix, "the test") == TOKEN
+    assert discovery.check_token(suffix + TOKEN, "the test") == TOKEN
+    # Environment variable, explicit argument and api.json all go through the same check.
+    assert discovery.discover("http://127.0.0.1:3333", TOKEN + suffix, {}).token == TOKEN
+    assert discovery.discover("http://127.0.0.1:3333", None, {"ICESCREENTOUCH_TOKEN": TOKEN + suffix}).token == TOKEN
+    env = {"ICESCREENTOUCH_API": "http://127.0.0.1:2222", "ICESCREENTOUCH_TOKEN": TOKEN + suffix}
+    assert discovery.discover(env=env).token == TOKEN
+    write_file(os.path.join(local, "IceScreenTouch"), 1111, token=TOKEN + suffix)
+    assert discovery.discover(env={"LOCALAPPDATA": local}).token == TOKEN
+    assert discovery.discover(token=OTHER_TOKEN + suffix, env={"LOCALAPPDATA": local}).token == OTHER_TOKEN
+
+
+def test_a_token_that_is_only_whitespace_is_refused():
+    with pytest.raises(ist.ConnectionDiscoveryError):
+        discovery.check_token("\n", "the test")
+
+
 # ---- Files ---------------------------------------------------------------------------------------------------
 
 def test_search_order(local, tmp_path):
     data = str(tmp_path / "data")
     env = {"LOCALAPPDATA": local, "ICESCREENTOUCH_DATA_DIR": data}
     paths = [p for p, _ in discovery.candidate_files(env)]
-    assert paths[0] == os.path.join(store_dir(local), "api.json")
-    assert paths[1:] == [os.path.join(data, "api.json"), os.path.join(local, "IceScreenTouch", "api.json")]
+    assert paths == [os.path.join(data, "api.json"), os.path.join(store_dir(local), "api.json"),
+                     os.path.join(local, "IceScreenTouch", "api.json")]
 
 
 def test_order_without_data_dir(local):
@@ -99,11 +119,20 @@ def test_order_without_data_dir(local):
     assert paths == [os.path.join(store_dir(local), "api.json"), os.path.join(local, "IceScreenTouch", "api.json")]
 
 
-def test_store_package_wins_over_the_plain_folder(local, tmp_path):
+def test_store_package_wins_over_the_plain_folder(local):
+    write_file(store_dir(local), 1111)
+    write_file(os.path.join(local, "IceScreenTouch"), 2222)
+    assert discovery.discover(env={"LOCALAPPDATA": local}).port == 1111
+
+
+def test_an_explicit_data_dir_wins_over_the_store_package(local, tmp_path):
     write_file(store_dir(local), 1111)
     write_file(os.path.join(local, "IceScreenTouch"), 2222)
     write_file(str(tmp_path / "data"), 3333)
     env = {"LOCALAPPDATA": local, "ICESCREENTOUCH_DATA_DIR": str(tmp_path / "data")}
+    assert discovery.discover(env=env).port == 3333
+    # A data dir without an api.json does not hide the other places.
+    env["ICESCREENTOUCH_DATA_DIR"] = str(tmp_path / "empty")
     assert discovery.discover(env=env).port == 1111
 
 
@@ -165,8 +194,9 @@ APP = r"C:\Program Files\WindowsApps\Shin-plaster.IceScreenTouch_1.0.0.0_x64__5c
 OWN_PORT = 5000
 
 
-def identity(pid, *, same_user=True, image=APP):
-    return _winnet.ProcessIdentity(pid=pid, image=image, same_user=same_user)
+def identity(pid, *, same_user=True, image=APP, integrity=None, own_integrity=None):
+    return _winnet.ProcessIdentity(pid=pid, image=image, same_user=same_user, integrity=integrity,
+                                   own_integrity=own_integrity)
 
 
 def fake_system(monkeypatch, owners, identities=None):
@@ -500,6 +530,53 @@ def test_not_windows_cannot_tell(monkeypatch):
 windows_only = pytest.mark.skipif(sys.platform != "win32", reason="the owner check is Windows only")
 
 
+LOW, MEDIUM, HIGH = 0x1000, 0x2000, 0x3000
+
+
+@pytest.mark.parametrize("theirs, mine, refused", [
+    (LOW, MEDIUM, True),     # a Low listener must not get the token of a normal script
+    (LOW, HIGH, True),
+    (0x0000, MEDIUM, True),  # Untrusted
+    (MEDIUM, MEDIUM, False),
+    (MEDIUM, HIGH, False),   # an elevated script may talk to the normal app
+    (HIGH, MEDIUM, False),
+    (LOW, LOW, False),       # a Low script is not made worse by a Low listener
+    (None, MEDIUM, False),   # not known (not Windows): nothing to compare
+    (LOW, None, False),
+])
+def test_integrity_comparison(theirs, mine, refused):
+    assert _winnet.integrity_too_low(theirs, mine) is refused
+
+
+@pytest.mark.parametrize("source", ["explicit", "environment", "file"])
+def test_a_low_integrity_listener_gets_no_token(monkeypatch, local, source):
+    """Same user and the right file name, but at a lower integrity level: a Low process can fake both."""
+    calls = fake_system(monkeypatch, {4242}, {4242: identity(4242, integrity=LOW, own_integrity=MEDIUM)})
+    if source == "explicit":
+        find = lambda: discovery.discover(f"http://127.0.0.1:{OWN_PORT}", TOKEN, {})
+    elif source == "environment":
+        find = lambda: discovery.discover(env=env_vars(OWN_PORT))
+    else:
+        file_env(local, pid=4242)
+        find = lambda: discovery.discover(env={"LOCALAPPDATA": local})
+    with pytest.raises(ist.StaleConnectionError, match="lower integrity level than this script") as info:
+        find()
+    assert "the token was not sent" in str(info.value) and TOKEN not in str(info.value)
+    assert calls["process"] == [4242]
+
+
+def test_a_medium_listener_passes_the_integrity_check(monkeypatch):
+    fake_system(monkeypatch, {4242}, {4242: identity(4242, integrity=MEDIUM, own_integrity=HIGH)})
+    assert discovery.discover(f"http://127.0.0.1:{OWN_PORT}", TOKEN, {}).token == TOKEN
+
+
+@windows_only
+def test_real_integrity_levels_of_this_process():
+    found = REAL_PROCESS_IDENTITY(os.getpid())
+    assert found.integrity is not None and found.integrity == found.own_integrity
+    assert found.integrity >= LOW and found.integrity % 0x1000 == 0
+
+
 @windows_only
 def test_real_table_finds_this_process():
     import socket
@@ -552,3 +629,21 @@ def test_real_listener_that_is_not_the_app_is_refused(monkeypatch):
             with pytest.raises(ist.StaleConnectionError, match="IceScreenTouch.exe"):
                 find()
         assert discovery.discover(f"http://127.0.0.1:{port}", TOKEN, {}, verify_owner=False).port == port
+
+
+def test_access_denied_while_inspecting_a_process_hints_at_elevation():
+    denied = _winnet.describe_failure("OpenProcess", 4242, 5)
+    assert "Windows error 5" in denied and "same elevation as the app" in denied
+    other = _winnet.describe_failure("OpenProcess", 4242, 87)
+    assert "Windows error 87" in other and "elevation" not in other
+
+
+def test_the_hint_reaches_the_stale_connection_error(monkeypatch):
+    def denied(pid):
+        raise _winnet.OwnerCheckError(_winnet.describe_failure("OpenProcess", pid, 5))
+
+    monkeypatch.setattr(_winnet, "listening_pids", lambda port: {4242})
+    monkeypatch.setattr(_winnet, "process_identity", denied)
+    with pytest.raises(ist.StaleConnectionError, match="same elevation as the app") as info:
+        discovery.discover("http://127.0.0.1:3333", TOKEN, {})
+    assert "the token was not sent" in str(info.value) and TOKEN not in str(info.value)

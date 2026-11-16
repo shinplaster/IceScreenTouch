@@ -5,8 +5,8 @@
 
 Used to check, before the bearer token is sent, that the process behind the port is IceScreen Touch running as the
 current Windows user: which processes listen on the port (``GetExtendedTcpTable``), and for a process its image name and
-the user it runs as (``OpenProcess``, ``QueryFullProcessImageNameW``, ``OpenProcessToken``, ``GetTokenInformation``,
-``EqualSid``).
+the user and the integrity level it runs at (``OpenProcess``, ``QueryFullProcessImageNameW``, ``OpenProcessToken``,
+``GetTokenInformation``, ``EqualSid``, ``GetSidSubAuthority``).
 
 Off Windows nothing can be asked and both public functions return None (the caller skips the check). **On Windows a
 failure is not "cannot tell": it raises** :class:`OwnerCheckError`, so the caller refuses to send the token.
@@ -38,10 +38,27 @@ _ANY = 0  # 0.0.0.0
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 _TOKEN_QUERY = 0x0008
 _TOKEN_USER = 1
+_TOKEN_INTEGRITY_LEVEL = 25
+
+SECURITY_MANDATORY_MEDIUM_RID = 0x2000  # the level of a normal desktop process
+
+
+_ERROR_ACCESS_DENIED = 5
+
+ELEVATION_HINT = (
+    "access denied: the app may be running elevated (as administrator); run this script with the same elevation "
+    "as the app"
+)
 
 
 class OwnerCheckError(Exception):
     """On Windows: the owner of a port could not be determined. The message never contains a token."""
+
+
+def describe_failure(what: str, pid: int, error: int) -> str:
+    """The text of a failed system call on process ``pid``; access denied (5) adds the hint about elevation."""
+    text = f"{what} failed for process {pid} (Windows error {error})"
+    return f"{text}; {ELEVATION_HINT}" if error == _ERROR_ACCESS_DENIED else text
 
 
 @dataclass(frozen=True)
@@ -51,6 +68,21 @@ class ProcessIdentity:
     pid: int
     image: str  # the full path of the executable
     same_user: bool  # runs as the same user as this process
+    integrity: Optional[int] = None  # the integrity level (RID) of the process; None when not known (tests, other OS)
+    own_integrity: Optional[int] = None  # the integrity level of this (the client) process
+
+
+def integrity_too_low(theirs: Optional[int], mine: Optional[int]) -> bool:
+    """True when a listener runs at a lower integrity level than this client **and** below Medium.
+
+    A Low-integrity process of the same user can run a program with any file name and listen on a port, so its listener
+    must not get the token. A listener at Medium or above passes, and so does any listener when this client runs at the
+    same or a lower level (an elevated client may talk to the normal Medium app). None (not known) never refuses here;
+    the Windows code raises instead when a level cannot be read.
+    """
+    if theirs is None or mine is None:
+        return False
+    return theirs < mine and theirs < SECURITY_MANDATORY_MEDIUM_RID
 
 
 def listening_pids(port: int) -> Optional[Set[int]]:
@@ -175,26 +207,51 @@ def _process_identity_windows(pid: int) -> ProcessIdentity:
     advapi32.GetTokenInformation.restype = BOOL
     advapi32.EqualSid.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
     advapi32.EqualSid.restype = BOOL
+    advapi32.GetSidSubAuthorityCount.argtypes = [ctypes.c_void_p]
+    advapi32.GetSidSubAuthorityCount.restype = ctypes.c_void_p
+    advapi32.GetSidSubAuthority.argtypes = [ctypes.c_void_p, DWORD]
+    advapi32.GetSidSubAuthority.restype = ctypes.c_void_p
 
     def fail(what: str) -> OwnerCheckError:
-        return OwnerCheckError(f"{what} failed for process {pid} (Windows error {ctypes.get_last_error()})")
+        return OwnerCheckError(describe_failure(what, pid, ctypes.get_last_error()))
 
-    def user_of(process: Any) -> Any:
-        """The TOKEN_USER buffer of ``process``; its first member is the pointer to the user's SID."""
+    def token_info(process: Any, information_class: int) -> Any:
+        """The buffer of ``GetTokenInformation(information_class)``; its first member is a pointer to a SID."""
         token = HANDLE()
         if not advapi32.OpenProcessToken(process, _TOKEN_QUERY, ctypes.byref(token)):
             raise fail("OpenProcessToken")
         try:
             needed = DWORD(0)
-            advapi32.GetTokenInformation(token, _TOKEN_USER, None, 0, ctypes.byref(needed))  # asks for the size
+            advapi32.GetTokenInformation(token, information_class, None, 0, ctypes.byref(needed))  # asks for the size
             if needed.value == 0:
                 raise fail("GetTokenInformation")
             buffer = ctypes.create_string_buffer(needed.value)
-            if not advapi32.GetTokenInformation(token, _TOKEN_USER, buffer, needed, ctypes.byref(needed)):
+            if not advapi32.GetTokenInformation(token, information_class, buffer, needed, ctypes.byref(needed)):
                 raise fail("GetTokenInformation")
             return buffer
         finally:
             kernel32.CloseHandle(token)
+
+    def user_of(process: Any) -> Any:
+        """The TOKEN_USER buffer of ``process``."""
+        return token_info(process, _TOKEN_USER)
+
+    def integrity_of(process: Any) -> int:
+        """The integrity level (the last sub-authority of the TOKEN_MANDATORY_LABEL SID) of ``process``."""
+        label = token_info(process, _TOKEN_INTEGRITY_LEVEL)
+        sid = ctypes.c_void_p.from_buffer(label).value
+        if not sid:
+            raise OwnerCheckError(f"no integrity level for process {pid}")
+        count_address = advapi32.GetSidSubAuthorityCount(sid)
+        if not count_address:
+            raise fail("GetSidSubAuthorityCount")
+        count = ctypes.c_ubyte.from_address(count_address).value
+        if count == 0:
+            raise OwnerCheckError(f"no integrity level for process {pid}")
+        rid_address = advapi32.GetSidSubAuthority(sid, count - 1)
+        if not rid_address:
+            raise fail("GetSidSubAuthority")
+        return int(ctypes.c_uint32.from_address(rid_address).value)
 
     handle = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
     if not handle:
@@ -211,6 +268,8 @@ def _process_identity_windows(pid: int) -> ProcessIdentity:
         if not their_sid or not my_sid:
             raise OwnerCheckError(f"no user SID for process {pid}")
         same_user = bool(advapi32.EqualSid(their_sid, my_sid))
-        return ProcessIdentity(pid=pid, image=path.value, same_user=same_user)
+        own_process = kernel32.GetCurrentProcess()
+        return ProcessIdentity(pid=pid, image=path.value, same_user=same_user, integrity=integrity_of(handle),
+                               own_integrity=integrity_of(own_process))
     finally:
         kernel32.CloseHandle(handle)

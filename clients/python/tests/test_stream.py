@@ -580,3 +580,16 @@ def test_the_answer_of_a_call_that_did_not_time_out_still_counts(make_stream):
         with pytest.raises(ist.InvalidRequestError):
             s.move(0.6, 0.5)  # an error within the time is raised by its own call
         assert s._late == {}
+
+
+def test_a_websocket_that_cannot_be_opened_in_time_says_nothing_was_sent(make_stream, monkeypatch):
+    import websockets.sync.client
+
+    def too_slow(*args, **kwargs):
+        raise TimeoutError("timed out during opening handshake")
+
+    monkeypatch.setattr(websockets.sync.client, "connect", too_slow)
+    server = make_stream()
+    with pytest.raises(ist.ApiTimeoutError) as info:
+        server.client().stream().open()
+    assert info.value.request_sent is False

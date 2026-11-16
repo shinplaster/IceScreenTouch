@@ -44,6 +44,7 @@ from .errors import (
     ApiError,
     ApiTimeoutError,
     ApiUnavailableError,
+    InvalidArgumentError,
     StreamClosedError,
     StreamInterruptedError,
     closed_error,
@@ -192,7 +193,10 @@ class Stream:
             response = exc.response
             raise _problem(response.status_code, response.headers.get("Content-Type", ""), response.body or b"") from None
         except TimeoutError:
-            raise ApiTimeoutError("IceScreen Touch did not accept the WebSocket in time") from None
+            # Opening a session is not an operation and the token is not sent before the handshake: nothing ran.
+            timed_out = ApiTimeoutError("IceScreen Touch did not accept the WebSocket in time (nothing was sent)")
+            timed_out.request_sent = False
+            raise timed_out from None
         except (OSError, WebSocketException) as exc:
             # Opening a session is not an operation: nothing has run, so a retry (after a new discovery) is safe.
             unavailable = ApiUnavailableError(
@@ -351,7 +355,7 @@ class Stream:
             raise waiter.error
 
     def _send(self, message: Dict[str, Any], ping: Optional[_Waiter] = None) -> None:
-        text = json.dumps(message, allow_nan=False, ensure_ascii=False)
+        text = json.dumps(message, allow_nan=False, ensure_ascii=False, separators=(",", ":"))
         ws = self._ws
         if ws is None:
             raise StreamClosedError("the stream is not open")
@@ -493,12 +497,12 @@ def _contacts(contacts: Iterable[Contact]) -> list:
     for contact in contacts:
         id_, x, y = contact
         if id_ not in (0, 1):
-            raise ValueError("a contact id must be 0 or 1")
+            raise InvalidArgumentError("a contact id must be 0 or 1")
         listed.append({"id": int(id_), "x": float(x), "y": float(y)})
     if not 1 <= len(listed) <= 2:
-        raise ValueError("one or two contacts are needed")
+        raise InvalidArgumentError("one or two contacts are needed")
     if len({c["id"] for c in listed}) != len(listed):
-        raise ValueError("contact ids must be unique")
+        raise InvalidArgumentError("contact ids must be unique")
     return listed
 
 
