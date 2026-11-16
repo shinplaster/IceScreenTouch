@@ -113,7 +113,7 @@ public sealed class WindowPictureCapture : IDisposable
     private bool _borderlessUnavailable; // for good: a borderless session cannot be had, so Windows.Graphics.Capture is not used
     private (WindowGeometry Geometry, (int Width, int Height) FrameSize)? _lastMismatch;
     private int _mismatches;
-    private bool _disposed;
+    private volatile bool _disposed;
 
     /// <summary>Creates the capture.</summary>
     /// <param name="time">The clock (default: the system's).</param>
@@ -302,12 +302,26 @@ public sealed class WindowPictureCapture : IDisposable
             Report("wgc-border", $"Windows.Graphics.Capture cannot be used without its border ({e.Message}): using PrintWindow");
             return null;
         }
+        catch (ObjectDisposedException) when (_disposed)
+        {
+            // This instance was disposed while the shot ran (the session is stopping): not a failure of Windows.Graphics.Capture, and
+            // PrintWindow must not run on a window of a stopping session either. A reader that already failed keeps its own exception.
+            readerFailure?.Throw();
+            return new PictureCaptureResult<T>(default, PictureSource.None);
+        }
 #pragma warning disable CA1031 // Anything that Windows.Graphics.Capture or Direct3D throws is a failure of the capture, never of the caller's reader
         catch (Exception e)
 #pragma warning restore CA1031
         {
             // A reader that already failed keeps its own exception (and is not run again on PrintWindow).
             readerFailure?.Throw();
+
+            // An instance that is being disposed: the native objects it owns can throw anything (COMException, InvalidOperationException)
+            // while they go away. That is not a failure of the capture, and PrintWindow must not run for a stopping session either.
+            if (_disposed)
+            {
+                return new PictureCaptureResult<T>(default, PictureSource.None);
+            }
 
             // The caller's reader cannot be what threw here (its exceptions are kept and thrown again below), so this is whatever the WinRT
             // projection, Direct3D or the session threw, including types nobody listed (PlatformNotSupportedException, Win32Exception):

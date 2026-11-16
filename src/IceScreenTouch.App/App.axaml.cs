@@ -34,6 +34,9 @@ public partial class App : Application
 {
     private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(5);
 
+    // The API stops first (it lifts what a script holds through the still running session), so its wait is bounded on its own.
+    private static readonly TimeSpan ApiStopTimeout = TimeSpan.FromSeconds(3);
+
     private MainViewModel? _vm;
     private ApiService? _api;
     private MainWindow? _window;
@@ -322,9 +325,14 @@ public partial class App : Application
         _window?.Hide();
         _vm.Probe?.Cancel();
 
-        // The session and the API stop together; the API's stop deletes api.json (a script must not find a stale one).
-        var stopped = Task.WhenAll(_vm.StopAsync(), _api?.StopAsync() ?? Task.CompletedTask);
-        await Task.WhenAny(stopped, Task.Delay(StopTimeout)).ConfigureAwait(true);
+        // The API stops first: it lifts every finger and key a script holds, which needs the session (and the phone link) still running.
+        // Its stop also deletes api.json (a script must not find a stale one). Then the session stops.
+        if (_api is not null)
+        {
+            await Task.WhenAny(_api.StopAsync(), Task.Delay(ApiStopTimeout)).ConfigureAwait(true);
+        }
+
+        await Task.WhenAny(_vm.StopAsync(), Task.Delay(StopTimeout)).ConfigureAwait(true);
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.Shutdown();
@@ -342,19 +350,19 @@ public partial class App : Application
     private void StopBlocking(AppServices services)
     {
         _tray?.Dispose();
-        if (!_exiting)
-        {
-            // The session uses ConfigureAwait(false) throughout, so waiting here cannot deadlock the UI thread.
-            _ = Task.Run(services.Mirror.StopAsync).Wait(StopTimeout);
-        }
-
-        // Also after Exit: stopping is idempotent, and api.json must be gone whichever way the app ended (the same
-        // ConfigureAwait(false) holds for the API).
+        // The API first (it lifts what a script holds through the still running session). Also after Exit: stopping is idempotent, and
+        // api.json must be gone whichever way the app ended. Waiting here cannot deadlock the UI thread: the API uses ConfigureAwait(false)
+        // throughout, like the session.
         if (_api is not null)
         {
-            _ = Task.Run(_api.StopAsync).Wait(StopTimeout);
+            _ = Task.Run(_api.StopAsync).Wait(ApiStopTimeout);
 
             // Not disposed: a license event may still be reconciling (it would find a disposed lock). The process ends next.
+        }
+
+        if (!_exiting)
+        {
+            _ = Task.Run(services.Mirror.StopAsync).Wait(StopTimeout);
         }
     }
 }

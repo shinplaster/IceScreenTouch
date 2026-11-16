@@ -72,6 +72,11 @@ public sealed class ApiTokenStore
             }
             else if (_secure is not null || ApiConnectionFile.IsProtectedToCurrentUser(Path))
             {
+                if (_secure is null)
+                {
+                    ApiConnectionFile.EnsureIntegrityLabel(Path, _log); // a file of an earlier version has none
+                }
+
                 return text;
             }
             else
@@ -131,7 +136,7 @@ public sealed class ApiTokenStore
             }
             else
             {
-                using var stream = ApiConnectionFile.CreateProtected(temp);
+                using var stream = ApiConnectionFile.CreateProtected(temp, _log);
                 stream.Write(bytes);
             }
 

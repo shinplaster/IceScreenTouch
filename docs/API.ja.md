@@ -21,7 +21,7 @@ IceScreen Touch には、自動操作 API があります。同じ PC のスク�
 
 ## 必要なもの
 
-- Microsoft Store で購入した IceScreen Touch、またはソースコードから自分でビルドしたアプリ。試用中は API が起動しません。API の動作中にライセンスが API を対象としなくなると、すべての呼び出しが `403` `purchase_required` を返します。
+- Microsoft Store で購入した IceScreen Touch、またはソースコードから自分でビルドしたアプリ。試用中は API が起動しません。API の動作中にライセンスが API を対象としなくなると、`POST /v1/cancel` を除くすべての呼び出しが `403` `purchase_required` を返します（止める命令はいつでも使えます）。
 - 端末で**ズーム**をオンにすること（設定 > アクセシビリティ > ズーム）。マウスで操作するときと同じです。オフだと、タッチが届きません。
 - 動作中のミラーリングのセッション（「状態」タブに状態が出ます）と、Bluetooth でつながった端末。
 - `screen` と `pixel` の座標には、端末の映像を映している AirPlay 受信ソフトのウィンドウが要ります。ウィンドウを閉じたり最小化したりすると、これらの呼び出しは `409` `no_picture` を返します。`device` の座標は映像が要りません（[座標](#座標)を見てください）。
@@ -58,7 +58,7 @@ API は**初期状態でオフ**です。
 
 - API は **127.0.0.1** だけで待ち受けます（`::1` や、ほかのアドレスでは待ち受けません）。ほかのコンピューターからは届きません。
 - **トークンは秘密にしてください。** `GET /v1/openapi.json` と WebSocket の接続開始を除くすべての呼び出しに、`Authorization: Bearer <トークン>` を付けます。トークンを持つものは、マウスとキーボードであなたが端末にできることを何でもできます。**パスコードの入力や購入の承認も含みます。** API は端末がロックされているかどうかを知らず、パスコード画面への入力も止めません。信頼できるスクリプトとエージェントにだけ使い、AI エージェントのツール呼び出しの承認はオンのままにしてください。
-- **Web ページからは呼べません。** `Origin` ヘッダーのあるリクエストは、`403` `forbidden_origin` で拒否します（Web ページは必ず `Origin` を付け、スクリプトやコマンドラインのツールは付けません）。`Host` ヘッダーは `127.0.0.1:<ポート>` か `localhost:<ポート>` でなければなりません。
+- **Web ページからは呼べません。** `Origin` ヘッダーのあるリクエストは、`403` `forbidden_origin` で拒否します（Web ページは必ず `Origin` を付け、スクリプトやコマンドラインのツールは付けません）。`Host` ヘッダーは `127.0.0.1:<ポート>` でなければなりません（`localhost` という名前ではなく、`127.0.0.1` のアドレスを使ってください）。
 - **あなた自身の操作が常に優先です。** ミラー画面を操作すると（映像の上のマウス、ホイール、端末へ送るキー、Home、回転）、動作中の操作は止まり、すべての指が離れ、すべてのキーが放されます。REST の呼び出しは `409` `user_interrupted` を返し、ストリームには `interrupted` のイベントが届いて閉じます。あなたの最後の操作から 1 秒のあいだ（マウスやキーを押している間も）、新しい操作は `409` `user_active` になります。API が自分で再開することはありません。やり直すかどうかは、スクリプトが決めます。
 
 ## すぐに試す
@@ -187,7 +187,7 @@ phone.tap_pixel(540, 1200, ref=shot.size)       # その画像のピクセルで
 - **大きさは端末ではなく受信ソフトのウィンドウに従います。** 画像の大きさはウィンドウの中の映像の大きさで、端末の実際の解像度ではありません。スクリーンショットの中の位置を指すときは、`space: "pixel"` にして、そのスクリーンショットの大きさ（受け取った画像の大きさ）を `ref` に渡します。
 - **映像がないとき。** 受信ソフトのウィンドウを閉じた、最小化した、別の仮想デスクトップにある、見つからない、または読めなかったときは、`409` `no_picture` です。最小化されたウィンドウは読めません。
 - **ほかのウィンドウは画像に写りません。** 画像は受信ソフトのウィンドウだけから作るので、通知、重ねて表示されるもの、手前にあるほかのプログラムは画像に入りません。
-- **スクリーンショット中は受信ソフトのウィンドウ枠に色が付きます。** スクリーンショットを撮ってから約 2 秒の間は、受信ソフトのウィンドウの周りに色つきの枠（通常は黄色）が表示されます。この枠は画像には写りません。
+- **スクリーンショット中は受信ソフトのウィンドウ枠に色が付きます。** スクリーンショットを撮ってから約 2 秒の間は、受信ソフトのウィンドウの周りに色つきの枠（通常は黄色）が表示されます。この枠は画像には写りません。Windows の取り込みが一時的に使えないとき（まれです）は、枠が出ないまま撮ることがあります。
 - **操作ではありません。** スクリーンショットは、タッチ、キー、WebSocket のストリームが動いている間も使えます。`409` `busy` にはなりません。
 - **1 秒に最大 10 枚です。API を使うすべてのプログラムの合計で数えます。** 1 秒の間の 11 枚目は、ヘッダー `Retry-After: 1` つきの `429` `rate_limited` です。クエリの確認を通ったリクエストは数えます（そのあとで `409` `not_running` や `409` `no_picture` になった場合も）。`429` で断られたリクエストは数えません。同時に進行中のスクリーンショットが多すぎるときも `429` `rate_limited` です。
 - **確認の順番。** 共通の確認（`Origin`、`Host`、トークン）のあとは、ライセンス（`403` `purchase_required`）、クエリ（`400` `invalid_request`）、頻度の上限（`429` `rate_limited`）、`409` `not_running`、`409` `no_picture` の順です。
@@ -290,7 +290,7 @@ uv sync --all-extras         # + MCP サーバーとテスト用のツール
 pip install .                # ほかに .[stream]  .[image]  .[mcp]
 ```
 
-`Client()` は、`ICESCREENTOUCH_API` と `ICESCREENTOUCH_TOKEN`、次に `api.json`（Microsoft Store の場所が先）から API を見つけます。接続先は必ず `127.0.0.1` で、`Origin` ヘッダーは送りません。`Client(base_url=..., token=...)` で、見つける手順を上書きできます。**接続先の確認:** Windows では、リクエストのたびに、そのポートで待ち受けているのが同じ Windows ユーザーで動く `IceScreenTouch.exe` であること（`api.json` の場合は、ファイルの `pid` そのものであること）を確かめます。そうでない場合や、確かめられない場合は、トークンを**送らず**、`StaleConnectionError` を起こします。`Client(..., verify_owner=False)` でこの確認を切れます。テスト用のサーバーなど、自分で用意した環境でだけ使ってください。エラーは `IceScreenTouchError` の派生クラスで、`code` ごとに 1 つあります。`busy` と `user_active` は再試行しません。あなたの操作が優先なので、どうするかはスクリプトが決めます。`phone.stream()` は WebSocket のセッションを開き（`stream` の追加パッケージが要ります）、指かキーを押している間は ping で保ちます。
+`Client()` は、`ICESCREENTOUCH_API` と `ICESCREENTOUCH_TOKEN`、次に `api.json`（`ICESCREENTOUCH_DATA_DIR` を明示的に設定していればその場所が最初で、次に Microsoft Store の場所、最後に既定のアプリのデータフォルダー）から API を見つけます。接続先は必ず `127.0.0.1` で、`Origin` ヘッダーは送りません。`Client(base_url=..., token=...)` で、見つける手順を上書きできます。**接続先の確認:** Windows では、リクエストのたびに、そのポートで待ち受けているのが同じ Windows ユーザーで動く `IceScreenTouch.exe` であり、整合性レベルが Medium 未満でスクリプトより低くないこと（`api.json` の場合は、ファイルの `pid` そのものであること）を確かめます。そうでない場合や、確かめられない場合は、トークンを**送らず**、`StaleConnectionError` を起こします。`Client(..., verify_owner=False)` でこの確認を切れます。テスト用のサーバーなど、自分で用意した環境でだけ使ってください。エラーは `IceScreenTouchError` の派生クラスで、`code` ごとに 1 つあります。`busy` と `user_active` は再試行しません。あなたの操作が優先なので、どうするかはスクリプトが決めます。`phone.stream()` は WebSocket のセッションを開き（`stream` の追加パッケージが要ります）、指かキーを押している間は ping で保ちます。
 
 ### MCP サーバー
 
@@ -299,7 +299,7 @@ pip install .                # ほかに .[stream]  .[image]  .[mcp]
 Claude Code:
 
 ```powershell
-claude mcp add icescreentouch -- uv --directory C:\path\to\IceScreenTouch\clients\python run --extra mcp icescreentouch-mcp
+claude mcp add icescreentouch -- uv --directory C:\path\to\IceScreenTouch\clients\python run --no-dev --extra mcp icescreentouch-mcp
 ```
 
 Claude Desktop（`claude_desktop_config.json`）:
@@ -309,7 +309,7 @@ Claude Desktop（`claude_desktop_config.json`）:
   "mcpServers": {
     "icescreentouch": {
       "command": "uv",
-      "args": ["--directory", "C:\\path\\to\\IceScreenTouch\\clients\\python", "run", "--extra", "mcp", "icescreentouch-mcp"]
+      "args": ["--directory", "C:\\path\\to\\IceScreenTouch\\clients\\python", "run", "--no-dev", "--extra", "mcp", "icescreentouch-mcp"]
     }
   }
 }

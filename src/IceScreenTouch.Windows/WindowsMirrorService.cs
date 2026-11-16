@@ -111,6 +111,7 @@ internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null
         // The automation API's hand-over of the input: one per session, closed by the bridge when its loop ends.
         private readonly ApiInputArbiter _arbiter = new(time);
         private ITouchSink _sink = OfflineSink.Instance;
+        private ReportTracker? _tracker; // remembers what is held on the device, so that stopping can let go of it
         private ArbiterInput? _arbiterInput;
 
         private readonly CancellationTokenSource _stop = new();
@@ -180,10 +181,15 @@ internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null
         private CaptureRunner? _captureRunner;
         private LogThrottle? _captureLogs;
         private WindowPictureCapture? _pictureCapture;
+        private readonly Lock _captureLock = new(); // guards _pictureCapture and _captureDisposed: a capture in flight must not create one after the session stopped
+        private bool _captureDisposed;
         private int _lastCaptureSource = -1; // -1 nothing logged yet, otherwise the PictureSource last logged
 
         /// <summary>The longest a screenshot waits for the window (a receiver that does not answer must not hold the request).</summary>
         private static readonly TimeSpan CaptureTimeout = TimeSpan.FromSeconds(5);
+
+        /// <summary>The longest stopping waits for the neutral touch and keyboard reports.</summary>
+        private static readonly TimeSpan ReleaseTimeout = TimeSpan.FromSeconds(2);
 
         // The receiver whose window is read: the running one the app follows, or UxPlay (never LonelyScreen). Its process owns the window.
         private int ReceiverProcessId => settings.Receiver == ReceiverMode.AttachToProcess ? _attached?.ProcessId ?? 0 : _uxplay?.ProcessId ?? 0;
@@ -225,7 +231,17 @@ internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null
 
             // Only the receiver's own window is read (Windows.Graphics.Capture, else PrintWindow), never the screen: nothing above the
             // window can get into the picture (WindowPictureCapture).
-            var capture = LazyInitializer.EnsureInitialized(ref _pictureCapture, () => new WindowPictureCapture(time, LogCapture));
+            WindowPictureCapture capture;
+            lock (_captureLock)
+            {
+                if (_captureDisposed)
+                {
+                    return null; // the session is stopping
+                }
+
+                capture = _pictureCapture ??= new WindowPictureCapture(time, LogCapture);
+            }
+
             PictureCaptureResult<CroppedPixels?> read;
             try
             {
@@ -281,9 +297,16 @@ internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null
 
         private void Wake()
         {
-            if (_targetChanged.CurrentCount == 0)
+            try
             {
-                _targetChanged.Release();
+                if (_targetChanged.CurrentCount == 0)
+                {
+                    _targetChanged.Release();
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+                // The session has stopped (an API thread chose a target while it was being torn down): nothing to wake.
             }
         }
 
@@ -417,7 +440,9 @@ internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null
         {
             log.Write("[app ] starting the session");
             _stopping = _stop.Token;
-            var sink = await StartBluetoothAsync(cancellationToken).ConfigureAwait(false);
+            // Every report of the session goes through the tracker (the bridge, the relay, the API): see ReleaseAllAsync in DisposeAsync.
+            var sink = new ReportTracker(await StartBluetoothAsync(cancellationToken).ConfigureAwait(false));
+            _tracker = sink;
             _sink = sink;
             _video = StartReceiver();
             if (_hid is { } targetHid)
@@ -450,7 +475,7 @@ internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null
             // Keys go to the device while the mirror window has the focus (and the probe does not own the phone).
             var focusDesktop = new Win32Desktop();
             _keyboard = KeyboardInput.Start(
-                sink as IKeyboardSink,
+                sink,
                 () => _bridge is { } b && b.Status is { Suspended: false } st && focusDesktop.IsForeground(st.Window),
                 settings.KeyboardInput,
                 HidKeyboardLayout.Us, // iOS treats the HID keyboard as US whatever its own layout setting says
@@ -569,7 +594,8 @@ internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null
                 }
             }
 
-            if (_bridge is { } bridge)
+            var bridge = _bridge;
+            if (bridge is not null)
             {
                 // Never leave a finger down on the phone.
                 await Step("lifting the finger", async () =>
@@ -577,7 +603,26 @@ internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null
                     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
                     await bridge.Engine.AbortAsync(timeout.Token).ConfigureAwait(false);
                 }).ConfigureAwait(false);
+            }
 
+            if (_tracker is { } tracker)
+            {
+                // What the automation API holds (a finger, a key) is not lifted by its own cleanup any more: the host has no session
+                // once stopping begins. Neutral reports for whatever is still held, before the keyboard and the HID service go.
+                await Step("releasing the fingers and keys still held", async () =>
+                {
+                    if (tracker.Held is { } held && (held.Fingers || held.Keys))
+                    {
+                        log.Write($"[app ] releasing what is still held on the device:{(held.Fingers ? " a finger" : string.Empty)}{(held.Keys ? " a key" : string.Empty)}");
+                    }
+
+                    using var timeout = new CancellationTokenSource(ReleaseTimeout);
+                    await tracker.ReleaseAllAsync(timeout.Token).ConfigureAwait(false);
+                }).ConfigureAwait(false);
+            }
+
+            if (bridge is not null)
+            {
                 var s = bridge.Engine.Stats;
                 var summary = string.Create(
                     CultureInfo.InvariantCulture,
@@ -602,7 +647,15 @@ internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null
                 await Step("the keyboard", () => keyboard.DisposeAsync().AsTask()).ConfigureAwait(false); // releases every key on the device
             }
 
-            if (_pictureCapture is { } pictures)
+            WindowPictureCapture? pictures;
+            lock (_captureLock)
+            {
+                _captureDisposed = true;
+                pictures = _pictureCapture;
+                _pictureCapture = null;
+            }
+
+            if (pictures is not null)
             {
                 await Step("the screenshot capture", () => { pictures.Dispose(); return Task.CompletedTask; }).ConfigureAwait(false);
             }

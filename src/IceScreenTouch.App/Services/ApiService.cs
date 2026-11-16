@@ -92,7 +92,7 @@ public sealed class ApiService : IDisposable
         _log = log;
         _time = time ?? TimeProvider.System;
         _tokens = new ApiTokenStore(dataDirectory, log);
-        _connectionFile = new ApiConnectionFile(dataDirectory);
+        _connectionFile = new ApiConnectionFile(dataDirectory, log: log);
         _host = new ApiHost(mirror, settings, _time, log);
         _host.LandscapeRotationSetWhileStopped += r => LandscapeRotationSetWhileStopped?.Invoke(r);
         _host.TargetChosen += id => TargetChosen?.Invoke(id);

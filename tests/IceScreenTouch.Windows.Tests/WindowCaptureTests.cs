@@ -6,12 +6,13 @@ using System.Drawing;
 using IceScreenTouch.Core;
 using IceScreenTouch.Platform.Windows;
 using IceScreenTouch.Video;
+using Xunit.Abstractions;
 
 namespace IceScreenTouch.Windows.Tests;
 
 // PrintWindow capture and picture detection against a real window: a black stand-in with a colored block where
 // a receiver would draw the phone picture. No input is injected.
-public sealed class WindowCaptureTests : IDisposable
+public sealed class WindowCaptureTests(ITestOutputHelper output) : IDisposable
 {
     private static readonly Color Picture = Color.FromArgb(200, 120, 60);
     private static readonly double Aspect = Geometry.FallbackVideoSize.Width / Geometry.FallbackVideoSize.Height;
@@ -19,6 +20,43 @@ public sealed class WindowCaptureTests : IDisposable
     private readonly StandInWindow _window = StandInWindow.Show(new Rectangle(200, 160, 860, 360), topMost: false, color: Color.Black);
 
     public void Dispose() => _window.Dispose();
+
+    /// <summary>
+    /// True once <paramref name="window"/> is the window on top at a grid of points over its client area (what the screen copy of
+    /// <see cref="WindowCapture"/> needs), waiting a moment for it. Another program's window (a topmost one, a notification, a window
+    /// that just took the focus) can be over the stand-in on a desktop that is in use: the test cannot show anything then, and says so in
+    /// its output (xunit 2 has no way to mark a running test as skipped, and the cause is the desktop, not the code).
+    /// </summary>
+    private bool IsOnTop(StandInWindow window, string test)
+    {
+        var watch = Stopwatch.StartNew();
+        do
+        {
+            var client = window.ClientOnScreen;
+            var root = Win32Windows.RootOf(window.Handle);
+            var covered = false;
+            for (var i = 0; i < 5 && !covered; i++)
+            {
+                for (var j = 0; j < 5 && !covered; j++)
+                {
+                    var x = client.Left + 1 + ((client.Width - 3) * i / 4);
+                    var y = client.Top + 1 + ((client.Height - 3) * j / 4);
+                    covered = Win32Windows.RootWindowAt(x, y) != root;
+                }
+            }
+
+            if (!covered)
+            {
+                return true;
+            }
+
+            Thread.Sleep(50);
+        }
+        while (watch.Elapsed < TimeSpan.FromSeconds(3));
+
+        output.WriteLine($"NOT RUN: {test} needs its stand-in window on top of every other window at the sample points, and another window covers it on this desktop. Close or move the windows over {window.ClientOnScreen} and run it again.");
+        return false;
+    }
 
     private static Rectangle Round(RectD r) =>
         Rectangle.FromLTRB((int)Math.Round(r.Left), (int)Math.Round(r.Top), (int)Math.Round(r.Left + r.Width), (int)Math.Round(r.Top + r.Height));
@@ -104,6 +142,11 @@ public sealed class WindowCaptureTests : IDisposable
         // On top of everything else, so that the grid finds it uncovered.
         using var front = StandInWindow.Show(new Rectangle(200, 160, 860, 360), topMost: true, color: Color.Black);
         front.ShowBlock(new Rectangle(100, 50, 200, 100), Picture);
+        if (!IsOnTop(front, nameof(AnUncoveredWindowIsStillCopiedFromTheScreenAndStartsNoSession)))
+        {
+            return;
+        }
+
         using var covered = new WindowPictureCapture(null, null, borderless: true);
         using var capture = new WindowCapture { CoveredCapture = covered };
 
@@ -122,6 +165,11 @@ public sealed class WindowCaptureTests : IDisposable
         using var capture = new WindowCapture { CoveredCapture = covered };
         using (var window = StandInWindow.Show(new Rectangle(200, 160, 400, 300), topMost: true, color: Color.Black))
         {
+            if (!IsOnTop(window, nameof(AWindowThatIsGoneLeavesNoStaleOrigin)))
+            {
+                return;
+            }
+
             _ = capture.Capture(window.Handle, (_, w, _, _) => w);
             Assert.Equal(CaptureOrigin.Screen, capture.LastOrigin);
         }

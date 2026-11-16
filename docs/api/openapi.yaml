@@ -31,7 +31,7 @@ info:
       never looks for another one.
     * The API is part of the purchased app (and of a build made from the source). While the app is in its trial it
       is not started; if the license stops covering it while the API runs, every call answers `403`
-      `purchase_required`.
+      `purchase_required`, except `POST /v1/cancel` (a stop command always works).
     * The API can only drive the one target device the app currently sends input to (see `PUT /v1/target`).
 
     ## Finding the API (connection discovery)
@@ -61,8 +61,8 @@ info:
       (see `GET /v1/stream`).
     * Any request with an `Origin` header is refused with `403` `forbidden_origin` (there is no CORS: scripts and
       command-line tools do not send `Origin`, web pages always do).
-    * The `Host` header must be `127.0.0.1:<port>` or `localhost:<port>` with the port of the API (protection
-      against DNS rebinding), else `403` `forbidden_origin`.
+    * The `Host` header must be `127.0.0.1:<port>` with the port of the API (protection against DNS rebinding;
+      use the address `127.0.0.1`, not the name `localhost`), else `403` `forbidden_origin`.
     * The checks run in this order: `Origin`, `Host`, token (`401` `unauthorized`, with
       `WWW-Authenticate: Bearer`), route (`404` `not_found`, `405` `method_not_allowed` with an `Allow` header), then
       the request body.
@@ -597,7 +597,8 @@ paths:
       description: |
         Ends the operation or WebSocket stream that is running: every finger is lifted and every key released. The
         stopped REST request answers `499` `cancelled`; a stream gets an `interrupted` event with reason `cancelled`
-        and is closed. Answers at once; `cancelled` tells whether something was running. No body.
+        and is closed. Answers at once; `cancelled` tells whether something was running. No body. This call works even when
+        the license does not cover the API (a stop command always works).
       responses:
         "200":
           description: Done.
@@ -624,7 +625,8 @@ paths:
         The picture of the device as the receiver window shows it: exactly the rectangle that `GET /v1/status` reports as
         `picture` (the black bars of the window are left out), as a PNG or a JPEG. The image is made from the receiver window
         alone, so other windows (notifications, overlays) do not appear in it. For about 2 seconds after a screenshot is taken, a colored border
-        (usually yellow) is shown around the receiver window; the border is not in the image.
+        (usually yellow) is shown around the receiver window; the border is not in the image. If Windows' capture is temporarily
+        unavailable (rare), a screenshot may be taken without the border.
 
         * The image size follows the **size of the receiver window**, not the resolution of the device. Use the size of
           the screenshot you took as `ref` when you point at it with `space: "pixel"`.
@@ -921,7 +923,7 @@ components:
             $ref: "#/components/schemas/Problem"
     Forbidden:
       description: |
-        `forbidden_origin` (an `Origin` header is present, or `Host` is not `127.0.0.1:<port>` / `localhost:<port>`)
+        `forbidden_origin` (an `Origin` header is present, or `Host` is not `127.0.0.1:<port>`)
         or `purchase_required` (the license does not cover the API).
       content:
         application/problem+json:

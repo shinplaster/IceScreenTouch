@@ -378,6 +378,26 @@ public sealed class WindowPictureCaptureTests
     }
 
     [Fact]
+    public void AnyFailureOfAnInstanceThatIsBeingDisposedGivesNoPictureAndNoPrintWindow()
+    {
+        // The native objects of a capture that goes away can throw anything (here a COMException from the session start): that is
+        // no failure of the capture to work round, so there is no PrintWindow either.
+        Harness? h = null;
+        h = new Harness(start: _ =>
+        {
+            h!.Capture.Dispose();
+            throw new System.Runtime.InteropServices.COMException("the device is gone");
+        });
+
+        var shot = h.Take();
+
+        Assert.Equal(PictureSource.None, shot.Source);
+        Assert.Null(shot.Value);
+        Assert.Equal(0, h.Print.Calls);
+        Assert.DoesNotContain(h.Reports, r => r.Kind == "wgc-failed");
+    }
+
+    [Fact]
     public void AFrameOfTheWrongSizeIsReadAgainFromANewerFrame()
     {
         // The window is being resized: the frame in hand is the old size, the next one is right.

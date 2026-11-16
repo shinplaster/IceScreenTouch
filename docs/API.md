@@ -21,7 +21,7 @@ This page is the guide. The full reference (every field, default, limit and erro
 
 ## What you need
 
-- The purchased IceScreen Touch from the Microsoft Store, or an app you built yourself from the source code. The API does not start while the app is in its trial. If the license stops covering it while the API runs, every call answers `403` `purchase_required`.
+- The purchased IceScreen Touch from the Microsoft Store, or an app you built yourself from the source code. The API does not start while the app is in its trial. If the license stops covering it while the API runs, every call answers `403` `purchase_required`, except `POST /v1/cancel` (a stop command always works).
 - **Zoom** turned on in the device (Settings > Accessibility > Zoom), as for the mouse. Without it, touches do not arrive.
 - A running mirroring session (the **Status** tab shows the state) and a device that is connected over Bluetooth.
 - For `screen` and `pixel` coordinates, an AirPlay receiver whose window shows the device's picture. If the window is closed or minimized, those calls answer `409` `no_picture`. `device` coordinates do not need the picture (see [Coordinates](#coordinates)).
@@ -58,7 +58,7 @@ The app then shows "Automation API: listening on 127.0.0.1:<port>", and "Automat
 
 - The API listens on **127.0.0.1** only (not `::1`, not another address). Programs on other machines cannot reach it.
 - **Keep the token secret.** Every call except `GET /v1/openapi.json` and the WebSocket upgrade carries `Authorization: Bearer <token>`. Anything that has the token can do on the device whatever you can do with the mouse and the keyboard, **including typing the passcode and confirming purchases**. The API cannot tell whether the device is locked and does not stop input to a passcode screen. Turn the API on only for scripts and agents you trust, and keep an AI agent's tool-call approval on.
-- **Web pages cannot call it.** A request that has an `Origin` header (web pages always send one; scripts and command-line tools do not) is refused with `403` `forbidden_origin`. The `Host` header must be `127.0.0.1:<port>` or `localhost:<port>`.
+- **Web pages cannot call it.** A request that has an `Origin` header (web pages always send one; scripts and command-line tools do not) is refused with `403` `forbidden_origin`. The `Host` header must be `127.0.0.1:<port>` (use the address `127.0.0.1`, not the name `localhost`).
 - **Your own input wins.** When you use the mirror window (the mouse on the picture, the wheel, the keys that go to the device, Home, rotate), a running operation is stopped, every finger is lifted and every key is released: a REST call answers `409` `user_interrupted`, and a stream gets an `interrupted` event and is closed. For one second after your last input (and while you hold the mouse or a key), new operations answer `409` `user_active`. The API never resumes by itself; the script decides whether to try again.
 
 ## Quick start
@@ -187,7 +187,7 @@ phone.tap_pixel(540, 1200, ref=shot.size)       # a position in the pixels of th
 - **The size follows the receiver window, not the device.** The image has the size of the picture in the window, which is not the resolution of the device. To point at a position in the screenshot, use `space: "pixel"` and give the size of that screenshot (the size of the image you received) as `ref`.
 - **No picture.** If the receiver window is closed, minimized, on another virtual desktop or not found, or it could not be read, the answer is `409` `no_picture`. A minimized window cannot be read.
 - **Other windows do not appear in the image.** The image is made from the receiver window alone, so notifications, overlays and other programs on top of it are not in the image.
-- **The receiver window gets a colored border during screenshots.** For about 2 seconds after a screenshot is taken, a colored border (usually yellow) is shown around the receiver window. The border is not in the image.
+- **The receiver window gets a colored border during screenshots.** For about 2 seconds after a screenshot is taken, a colored border (usually yellow) is shown around the receiver window. The border is not in the image. If Windows' capture is temporarily unavailable (rare), a screenshot may be taken without the border.
 - **Not an operation.** A screenshot also works while a touch, a key, or a WebSocket stream is running. It never answers `409` `busy`.
 - **At most 10 screenshots in any second, counted over all programs that use the API.** The 11th within a second answers `429` `rate_limited` with the header `Retry-After: 1`. A request counts once it has passed the check of its query (also when it is then answered `409` `not_running` or `409` `no_picture`); a request refused with `429` does not count. Too many screenshots in progress at once are also answered `429` `rate_limited`.
 - **The order of the checks** after the common ones (`Origin`, `Host`, token) is: the license (`403` `purchase_required`), the query (`400` `invalid_request`), the rate limit (`429` `rate_limited`), `409` `not_running`, `409` `no_picture`.
@@ -290,7 +290,7 @@ uv sync --all-extras         # + MCP server and the test tools
 pip install .                # also: .[stream]  .[image]  .[mcp]
 ```
 
-`Client()` finds the API from `ICESCREENTOUCH_API` and `ICESCREENTOUCH_TOKEN`, then from `api.json` (the Store location first). It always connects to `127.0.0.1` and never sends an `Origin` header. `Client(base_url=..., token=...)` overrides the discovery. **Owner check:** on Windows, before every request the client verifies that the listener on the port is `IceScreenTouch.exe` running as the same Windows user (for `api.json`, also exactly the `pid` in the file). If it is not, or if that cannot be verified, the token is **not sent** and `StaleConnectionError` is raised. `Client(..., verify_owner=False)` turns the check off for a setup you control, such as a test server. Errors are `IceScreenTouchError` subclasses, one per `code`. `busy` and `user_active` are not retried: your input has priority, so the script decides what to do. `phone.stream()` opens the WebSocket session (it needs the `stream` extra) and keeps it alive with pings while a finger or key is held.
+`Client()` finds the API from `ICESCREENTOUCH_API` and `ICESCREENTOUCH_TOKEN`, then from `api.json` (an explicitly set `ICESCREENTOUCH_DATA_DIR` first, then the Store location, then the default app data folder). It always connects to `127.0.0.1` and never sends an `Origin` header. `Client(base_url=..., token=...)` overrides the discovery. **Owner check:** on Windows, before every request the client verifies that the listener on the port is `IceScreenTouch.exe` running as the same Windows user and not at a lower integrity level than your script when that is below Medium (for `api.json`, also exactly the `pid` in the file). If it is not, or if that cannot be verified, the token is **not sent** and `StaleConnectionError` is raised. `Client(..., verify_owner=False)` turns the check off for a setup you control, such as a test server. Errors are `IceScreenTouchError` subclasses, one per `code`. `busy` and `user_active` are not retried: your input has priority, so the script decides what to do. `phone.stream()` opens the WebSocket session (it needs the `stream` extra) and keeps it alive with pings while a finger or key is held.
 
 ### MCP server
 
@@ -299,7 +299,7 @@ pip install .                # also: .[stream]  .[image]  .[mcp]
 Claude Code:
 
 ```powershell
-claude mcp add icescreentouch -- uv --directory C:\path\to\IceScreenTouch\clients\python run --extra mcp icescreentouch-mcp
+claude mcp add icescreentouch -- uv --directory C:\path\to\IceScreenTouch\clients\python run --no-dev --extra mcp icescreentouch-mcp
 ```
 
 Claude Desktop (`claude_desktop_config.json`):
@@ -309,7 +309,7 @@ Claude Desktop (`claude_desktop_config.json`):
   "mcpServers": {
     "icescreentouch": {
       "command": "uv",
-      "args": ["--directory", "C:\\path\\to\\IceScreenTouch\\clients\\python", "run", "--extra", "mcp", "icescreentouch-mcp"]
+      "args": ["--directory", "C:\\path\\to\\IceScreenTouch\\clients\\python", "run", "--no-dev", "--extra", "mcp", "icescreentouch-mcp"]
     }
   }
 }

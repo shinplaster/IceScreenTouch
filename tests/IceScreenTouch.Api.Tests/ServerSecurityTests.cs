@@ -148,13 +148,11 @@ public class ServerSecurityTests : ServerTestBase
     // ---- Host --------------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task BothAllowedHostsWithTheBoundPortPass()
+    public async Task TheLoopbackAddressWithTheBoundPortPasses()
     {
-        foreach (var host in new[] { $"127.0.0.1:{Port}", $"localhost:{Port}", $"LOCALHOST:{Port}", $"LocalHost:{Port}" })
-        {
-            var response = await SendAsync(HttpMethod.Get, "/v1/status", tweak: r => r.Headers.Host = host);
-            Assert.Equal(200, (int)response.StatusCode);
-        }
+        var response = await SendAsync(HttpMethod.Get, "/v1/status", tweak: r => r.Headers.Host = $"127.0.0.1:{Port}");
+
+        Assert.Equal(200, (int)response.StatusCode);
     }
 
     [Theory]
@@ -162,6 +160,9 @@ public class ServerSecurityTests : ServerTestBase
     [InlineData("evil.com:{port}")]
     [InlineData("127.0.0.1")] // no port: refused (the rule is exact)
     [InlineData("localhost")]
+    [InlineData("localhost:{port}")] // the name is no longer accepted: use 127.0.0.1
+    [InlineData("LOCALHOST:{port}")]
+    [InlineData("LocalHost:{port}")]
     [InlineData("127.0.0.1:1")]
     [InlineData("localhost:1")]
     [InlineData("127.0.0.1:0{port}")]

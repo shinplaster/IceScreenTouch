@@ -162,7 +162,7 @@ public sealed class ApiController : IDisposable
                 180 => Rotation.R180,
                 _ => throw Invalid("portrait must be 0 or 180"),
             };
-            return new OpSpec<RotationInfo>(Needs.None, (_, _) => ct =>
+            return new OpSpec<RotationInfo>(Needs.NoMeasurement, (_, _) => ct =>
             {
                 ct.ThrowIfCancellationRequested();
                 _host.SetRotation(landscape, portrait);
@@ -197,7 +197,8 @@ public sealed class ApiController : IDisposable
     /// and is not the user's), and while the probe has suspended the bridge (it only reads pixels). Order of the answers: license
     /// (<c>purchase_required</c>), the query (<c>invalid_request</c>, see <see cref="ScreenshotOptions"/>), the rate limit
     /// (<c>rate_limited</c>: at most <see cref="ScreenshotRateLimiter.Limit"/> screenshots in any second, over all clients; only a request that
-    /// passed the query check counts, also when it is then answered <c>not_running</c> or <c>no_picture</c>; a refused one does not extend the window),
+    /// passed the query check counts, also when it is then answered <c>not_running</c> or <c>no_picture</c>; a refused one does not extend the window;
+    /// a request refused because too many are in progress, which is checked first and also answers <c>rate_limited</c>, does not count),
     /// <c>not_running</c>, <c>no_picture</c> (no picture rectangle, or the host could not capture it).
     /// </summary>
     /// <param name="query">The URL's query as (name, value) pairs, in order.</param>
@@ -237,6 +238,28 @@ public sealed class ApiController : IDisposable
             return ApiResult.Fail<ScreenshotImage>(parsed.Error);
         }
 
+        // Too many in progress comes before the rate limit: a request refused for that must not use up the budget of the ones that are served
+        // (only a served request, or one refused by the limit itself, is counted, as documented). The count is given back when the
+        // request ends, whatever way it ends.
+        if (Interlocked.Increment(ref _screenshotsInProgress) > MaxConcurrentEncodes + MaxWaitingScreenshots)
+        {
+            _ = Interlocked.Decrement(ref _screenshotsInProgress);
+            return ApiResult.Fail<ScreenshotImage>(ApiError.Create(ApiErrorCodes.RateLimited, "too many screenshots are being taken at once"));
+        }
+
+        try
+        {
+            return await TakeCountedScreenshotAsync(parsed.Value!, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _ = Interlocked.Decrement(ref _screenshotsInProgress);
+        }
+    }
+
+    // The part of a screenshot that counts as "in progress" (see TakeScreenshotAsync).
+    private async ValueTask<ApiResult<ScreenshotImage>> TakeCountedScreenshotAsync(ScreenshotOptions options, CancellationToken cancellationToken)
+    {
         if (!_screenshotLimit.TryAcquire())
         {
             return ApiResult.Fail<ScreenshotImage>(ApiError.Create(ApiErrorCodes.RateLimited, $"at most {ScreenshotRateLimiter.Limit} screenshots per second"));
@@ -256,13 +279,6 @@ public sealed class ApiController : IDisposable
 
         // The turn comes before the capture: a picture (megabytes) is never held while it waits for an encoder, and ten requests a second
         // cannot pile up pictures behind a slow encode. Waiting requests hold nothing, and there are only a few of them.
-        if (Interlocked.Increment(ref _screenshotsInProgress) > MaxConcurrentEncodes + MaxWaitingScreenshots)
-        {
-            _ = Interlocked.Decrement(ref _screenshotsInProgress);
-            return ApiResult.Fail<ScreenshotImage>(ApiError.Create(ApiErrorCodes.RateLimited, "too many screenshots are being taken at once"));
-        }
-
-        var options = parsed.Value!;
         var holdsTurn = false;
         var handedOver = false;
         try
@@ -299,8 +315,6 @@ public sealed class ApiController : IDisposable
             {
                 _ = _encodeGate.Release();
             }
-
-            _ = Interlocked.Decrement(ref _screenshotsInProgress);
         }
     }
 
@@ -653,7 +667,7 @@ public sealed class ApiController : IDisposable
             }
 
             var text = request.Text;
-LimitTotal(EstimateTypingMs(text, interval), "split the text into several requests (an operation can take at most 60 seconds)");
+            LimitTotal(EstimateTypingMs(text, interval), "split the text into several requests (an operation can take at most 60 seconds)");
             return new OpSpec<TypeTextResponse>(Needs.Session | Needs.Input | Needs.Keyboard, (_, io) => async ct =>
             {
                 var skipped = await io.Keyboard.TypeAsync(text, HidKeyboardLayout.Us, TimeSpan.FromMilliseconds(interval), cancellationToken: ct, time: _time).ConfigureAwait(false);
@@ -923,11 +937,13 @@ LimitTotal(EstimateTypingMs(text, interval), "split the text into several reques
             {
                 return Refuse(ApiErrorCodes.NotRunning, "the mirroring session is not running");
             }
+        }
 
-            if (state.ProbeSuspended)
-            {
-                return Refuse(ApiErrorCodes.Busy, "a measurement is running");
-            }
+        // A measurement owns the phone (and the rotation the bridge uses): refused for everything that needs the session, and for
+        // the rotation, which also works while stopped.
+        if ((needs & (Needs.Session | Needs.NoMeasurement)) != 0 && state.ProbeSuspended)
+        {
+            return Refuse(ApiErrorCodes.Busy, "a measurement is running");
         }
 
         Handle handle;
@@ -960,7 +976,8 @@ LimitTotal(EstimateTypingMs(text, interval), "split the text into several reques
                 return ApiError.Create(ApiErrorCodes.UserActive, "the user is holding the mouse or a key on the mirror");
             }
 
-            if (state.LastUserInput is { } last && _time.GetUtcNow() - last < UserActiveWindow)
+            // A clock that was set back (negative difference) must not keep the API out for the time it went back.
+            if (state.LastUserInput is { } last && _time.GetUtcNow() - last is { } since && since >= TimeSpan.Zero && since < UserActiveWindow)
             {
                 return ApiError.Create(ApiErrorCodes.UserActive, "the user used the mirror a moment ago");
             }
@@ -1052,6 +1069,9 @@ LimitTotal(EstimateTypingMs(text, interval), "split the text into several reques
         Picture = 4,
         Keyboard = 8,
         HomeButton = 16,
+
+        // No probe measurement (nothing else: it also works while the session is stopped).
+        NoMeasurement = 32,
     }
 
     private readonly record struct Admission(ApiError? Error, Handle? Handle, ApiHostSnapshot? State);

@@ -43,7 +43,7 @@ public sealed record ApiServerStartResult(bool IsSuccess, int Port, string? Erro
 /// The HTTP server of the automation API (docs/API-DESIGN.md, chapters 4, 7 and 10). It listens on 127.0.0.1 only, answers
 /// JSON (errors as <c>application/problem+json</c>) and hands every operation to the <see cref="ApiController"/>.
 /// A request passes, in this order: the Origin check (any <c>Origin</c> header is 403 <c>forbidden_origin</c>, there is no
-/// CORS), the Host check (only <c>127.0.0.1:port</c> and <c>localhost:port</c> with the bound port, else 403
+/// CORS), the Host check (only <c>127.0.0.1:port</c> with the bound port, else 403
 /// <c>forbidden_origin</c>), the token check (<c>Authorization: Bearer</c>, else 401 <c>unauthorized</c>; not for an
 /// anonymous route), the route lookup (404 <c>not_found</c>, 405 <c>method_not_allowed</c>), and for a request with a body
 /// the checks of the size (at most <see cref="MaxBodyBytes"/>) and the content type (<c>application/json</c>); a body
@@ -460,7 +460,7 @@ public sealed class ApiServer : IAsyncDisposable
             // 2. DNS rebinding: a page on another name resolving to 127.0.0.1 still sends its own name as Host.
             if (!IsAllowedHost(context))
             {
-                await RejectAsync(context, ApiError.Create(ApiErrorCodes.ForbiddenOrigin, "the Host header must be 127.0.0.1 or localhost with the port of the API")).ConfigureAwait(false);
+                await RejectAsync(context, ApiError.Create(ApiErrorCodes.ForbiddenOrigin, "the Host header must be 127.0.0.1 with the port of the API")).ConfigureAwait(false);
                 return;
             }
 
@@ -572,8 +572,8 @@ public sealed class ApiServer : IAsyncDisposable
 
         // The exact port the server is bound to: a name without a port, or with another one, is refused.
         var port = context.Connection.LocalPort.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        return string.Equals(host, $"127.0.0.1:{port}", StringComparison.Ordinal)
-            || string.Equals(host, $"localhost:{port}", StringComparison.OrdinalIgnoreCase);
+        // Only the address: "localhost" is a name that a resolver (or a hosts file) decides, and the server listens on 127.0.0.1 only.
+        return string.Equals(host, $"127.0.0.1:{port}", StringComparison.Ordinal);
     }
 
     private bool IsAuthorized(HttpRequest request)

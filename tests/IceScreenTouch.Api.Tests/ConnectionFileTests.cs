@@ -117,6 +117,134 @@ public sealed class ConnectionFileTests : ApiTestBase, IDisposable
         Assert.Equal(AccessControlType.Allow, rule.AccessControlType);
     }
 
+    // ---- The Medium integrity label (a Low-integrity process of the same user must not read the token) ------
+
+    private static void AssertMediumNoReadNoWriteUp(string? label)
+    {
+        Assert.NotNull(label);
+        // "S:AI(ML;;NWNR;;;ME)": the flags in front (AI = auto-inherited) are the system's business; No-Write-Up and No-Read-Up, Medium.
+        Assert.Matches(@"^S:[A-Z]*\(ML;;(NW|NR){2};;;ME\)$", label);
+    }
+
+    [Fact]
+    public void OnWindowsTheFileCarriesTheMediumNoReadUpNoWriteUpLabel()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var file = new ApiConnectionFile(_dir);
+        file.Write(1, "t");
+
+        AssertMediumNoReadNoWriteUp(ApiConnectionFile.GetIntegrityLabel(file.Path));
+        Assert.Equal((1, "t"), Read(file.Path)); // the user can still read it
+    }
+
+    [Fact]
+    public void OnWindowsAFileOverwrittenByTheNextWriteKeepsTheLabel()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var file = new ApiConnectionFile(_dir);
+        file.Write(1, "a");
+        file.Write(2, "b");
+
+        AssertMediumNoReadNoWriteUp(ApiConnectionFile.GetIntegrityLabel(file.Path));
+    }
+
+    [Fact]
+    public void OnWindowsTheLabelIsThereBeforeAnythingIsWritten()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        System.IO.Directory.CreateDirectory(_dir);
+        var path = Path.Combine(_dir, "probe.bin");
+
+        using var stream = ApiConnectionFile.CreateProtected(path);
+
+        Assert.Equal(0, stream.Length);
+        AssertMediumNoReadNoWriteUp(ApiConnectionFile.GetIntegrityLabel(path));
+    }
+
+    [Fact]
+    public void OnWindowsAFileWithoutTheLabelGetsItAndAFailureIsNoError()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        System.IO.Directory.CreateDirectory(_dir);
+        var path = Path.Combine(_dir, "old.bin");
+        File.WriteAllText(path, "x");
+        Assert.Equal(string.Empty, ApiConnectionFile.GetIntegrityLabel(path));
+
+        ApiConnectionFile.EnsureIntegrityLabel(path);
+
+        AssertMediumNoReadNoWriteUp(ApiConnectionFile.GetIntegrityLabel(path));
+        var missing = Path.Combine(_dir, "missing.bin");
+        Assert.NotNull(IntegrityLabel.TrySet(missing)); // reported as a message, never thrown
+        ApiConnectionFile.EnsureIntegrityLabel(missing); // nothing to do, nothing thrown
+    }
+
+    [Theory]
+    [InlineData("S:(ML;;NRNW;;;ME)", true)]
+    [InlineData("S:(ML;;NWNR;;;ME)", true)]
+    [InlineData("S:AI(ML;;NWNR;;;ME)", true)] // how Windows reports it
+    [InlineData("S:PAI(ML;;NWNR;;;ME)", true)]
+    [InlineData("", false)]
+    [InlineData("S:(ML;;NW;;;ME)", false)] // read up allowed
+    [InlineData("S:(ML;;NR;;;ME)", false)]
+    [InlineData("S:(ML;;NWNR;;;LW)", false)] // Low
+    [InlineData("S:(ML;;NWNR;;;HI)", false)]
+    [InlineData("S:(ML;;NWNR;;;ME)(ML;;NWNR;;;LW)", false)]
+    public void TheExpectedLabelIsRecognisedWhateverTheOrderAndTheFlags(string sddl, bool expected)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        Assert.Equal(expected, IntegrityLabel.IsExpected(sddl));
+    }
+
+    [Fact]
+    public void OnWindowsALabelThatIsNotTheExpectedOneIsRewrittenAndTheExpectedOneIsLeftAlone()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        System.IO.Directory.CreateDirectory(_dir);
+        var path = Path.Combine(_dir, "relabeled.bin");
+        File.WriteAllText(path, "x");
+
+        // A Low label, and a Medium one that lets reads up through: both are replaced.
+        foreach (var other in new[] { "S:(ML;;NW;;;LW)", "S:(ML;;NW;;;ME)", "S:(ML;;NWNR;;;LW)" })
+        {
+            Assert.Null(IntegrityLabel.TrySet(path, other));
+            Assert.False(IntegrityLabel.IsExpected(ApiConnectionFile.GetIntegrityLabel(path)!));
+
+            ApiConnectionFile.EnsureIntegrityLabel(path);
+
+            AssertMediumNoReadNoWriteUp(ApiConnectionFile.GetIntegrityLabel(path));
+        }
+
+        // Windows reports the right label as S:AI(ML;;NWNR;;;ME): that is the expected one, and nothing is logged for it.
+        var messages = new List<string>();
+        ApiConnectionFile.EnsureIntegrityLabel(path, messages.Add);
+        Assert.Empty(messages);
+        AssertMediumNoReadNoWriteUp(ApiConnectionFile.GetIntegrityLabel(path));
+    }
+
     // ---- Together with the server ------------------------------------------------------------------------
 
     [Fact]

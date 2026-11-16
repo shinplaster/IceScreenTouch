@@ -183,6 +183,30 @@ public sealed class ApiTokenStoreTests : IDisposable
     }
 
     [Fact]
+    public void OnWindowsTheTokenFileCarriesTheMediumLabelAndAnOlderFileGetsIt()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var token = Store().GetOrCreate();
+        var path = Path.Combine(_dir.Path, "api-token");
+        var label = ApiConnectionFile.GetIntegrityLabel(path);
+        Assert.Matches(@"^S:[A-Z]*\(ML;;(NW|NR){2};;;ME\)$", label); // Medium, No-Write-Up and No-Read-Up (flags in front are the system's)
+
+        // A file of an earlier version: protected, but without the label. It keeps its token and is labelled.
+        File.Delete(path);
+        using (var stream = ApiConnectionFile.CreateProtected(path))
+        {
+            stream.Write(System.Text.Encoding.UTF8.GetBytes(token));
+        }
+
+        Assert.Equal(token, Store().GetOrCreate());
+        Assert.Matches(@"^S:[A-Z]*\(ML;;(NW|NR){2};;;ME\)$", ApiConnectionFile.GetIntegrityLabel(path));
+    }
+
+    [Fact]
     public void ALeftoverTemporaryFileOfACutShortWriteIsCleanedUp()
     {
         var leftover = Path.Combine(_dir.Path, "api-token.0123456789abcdef.tmp");

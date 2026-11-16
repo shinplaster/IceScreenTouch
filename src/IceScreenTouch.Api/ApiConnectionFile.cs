@@ -18,7 +18,10 @@ public sealed class ApiConnectionFile
     /// <summary>The file name.</summary>
     public const string FileName = "api.json";
 
+    private static int s_labelFailureLogged;
+
     private readonly Action<string>? _secure;
+    private readonly Action<string>? _log;
 
     /// <summary>Creates the handle; nothing is written yet.</summary>
     /// <param name="directory">
@@ -30,11 +33,13 @@ public sealed class ApiConnectionFile
     /// written; if it throws nothing is published. When null: on Windows the DACL becomes the current user only
     /// (inheritance off), on Unix the mode becomes 0600, elsewhere nothing happens.
     /// </param>
-    public ApiConnectionFile(string directory, Action<string>? secure = null)
+    /// <param name="log">Told once when the integrity label could not be put on the file (the file stays protected by its DACL).</param>
+    public ApiConnectionFile(string directory, Action<string>? secure = null, Action<string>? log = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
         Directory = directory;
         _secure = secure;
+        _log = log;
     }
 
     /// <summary>The directory of the file.</summary>
@@ -67,7 +72,7 @@ public sealed class ApiConnectionFile
             {
                 // Created with the current-user-only ACL in the same call: there is no moment at which another account could
                 // open the file, and the token goes in through the handle that created it.
-                using var stream = CreateProtected(temp);
+                using var stream = CreateProtected(temp, _log);
                 stream.Write(bytes);
             }
 
@@ -131,12 +136,13 @@ public sealed class ApiConnectionFile
         }
     }
 
-    /// <summary>The default restriction: the current user only.</summary>
-    public static void RestrictToCurrentUser(string path)
+    /// <summary>The default restriction: the current user only (on Windows also the Medium integrity label, see <see cref="CreateProtected"/>).</summary>
+    public static void RestrictToCurrentUser(string path, Action<string>? log = null)
     {
         if (OperatingSystem.IsWindows())
         {
             RestrictWindows(path);
+            LabelOrReport(IntegrityLabel.TrySet(path), log);
         }
         else if (!OperatingSystem.IsBrowser() && !OperatingSystem.IsWasi())
         {
@@ -147,13 +153,16 @@ public sealed class ApiConnectionFile
     /// <summary>
     /// Creates a NEW file (fails if it exists) that only the current user can open, in one step: on Windows with a protected
     /// DACL that has the current user only (inheritance off) given to the create call itself, on Unix with mode 0600. Nothing
-    /// is ever readable by another account, not even for a moment. Returns the stream, open for writing.
+    /// is ever readable by another account, not even for a moment. On Windows the file also gets the Medium mandatory integrity
+    /// label with No-Read-Up and No-Write-Up, before the caller writes anything, so that a Low-integrity process of the same user
+    /// cannot read it either; if the label cannot be set the file stays protected by its DACL and <paramref name="log"/> is told
+    /// once. Returns the stream, open for writing.
     /// </summary>
-    public static FileStream CreateProtected(string path)
+    public static FileStream CreateProtected(string path, Action<string>? log = null)
     {
         if (OperatingSystem.IsWindows())
         {
-            return CreateProtectedWindows(path);
+            return CreateProtectedWindows(path, log);
         }
 
         return new FileStream(path, new FileStreamOptions
@@ -167,7 +176,8 @@ public sealed class ApiConnectionFile
 
     /// <summary>
     /// True when only the current user can read the file: on Windows the current user owns it and its DACL is protected and
-    /// names only the current user; on Unix no group or other permission is set. A file that does not pass is not to be trusted
+    /// names only the current user; on Unix no group or other permission is set. The integrity label is not part of the test: a file
+    /// without it (made before the label existed, or where it could not be set) is still trusted, see <see cref="EnsureIntegrityLabel"/>. A file that does not pass is not to be trusted
     /// with a secret (it may have been planted or copied by another account).
     /// </summary>
     /// <exception cref="IOException">The file cannot be examined for another reason than permission.</exception>
@@ -194,14 +204,45 @@ public sealed class ApiConnectionFile
     }
 
     [SupportedOSPlatform("windows")]
-    private static FileStream CreateProtectedWindows(string path)
+    private static FileStream CreateProtectedWindows(string path, Action<string>? log)
     {
         var user = WindowsIdentity.GetCurrent().User
             ?? throw new InvalidOperationException("the current Windows user has no SID");
         var security = new FileSecurity();
         security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
         security.AddAccessRule(new FileSystemAccessRule(user, FileSystemRights.FullControl, AccessControlType.Allow));
-        return new FileInfo(path).Create(FileMode.CreateNew, FileSystemRights.FullControl, FileShare.None, 4096, FileOptions.None, security);
+        var stream = new FileInfo(path).Create(FileMode.CreateNew, FileSystemRights.FullControl, FileShare.None, 4096, FileOptions.None, security);
+        LabelOrReport(IntegrityLabel.TrySet(stream.SafeFileHandle), log); // still empty: the label is there before any secret is
+        return stream;
+    }
+
+    // A label that could not be set is no reason to stop: the DACL still keeps other accounts out. Said once (log, when there is one).
+    private static void LabelOrReport(string? error, Action<string>? log)
+    {
+        if (error is not null && log is not null && Interlocked.Exchange(ref s_labelFailureLogged, 1) == 0)
+        {
+            log($"[api] the integrity label could not be put on a secret file ({error}); it stays protected by its permissions only");
+        }
+    }
+
+    /// <summary>
+    /// The mandatory integrity label of the file as SDDL (for example <c>S:(ML;;NWNR;;;ME)</c>; an empty string when the file has none),
+    /// or null when it is not Windows or the label cannot be read.
+    /// </summary>
+    public static string? GetIntegrityLabel(string path) => OperatingSystem.IsWindows() ? IntegrityLabel.Read(path) : null;
+
+    /// <summary>
+    /// Puts the Medium integrity label (No-Read-Up and No-Write-Up) on a protected file whose label is missing or is anything else
+    /// (a file made before the label existed, or one whose label was changed). Does nothing where the label is already exactly that or
+    /// on other systems; a failure is reported once through <paramref name="log"/> and is no error.
+    /// </summary>
+    public static void EnsureIntegrityLabel(string path, Action<string>? log = null)
+    {
+        // An unreadable label (null) is left alone: it cannot be told what to correct.
+        if (OperatingSystem.IsWindows() && IntegrityLabel.Read(path) is { } label && !IntegrityLabel.IsExpected(label))
+        {
+            LabelOrReport(IntegrityLabel.TrySet(path), log);
+        }
     }
 
     [SupportedOSPlatform("windows")]

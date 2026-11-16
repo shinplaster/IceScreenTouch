@@ -133,6 +133,40 @@ public class PreconditionTests : ApiTestBase
     }
 
     [Fact]
+    public async Task SettingTheRotationIsBusyWhileAMeasurementRunsAndNothingIsSet()
+    {
+        Host.ProbeSuspended = true;
+
+        AssertError(await Controller.SetRotationAsync(new RotationRequest { Landscape = 270 }), ApiErrorCodes.Busy);
+        AssertError(await Controller.SetRotationAsync(new RotationRequest { Portrait = 180 }), ApiErrorCodes.Busy);
+
+        Assert.Empty(Host.RotationSets);
+        Assert.True(Controller.GetRotation().IsSuccess); // reading it is no operation
+        Assert.False(Controller.IsOperating);
+
+        Host.ProbeSuspended = false;
+
+        Assert.True((await Controller.SetRotationAsync(new RotationRequest { Landscape = 270 })).IsSuccess);
+        Assert.Single(Host.RotationSets);
+    }
+
+    [Fact]
+    public async Task SettingTheRotationStillWorksWhileStopped()
+    {
+        Host.Running = false;
+
+        Assert.True((await Controller.SetRotationAsync(new RotationRequest { Landscape = 270 })).IsSuccess);
+    }
+
+    [Fact]
+    public async Task AClockSetBackDoesNotKeepTheApiOutAsIfTheUserWasActive()
+    {
+        Host.UserJustActed(TimeSpan.FromMinutes(-10)); // the last input is "in the future": the wall clock went back
+
+        Assert.True((await Time.Drive(Controller.TapAsync(Tap))).IsSuccess);
+    }
+
+    [Fact]
     public async Task OnlyOneOperationRunsAtATime()
     {
         var running = Controller.LongPressAsync(new LongPressRequest { X = 0.5, Y = 0.5 }).AsTask();

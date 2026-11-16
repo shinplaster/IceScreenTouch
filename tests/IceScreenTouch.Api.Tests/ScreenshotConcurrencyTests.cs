@@ -93,8 +93,15 @@ public sealed class ScreenshotConcurrencyTests : ApiTestBase
         encoder.Release();
         Assert.All(await Task.WhenAll(calls), r => Assert.True(r.IsSuccess));
 
-        // Everything is given back: the next request is not refused.
-        Time.Advance(TimeSpan.FromSeconds(2)); // the rate limit counts the refused ones as well
+        // Everything is given back: the next request is not refused. The refused one did not use up the budget of the second:
+        // the served ones (all) plus these fill it exactly, and only the next one is refused by the rate limit.
+        for (var i = all; i < ScreenshotRateLimiter.Limit; i++)
+        {
+            Assert.True((await Controller.ScreenshotAsync([])).IsSuccess);
+        }
+
+        AssertError(await Controller.ScreenshotAsync([]), ApiErrorCodes.RateLimited);
+        Time.Advance(TimeSpan.FromSeconds(2));
         Assert.True((await Controller.ScreenshotAsync([])).IsSuccess);
     }
 
