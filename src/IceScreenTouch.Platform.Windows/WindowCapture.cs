@@ -10,6 +10,22 @@ namespace IceScreenTouch.Platform.Windows;
 /// <typeparam name="T">What the reader makes of them.</typeparam>
 public delegate T CapturedPixelsReader<out T>(ReadOnlySpan<byte> bgra, int width, int height, int stride);
 
+/// <summary>Where the pixels of the last <see cref="WindowCapture"/> came from.</summary>
+public enum CaptureOrigin
+{
+    /// <summary>Nothing was taken (<see cref="WindowCapture.CoveredCapture"/> had no picture).</summary>
+    None = 0,
+
+    /// <summary>A copy from the screen: nothing covered the window.</summary>
+    Screen,
+
+    /// <summary>Windows.Graphics.Capture (<see cref="WindowCapture.CoveredCapture"/>).</summary>
+    GraphicsCapture,
+
+    /// <summary>PrintWindow.</summary>
+    PrintWindow,
+}
+
 /// <summary>Where <see cref="WindowCapture"/> may take the pixels from.</summary>
 public enum WindowCaptureMode
 {
@@ -30,7 +46,7 @@ public enum WindowCaptureMode
 /// d3d11videosink) or, when <see cref="Mode"/> allows and a grid of points finds the window on top, by copying from the screen.
 /// PrintWindow makes the window draw again, and LonelyScreen (a Qt window with an OpenGL picture) visibly flickered at every capture
 /// (2026-11-06; white bands at the top and bottom, 2026-11-14). Without PW_RENDERFULLCONTENT its picture is missing. No yellow capture
-/// border, no Direct3D device. The bitmap is kept while the size stays the same. Not thread-safe: use one instance per thread.
+/// border, no Direct3D device (unless <see cref="CoveredCapture"/> is set, for the covered case). The bitmap is kept while the size stays the same. Not thread-safe: use one instance per thread.
 /// </summary>
 /// <remarks>
 /// A window that does not follow its monitor's DPI (AirServer's installer build, UxPlay's d3d11videosink window, 5KPlayer, LonelyScreen
@@ -50,8 +66,18 @@ public sealed class WindowCapture : IDisposable
     /// <summary>Where the pixels may come from (default: <see cref="WindowCaptureMode.ScreenWhenNotHit"/>).</summary>
     public WindowCaptureMode Mode { get; init; } = WindowCaptureMode.ScreenWhenNotHit;
 
-    /// <summary>The last capture came from the screen (else from PrintWindow).</summary>
+    /// <summary>
+    /// What takes the picture while the window is not found uncovered (default: null, PrintWindow). The caller owns it and disposes it
+    /// after this capture. Created with <c>borderless: true</c> it only runs when the capture border can be switched off, otherwise it
+    /// leaves the picture to PrintWindow. Used from the thread that calls <see cref="Capture{T}"/>.
+    /// </summary>
+    public WindowPictureCapture? CoveredCapture { get; init; }
+
+    /// <summary>The last capture came from the screen (else from PrintWindow or <see cref="CoveredCapture"/>).</summary>
     public bool LastFromScreen { get; private set; }
+
+    /// <summary>Where the last capture's pixels came from (<see cref="CaptureOrigin.None"/>: <see cref="CoveredCapture"/> found no picture).</summary>
+    public CaptureOrigin LastOrigin { get; private set; }
 
     /// <summary>
     /// Captures the client area of <paramref name="window"/> and hands the pixels to <paramref name="read"/>. Returns default when
@@ -65,21 +91,44 @@ public sealed class WindowCapture : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (!Win32Windows.IsShown(window) || !GetClientRect(window, out var rc) || rc.Right <= 0 || rc.Bottom <= 0)
         {
+            (LastFromScreen, LastOrigin) = (false, CaptureOrigin.None);
             return default;
         }
 
         // A client area whose pixels do not fit a buffer of 2 GB is not a window that is read (and the span below is an int).
         if ((long)rc.Right * rc.Bottom * 4 > int.MaxValue || !_target.Ensure(rc.Right, rc.Bottom))
         {
+            (LastFromScreen, LastOrigin) = (false, CaptureOrigin.None);
             return default;
         }
 
         LastFromScreen = Mode != WindowCaptureMode.PrintWindowOnly && Win32Windows.ClientRectOnScreen(window) is { } onScreen
             && onScreen.Width == rc.Right && onScreen.Height == rc.Bottom
             && IsUncoveredAtGrid(window, onScreen) && CopyFromScreen(onScreen);
-        if (!LastFromScreen && !Print(window, rc.Right, rc.Bottom))
+        if (LastFromScreen)
         {
-            return default;
+            LastOrigin = CaptureOrigin.Screen;
+        }
+        else
+        {
+            if (CoveredCapture is not null && Mode != WindowCaptureMode.PrintWindowOnly)
+            {
+                // The window is (or may be) covered: its own pixels from Windows.Graphics.Capture, which does not make it redraw. The
+                // client area comes at the size the screen copy has. When that cannot be used, PrintWindow below takes over.
+                var shot = CoveredCapture.CaptureGraphics(window, read);
+                if (shot.Source != PictureSource.PrintWindow)
+                {
+                    LastOrigin = shot.Source == PictureSource.GraphicsCapture ? CaptureOrigin.GraphicsCapture : CaptureOrigin.None;
+                    return shot.Value;
+                }
+            }
+
+            LastOrigin = CaptureOrigin.PrintWindow;
+            if (!Print(window, rc.Right, rc.Bottom))
+            {
+                LastOrigin = CaptureOrigin.None;
+                return default;
+            }
         }
 
         GdiFlush();

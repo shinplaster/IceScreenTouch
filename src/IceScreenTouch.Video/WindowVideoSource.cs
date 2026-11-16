@@ -62,6 +62,7 @@ public sealed record WindowVideoSourceOptions
 public sealed class WindowVideoSource : IVideoSource, IDisposable
 {
     private static readonly TimeSpan LookupInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan ReportInterval = TimeSpan.FromSeconds(30);
 
     private readonly string _processName;
     private readonly WindowVideoSourceOptions _options;
@@ -221,41 +222,84 @@ public sealed class WindowVideoSource : IVideoSource, IDisposable
 
     private void CaptureLoop()
     {
-        using var capture = new WindowCapture();
+        // While something covers the window its own pixels come from Windows.Graphics.Capture, without the capture border (a border that
+        // stays on a window the user is only looking at is not acceptable). PrintWindow made some receivers (LonelyScreen) flicker at
+        // every capture, and measured the picture a few pixels too tall. Where a borderless session cannot be had (an old Windows, a
+        // package that does not allow it) the covered window is read with PrintWindow, as before. Declared first: disposed last.
+        // The clock is the system's, not _time: the capture's back-off and idle timers are real time.
+        var reportedAt = new Dictionary<string, long>();
+
+        // Something that goes wrong on every shot (every 0.5 s) is logged at most once in 30 s per kind (the border message comes once anyway).
+        void LogThrottled(string kind, string message)
+        {
+            var now = Stopwatch.GetTimestamp();
+            if (!reportedAt.TryGetValue(kind, out var at) || Stopwatch.GetElapsedTime(at, now) >= ReportInterval)
+            {
+                reportedAt[kind] = now;
+                _log($"[video] {message}");
+            }
+        }
+
+        using var covered = new WindowPictureCapture(TimeProvider.System, LogThrottled, borderless: true);
+        using var capture = new WindowCapture { CoveredCapture = covered };
         var token = _stop.Token;
-        bool? fromScreen = null;
+        CaptureOrigin? origin = null;
         try
         {
             while (!token.IsCancellationRequested)
             {
                 _wake.Wait(_shape is { Pending: true } ? _options.FitWindowCaptureInterval : _options.CaptureInterval, token);
-                var window = _window;
-                if (window == 0)
+                try
                 {
-                    continue;
-                }
+                    var window = _window;
+                    if (window == 0)
+                    {
+                        continue;
+                    }
 
-                var started = Stopwatch.GetTimestamp();
-                if (_options.BottomToolbar > 0)
-                {
-                    _picture.BottomInset = (int)Math.Round(_options.BottomToolbar * Win32Windows.MonitorScaleOf(window));
-                }
+                    var started = Stopwatch.GetTimestamp();
+                    if (_options.BottomToolbar > 0)
+                    {
+                        _picture.BottomInset = (int)Math.Round(_options.BottomToolbar * Win32Windows.MonitorScaleOf(window));
+                    }
 
-                var found = capture.Capture(window, (bgra, width, height, stride) => (Estimate: _picture.Update(window, bgra, width, height, stride), Client: new SizeD(width, height)));
-                if (found.Client.Width > 0 && capture.LastFromScreen != fromScreen)
-                {
-                    fromScreen = capture.LastFromScreen;
-                    _log(fromScreen.Value
-                        ? "[video] capturing the window from the screen (nothing covers it)"
-                        : "[video] capturing the window with PrintWindow (something covers it)");
-                }
-                if (_shape is not null && found.Client.Width > 0)
-                {
-                    ObserveShape(window, found.Client, found.Estimate);
-                }
+                    var found = capture.Capture(window, (bgra, width, height, stride) => (Estimate: _picture.Update(window, bgra, width, height, stride), Client: new SizeD(width, height)));
+                    if (found.Client.Width > 0 && capture.LastOrigin != origin)
+                    {
+                        var previous = origin;
+                        origin = capture.LastOrigin;
+                        var line = origin switch
+                        {
+                            CaptureOrigin.Screen => "capturing the window from the screen (nothing covers it)",
+                            CaptureOrigin.GraphicsCapture => "capturing the window with Windows.Graphics.Capture (something covers it)",
+                            _ => "capturing the window with PrintWindow (something covers it)",
+                        };
 
-                var (count, _) = CaptureStats;
-                CaptureStats = (count + 1, Stopwatch.GetElapsedTime(started));
+                        // Covered/uncovered is logged every time. Windows.Graphics.Capture handing single shots to PrintWindow (a window being
+                        // resized) would flip on every shot: those are logged at most once in 30 s.
+                        if (previous is null or CaptureOrigin.Screen || origin == CaptureOrigin.Screen)
+                        {
+                            _log("[video] " + line);
+                        }
+                        else
+                        {
+                            LogThrottled("origin", line);
+                        }
+                    }
+                    if (_shape is not null && found.Client.Width > 0)
+                    {
+                        ObserveShape(window, found.Client, found.Estimate);
+                    }
+
+                    var (count, _) = CaptureStats;
+                    CaptureStats = (count + 1, Stopwatch.GetElapsedTime(started));
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException || !token.IsCancellationRequested)
+                {
+                    // One bad shot (a Windows or reader exception) must not end the capture for the rest of the run: log it (throttled) and
+                    // try again at the next interval.
+                    LogThrottled("loop", $"window capture failed, trying again: {ex.GetType().Name}: {ex.Message}");
+                }
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)

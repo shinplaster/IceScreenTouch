@@ -66,6 +66,70 @@ public sealed class WindowCaptureTests : IDisposable
         Assert.Equal(((byte)0, (byte)0, (byte)0), seen.Bar);
         Assert.Equal((Picture.R, Picture.G, Picture.B), seen.Covered); // under the red cover on screen
     }
+    [Fact]
+    public void ACoveredWindowIsReadWithWindowsGraphicsCaptureAtTheSizeOfTheScreenCopyAndTheCoverIsNotInIt()
+    {
+        _window.ShowBlock(new Rectangle(100, 50, 200, 100), Picture);
+        var c = _window.ClientOnScreen;
+        using var cover = StandInWindow.Show(new Rectangle(c.X + 50, c.Y + 20, 300, 200), color: Color.DarkRed);
+        var notes = new List<string>();
+        using var covered = new WindowPictureCapture(null, (kind, message) => notes.Add(kind + ": " + message), borderless: true);
+        using var capture = new WindowCapture { CoveredCapture = covered };
+
+        var seen = capture.Capture(_window.Handle, (bgra, width, height, stride) =>
+            (width, height, Block: PixelAt(bgra, stride, 200, 100), Bar: PixelAt(bgra, stride, 10, 10), Covered: PixelAt(bgra, stride, 120, 60)));
+
+        // Whatever the way (a system without a borderless session prints), the same client area, and the pixels of the window itself.
+        Assert.NotEqual(CaptureOrigin.Screen, capture.LastOrigin);
+        Assert.False(capture.LastFromScreen);
+        Assert.NotEqual(CaptureOrigin.None, capture.LastOrigin);
+        if (Environment.UserInteractive && WgcSession.IsSupported() && WgcSession.BorderlessAvailable())
+        {
+            // Where a session without the border can be had, it must be what took the picture (not PrintWindow in disguise).
+            Assert.Equal(CaptureOrigin.GraphicsCapture, capture.LastOrigin);
+            Assert.Equal(1, covered.OpenSessions);
+            Assert.Empty(notes);
+        }
+
+        Assert.Equal((860, 360), (seen.width, seen.height));
+        Assert.Equal(Block, seen.Block);
+        Assert.Equal(((byte)0, (byte)0, (byte)0), seen.Bar);
+        Assert.Equal(Block, seen.Covered);
+        Assert.DoesNotContain(notes, n => n.StartsWith("wgc-failed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AnUncoveredWindowIsStillCopiedFromTheScreenAndStartsNoSession()
+    {
+        // On top of everything else, so that the grid finds it uncovered.
+        using var front = StandInWindow.Show(new Rectangle(200, 160, 860, 360), topMost: true, color: Color.Black);
+        front.ShowBlock(new Rectangle(100, 50, 200, 100), Picture);
+        using var covered = new WindowPictureCapture(null, null, borderless: true);
+        using var capture = new WindowCapture { CoveredCapture = covered };
+
+        var seen = capture.Capture(front.Handle, (bgra, _, _, stride) => PixelAt(bgra, stride, 200, 100));
+
+        Assert.Equal(CaptureOrigin.Screen, capture.LastOrigin);
+        Assert.True(capture.LastFromScreen);
+        Assert.Equal(Block, seen);
+        Assert.Equal(0, covered.OpenSessions); // no session, no Direct3D device
+    }
+
+    [Fact]
+    public void AWindowThatIsGoneLeavesNoStaleOrigin()
+    {
+        using var covered = new WindowPictureCapture(null, null, borderless: true);
+        using var capture = new WindowCapture { CoveredCapture = covered };
+        using (var window = StandInWindow.Show(new Rectangle(200, 160, 400, 300), topMost: true, color: Color.Black))
+        {
+            _ = capture.Capture(window.Handle, (_, w, _, _) => w);
+            Assert.Equal(CaptureOrigin.Screen, capture.LastOrigin);
+        }
+
+        Assert.Equal(0, capture.Capture(0, (_, w, _, _) => w));
+        Assert.Equal(CaptureOrigin.None, capture.LastOrigin);
+        Assert.False(capture.LastFromScreen);
+    }
 
 
     // ---- The source of the pixels: PrintWindow only (the fallback of the screenshots), or the screen for the picture detection --------

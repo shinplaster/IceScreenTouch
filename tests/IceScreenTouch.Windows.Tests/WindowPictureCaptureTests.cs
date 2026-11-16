@@ -107,7 +107,7 @@ public sealed class WindowPictureCaptureTests
 
     private sealed class Harness : IDisposable
     {
-        public Harness(bool supported = true, Func<nint, IWgcSession>? start = null)
+        public Harness(bool supported = true, Func<nint, IWgcSession>? start = null, bool borderless = false, bool borderlessAvailable = true)
         {
             Sessions = [];
             Start = start ?? (root =>
@@ -118,8 +118,15 @@ public sealed class WindowPictureCaptureTests
                 Sessions.Add(session);
                 return session;
             });
-            Capture = new WindowPictureCapture(Time, Facts, Print, () => supported, root => Start(root), (kind, message) => Reports.Add((kind, message)));
+            Capture = new WindowPictureCapture(Time, Facts, Print, () => supported, (root, noBorder) =>
+            {
+                BorderlessStarts.Add(noBorder);
+                return Start(root);
+            }, (kind, message) => Reports.Add((kind, message)), borderless, () => borderlessAvailable);
         }
+
+        /// <summary>The border flag of every session start that was asked for.</summary>
+        public List<bool> BorderlessStarts { get; } = [];
 
         public FakeTimeProvider Time { get; } = new();
 
@@ -249,6 +256,94 @@ public sealed class WindowPictureCaptureTests
         _ = h.Take();
         Assert.Equal(2, starts); // tried again
     }
+
+    [Fact]
+    public void TheBorderIsKeptUnlessTheCaptureIsAskedToBeBorderless()
+    {
+        using var screenshots = new Harness();
+        using var locating = new Harness(borderless: true);
+
+        Assert.Equal(PictureSource.GraphicsCapture, screenshots.Take().Source);
+        Assert.Equal(PictureSource.GraphicsCapture, locating.Take().Source);
+
+        Assert.Equal([false], screenshots.BorderlessStarts); // the screenshot path keeps the system's border
+        Assert.Equal([true], locating.BorderlessStarts);
+    }
+
+    [Fact]
+    public void ABorderlessSessionThatCannotBeHadFallsBackToPrintWindowForGoodAndReportsOnce()
+    {
+        var starts = 0;
+        using var h = new Harness(borderless: true, start: _ =>
+        {
+            starts++;
+            throw new BorderlessCaptureUnavailableException("old Windows");
+        });
+
+        var first = h.Take();
+        Assert.Equal(PictureSource.PrintWindow, first.Source);
+        Assert.NotNull(first.Value);
+
+        // Not the 30 s back-off of a failure: never again, however long it is.
+        h.Time.Advance(TimeSpan.FromMinutes(10));
+        var second = h.Take();
+        h.Time.Advance(WindowPictureCapture.RetryAfterFailure * 4);
+        var third = h.Take();
+
+        Assert.Equal(PictureSource.PrintWindow, second.Source);
+        Assert.Equal(PictureSource.PrintWindow, third.Source);
+        Assert.Equal(1, starts);
+        Assert.Equal(3, h.Print.Calls);
+        Assert.Equal(0, h.Capture.OpenSessions);
+        Assert.Single(h.Reports); // once
+        Assert.Equal("wgc-border", h.Reports[0].Kind);
+    }
+
+    [Fact]
+    public void WithoutPrintingTheGraphicsCaptureOnlyVariantLeavesPrintWindowToTheCaller()
+    {
+        using var unsupported = new Harness(supported: false, borderless: true);
+        var result = unsupported.Capture.CaptureGraphics<int?>(Window, (_, w, _, _) => w);
+
+        Assert.Equal(PictureSource.PrintWindow, result.Source);
+        Assert.Null(result.Value);
+        Assert.Equal(0, unsupported.Print.Calls); // the caller prints
+
+        using var h = new Harness(borderless: true);
+        var shot = h.Capture.CaptureGraphics<int?>(Window, (_, w, _, _) => w);
+        Assert.Equal(PictureSource.GraphicsCapture, shot.Source);
+        Assert.Equal(6, shot.Value);
+        Assert.Equal(0, h.Print.Calls);
+    }
+
+    [Fact]
+    public void AnOrdinaryFailureOfABorderlessCaptureStillHasTheBackOffAndIsNoBorderProblem()
+    {
+        var starts = 0;
+        using var h = new Harness(borderless: true, start: _ =>
+        {
+            starts++;
+            throw new InvalidOperationException("no device");
+        });
+
+        _ = h.Take();
+        _ = h.Take();
+        Assert.Equal(1, starts);
+        Assert.Single(h.Reports, r => r.Kind == "wgc-failed");
+        Assert.DoesNotContain(h.Reports, r => r.Kind == "wgc-border");
+
+        h.Time.Advance(WindowPictureCapture.RetryAfterFailure);
+        _ = h.Take();
+        Assert.Equal(2, starts); // tried again, unlike a border that cannot be had
+    }
+
+    [Theory]
+    [InlineData(false, false, true)] // a build of your own: always
+    [InlineData(false, true, true)]
+    [InlineData(true, true, true)] // a package, allowed
+    [InlineData(true, false, false)] // a package, excluded
+    public void ABorderlessSessionIsAllowedInAPackageOnlyWhenTheSwitchSaysSo(bool packaged, bool allowInPackage, bool expected) =>
+        Assert.Equal(expected, WgcSession.BorderlessAllowed(packaged, allowInPackage));
 
     [Fact]
     public void ASessionThatGivesNoFirstFrameFallsBackToPrintWindow()
@@ -588,6 +683,97 @@ public sealed class WindowPictureCaptureTests
 
         Assert.Equal(PictureSource.PrintWindow, shot.Source);
         Assert.Single(h.Reports, r => r.Kind == "wgc-failed");
+    }
+
+    // ---- One bad shot never ends the caller's loop (M1) ----------------------------------------------------------------
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    [InlineData(0, true)]
+    [InlineData(1, true)]
+    public void AnExceptionNobodyListedFromTheCaptureIsAFailureOfTheCaptureAndFallsBack(int kind, bool locating)
+    {
+        var starts = 0;
+        using var h = new Harness(borderless: locating, start: _ =>
+        {
+            starts++;
+            throw kind == 0 ? new PlatformNotSupportedException("no capture here") : new System.ComponentModel.Win32Exception(5);
+        });
+
+        // Neither the screenshot nor the locating capture lets it go out; the locating one leaves PrintWindow to its caller.
+        PictureSource Shoot() => locating ? h.Capture.CaptureGraphics<int?>(Window, (_, w, _, _) => w).Source : h.Take().Source;
+
+        Assert.Equal(PictureSource.PrintWindow, Shoot());
+        Assert.Equal(PictureSource.PrintWindow, Shoot());
+        Assert.Equal(1, starts); // and it is left alone for a while, not tried at every shot
+        Assert.Single(h.Reports, r => r.Kind == "wgc-failed");
+    }
+
+    // ---- No Direct3D device for a borderless capture that cannot be had (M2) -----------------------------------------------
+
+    [Fact]
+    public void WhereNoBorderlessSessionCanBeHadNoSessionIsStartedAtAllAndPrintWindowTakesOver()
+    {
+        using var h = new Harness(borderless: true, borderlessAvailable: false);
+
+        var first = h.Capture.CaptureGraphics<int?>(Window, (_, w, _, _) => w);
+        var second = h.Capture.CaptureGraphics<int?>(Window, (_, w, _, _) => w);
+
+        Assert.Equal(PictureSource.PrintWindow, first.Source);
+        Assert.Equal(PictureSource.PrintWindow, second.Source);
+        Assert.Empty(h.BorderlessStarts); // the real start is what makes the Direct3D device: it is never asked for
+        Assert.Empty(h.StartedFor);
+        Assert.Equal(0, h.Print.Calls); // CaptureGraphics leaves printing to its caller
+        Assert.Single(h.Reports, r => r.Kind == "wgc-border");
+
+        // The screenshot capture does not ask for a borderless session, so it is not held back by this.
+        using var screenshots = new Harness(borderlessAvailable: false);
+        Assert.Equal(PictureSource.GraphicsCapture, screenshots.Take().Source);
+    }
+
+    // ---- For the locating capture a refusal or a mismatch is PrintWindow's, for a screenshot it is no picture (M3) ----------
+
+    [Fact]
+    public void ARefusedWindowIsPrintedByTheLocatingCaptureAndLeftAloneForAWhile()
+    {
+        var starts = 0;
+        using var h = new Harness(borderless: true, start: _ =>
+        {
+            starts++;
+            throw new UnauthorizedAccessException("access denied");
+        });
+
+        var first = h.Capture.CaptureGraphics<int?>(Window, (_, w, _, _) => w);
+        var second = h.Capture.CaptureGraphics<int?>(Window, (_, w, _, _) => w);
+
+        Assert.Equal(PictureSource.PrintWindow, first.Source);
+        Assert.Null(first.Value);
+        Assert.Equal(PictureSource.PrintWindow, second.Source);
+        Assert.Equal(1, starts); // no session is started every 0.5 s to be refused
+        Assert.Single(h.Reports, r => r.Kind == "wgc-denied");
+    }
+
+    [Fact]
+    public void AFrameThatDoesNotMatchIsPrintedByTheLocatingCaptureButIsNoPictureForAScreenshot()
+    {
+        Func<nint, IWgcSession> wrongSize = _ =>
+        {
+            var s = new FakeSession();
+            s.Frames.Add(new FakeFrame(20, 8));
+            return s;
+        };
+        using var locating = new Harness(borderless: true, start: wrongSize);
+        using var screenshot = new Harness(start: wrongSize);
+
+        var located = locating.Capture.CaptureGraphics<int?>(Window, (_, w, _, _) => w);
+        var shot = screenshot.Take();
+
+        Assert.Equal(PictureSource.PrintWindow, located.Source);
+        Assert.Null(located.Value);
+        Assert.Contains(locating.Reports, r => r.Kind == "geometry");
+        Assert.Equal(PictureSource.None, shot.Source); // the screenshot keeps its behaviour
+        Assert.Equal(0, screenshot.Print.Calls);
     }
 }
 

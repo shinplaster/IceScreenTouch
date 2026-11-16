@@ -75,6 +75,10 @@ internal interface IPrintCapture
 /// a resize: that counts as a failure (PrintWindow for <see cref="RetryAfterFailure"/>). A window that is gone or minimized meanwhile,
 /// and a refusal by Windows to capture the window (<see cref="UnauthorizedAccessException"/>: a privacy setting), are no failures, and
 /// the second never falls back to PrintWindow. An exception of the caller's reader goes out as it is.</para>
+/// <para>Border: the sessions keep the system's colored capture border (the user sees that a screenshot is taken). With
+/// <c>borderless: true</c> (the picture locating of <see cref="WindowCapture.CoveredCapture"/>) they are started without it, no consent is
+/// asked for, and if that cannot be had (<see cref="BorderlessCaptureUnavailableException"/>) PrintWindow is used for the life of the
+/// instance (one "wgc-border" report), never a session with a border.</para>
 /// <para>Threading: <see cref="Capture{T}"/> may be called from any thread, one call at a time is run (the others wait): the session
 /// is kept in a <see cref="CaptureSessionCache{TSession}"/> that closes it after <see cref="CaptureSessionCache{TSession}.IdleTime"/>
 /// without use, when another window is asked for, and on <see cref="Dispose"/>.</para>
@@ -104,6 +108,9 @@ public sealed class WindowPictureCapture : IDisposable
     private bool? _supported;
     private long _failedAt;
     private bool _failed;
+    private readonly bool _borderless;
+    private readonly Func<bool> _isBorderlessAvailable;
+    private bool _borderlessUnavailable; // for good: a borderless session cannot be had, so Windows.Graphics.Capture is not used
     private (WindowGeometry Geometry, (int Width, int Height) FrameSize)? _lastMismatch;
     private int _mismatches;
     private bool _disposed;
@@ -111,8 +118,13 @@ public sealed class WindowPictureCapture : IDisposable
     /// <summary>Creates the capture.</summary>
     /// <param name="time">The clock (default: the system's).</param>
     /// <param name="report">Told (kind, message) when something is worth a log line: Windows.Graphics.Capture could not be used, the frame did not match. The caller throttles.</param>
-    public WindowPictureCapture(TimeProvider? time = null, Action<string, string>? report = null)
-        : this(time ?? TimeProvider.System, new WindowFacts(), new PrintFallback(), null, null, report)
+    /// <param name="borderless">
+    /// Start the sessions without the yellow capture border (for looking at a window, not for a screenshot that the user should see being
+    /// taken). Windows.Graphics.Capture is then used only if the border can be switched off; if it cannot (an old Windows, a package, a
+    /// refusal), PrintWindow is used for good (reported once as "wgc-border").
+    /// </param>
+    public WindowPictureCapture(TimeProvider? time = null, Action<string, string>? report = null, bool borderless = false)
+        : this(time ?? TimeProvider.System, new WindowFacts(), new PrintFallback(), null, null, report, borderless)
     {
     }
 
@@ -121,16 +133,21 @@ public sealed class WindowPictureCapture : IDisposable
     /// <param name="facts">What Windows says about a window.</param>
     /// <param name="print">The PrintWindow capture.</param>
     /// <param name="isSupported">Whether Windows.Graphics.Capture can be used (default: asked from the system, once).</param>
-    /// <param name="startSession">Starts a session for a top-level window (default: a real one).</param>
+    /// <param name="startSession">Starts a session for a top-level window, with or without the capture border (default: a real one).</param>
     /// <param name="report">The log.</param>
-    internal WindowPictureCapture(TimeProvider time, IWindowFacts facts, IPrintCapture print, Func<bool>? isSupported, Func<nint, IWgcSession>? startSession, Action<string, string>? report)
+    /// <param name="borderless">Sessions without the capture border (see the public constructor).</param>
+    /// <param name="isBorderlessAvailable">Whether a session without the border can be had at all (default: the OS version and the package switch).</param>
+    internal WindowPictureCapture(TimeProvider time, IWindowFacts facts, IPrintCapture print, Func<bool>? isSupported, Func<nint, bool, IWgcSession>? startSession, Action<string, string>? report, bool borderless = false, Func<bool>? isBorderlessAvailable = null)
     {
         _time = time;
         _facts = facts;
         _print = print;
         _isSupported = isSupported ?? WgcSession.IsSupported;
         _report = report;
-        _sessions = new CaptureSessionCache<IWgcSession>(time, startSession ?? (root => new WgcSession(EnsureDevice(), root)), onEmpty: ReleaseStaging);
+        _borderless = borderless;
+        _isBorderlessAvailable = isBorderlessAvailable ?? WgcSession.BorderlessAvailable;
+        var start = startSession ?? ((root, noBorder) => new WgcSession(EnsureDevice(), root, noBorder));
+        _sessions = new CaptureSessionCache<IWgcSession>(time, root => start(root, borderless), onEmpty: ReleaseStaging);
     }
 
     /// <summary>Windows.Graphics.Capture sessions that are open (for tests).</summary>
@@ -142,7 +159,16 @@ public sealed class WindowPictureCapture : IDisposable
     /// </summary>
     /// <param name="window">The window (the receiver's window; for a window drawn inside a frame, the top-level window is captured).</param>
     /// <param name="read">Reads the pixels of the client area (valid only inside the call).</param>
-    public PictureCaptureResult<T> Capture<T>(nint window, CapturedPixelsReader<T> read)
+    public PictureCaptureResult<T> Capture<T>(nint window, CapturedPixelsReader<T> read) => CaptureCore(window, read, locating: false);
+
+    /// <summary>
+    /// Like <see cref="Capture{T}"/>, but PrintWindow is not run: when Windows.Graphics.Capture cannot be used, the result is
+    /// <see cref="PictureSource.PrintWindow"/> with no value, and the caller prints (<see cref="WindowCapture"/> does, with its own
+    /// bitmaps and the DPI stretch).
+    /// </summary>
+    internal PictureCaptureResult<T> CaptureGraphics<T>(nint window, CapturedPixelsReader<T> read) => CaptureCore(window, read, locating: true);
+
+    private PictureCaptureResult<T> CaptureCore<T>(nint window, CapturedPixelsReader<T> read, bool locating)
     {
         ArgumentNullException.ThrowIfNull(read);
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -161,7 +187,7 @@ public sealed class WindowPictureCapture : IDisposable
         {
             if (_facts.GeometryOf(window) is { } geometry)
             {
-                if (TryGraphicsCapture(window, geometry, read) is { } done)
+                if (TryGraphicsCapture(window, geometry, read, locating) is { } done)
                 {
                     return done;
                 }
@@ -172,8 +198,13 @@ public sealed class WindowPictureCapture : IDisposable
             }
         }
 
-        return new PictureCaptureResult<T>(_print.Print(window, read), PictureSource.PrintWindow);
+        return new PictureCaptureResult<T>(locating ? default : _print.Print(window, read), PictureSource.PrintWindow);
     }
+
+    // No picture from Windows.Graphics.Capture. A screenshot gets none (PrintWindow must not get round a refusal, and a frame that
+    // does not match is no picture to hand out); the picture locating, whose pixels never leave the application, has PrintWindow take it.
+    private static PictureCaptureResult<T> NoPicture<T>(bool locating) =>
+        new(default, locating ? PictureSource.PrintWindow : PictureSource.None);
 
     /// <summary>Closes every session and the Direct3D device.</summary>
     public void Dispose()
@@ -189,7 +220,7 @@ public sealed class WindowPictureCapture : IDisposable
     }
 
     // Null: Windows.Graphics.Capture failed, use PrintWindow.
-    private PictureCaptureResult<T>? TryGraphicsCapture<T>(nint window, WindowGeometry geometry, CapturedPixelsReader<T> read)
+    private PictureCaptureResult<T>? TryGraphicsCapture<T>(nint window, WindowGeometry geometry, CapturedPixelsReader<T> read, bool locating)
     {
         var frameSize = (Width: 0, Height: 0);
         var mismatch = false;
@@ -243,15 +274,44 @@ public sealed class WindowPictureCapture : IDisposable
                 return (second, picture, false);
             });
         }
-        catch (UnauthorizedAccessException e)
+        catch (Exception e) when (IsDenial(e))
         {
             // Windows refuses to let this window be captured (a privacy setting or a policy): that is the user's decision, and PrintWindow
-            // must not get round it. There is no picture; the next shot asks again.
-            Report("wgc-denied", $"Windows does not allow this window to be captured ({e.Message}): there is no picture");
-            return new PictureCaptureResult<T>(default, PictureSource.None);
+            // must not get round it. There is no picture; the next shot asks again. The picture locating (pixels that stay in the
+            // application, and that PrintWindow gave before) prints instead, and leaves the capture alone for a while: no session
+            // is started every 0.5 s to be refused.
+            Report("wgc-denied", $"Windows does not allow this window to be captured ({e.Message}): " + (locating ? "using PrintWindow" : "there is no picture"));
+            if (locating)
+            {
+                BackOff();
+            }
+
+            return NoPicture<T>(locating);
         }
-        catch (Exception e) when (IsGraphicsCaptureFailure(e))
+        catch (BorderlessCaptureUnavailableException e)
         {
+            // Not a failure to retry after a while: this system (or package) will not give a session without the border, and a constant
+            // yellow border on a window that is only looked at is not acceptable. PrintWindow takes over for the life of this instance.
+            lock (_state)
+            {
+                _borderlessUnavailable = true;
+            }
+
+            // The Direct3D device that may have been made for the attempt is not needed any more.
+            _sessions.Clear(DisposeDevice);
+            Report("wgc-border", $"Windows.Graphics.Capture cannot be used without its border ({e.Message}): using PrintWindow");
+            return null;
+        }
+#pragma warning disable CA1031 // Anything that Windows.Graphics.Capture or Direct3D throws is a failure of the capture, never of the caller's reader
+        catch (Exception e)
+#pragma warning restore CA1031
+        {
+            // A reader that already failed keeps its own exception (and is not run again on PrintWindow).
+            readerFailure?.Throw();
+
+            // The caller's reader cannot be what threw here (its exceptions are kept and thrown again below), so this is whatever the WinRT
+            // projection, Direct3D or the session threw, including types nobody listed (PlatformNotSupportedException, Win32Exception):
+            // one bad shot must not end the caller's loop.
             // The session has been closed by the cache. A window that went away between the check and the session is no failure.
             if (_facts.PresenceOf(window) == WindowPresence.Hidden)
             {
@@ -286,20 +346,18 @@ public sealed class WindowPictureCapture : IDisposable
                 return null;
             }
 
-            Report("geometry", why + ": there is no picture");
-            return new PictureCaptureResult<T>(default, PictureSource.None);
+            Report("geometry", why + (locating ? ": using PrintWindow for this shot" : ": there is no picture"));
+            return NoPicture<T>(locating);
         }
 
         ClearMismatches();
         return new PictureCaptureResult<T>(outcome.Value, PictureSource.GraphicsCapture);
     }
 
-    // What Windows.Graphics.Capture or Direct3D can throw when they do not work. Never the caller's reader (see TryGraphicsCapture).
-    // The HRESULTs map to ArgumentException (E_INVALIDARG), OutOfMemoryException (E_OUTOFMEMORY) and NotImplementedException (E_NOTIMPL).
-    private static bool IsGraphicsCaptureFailure(Exception e) =>
-        e is COMException or InvalidOperationException or ObjectDisposedException or InvalidCastException or ArgumentException or NotSupportedException
-            or TypeLoadException or DllNotFoundException or EntryPointNotFoundException or BadImageFormatException or OutOfMemoryException
-            or NotImplementedException;
+    // Windows refusing the capture. The projections map E_ACCESSDENIED to UnauthorizedAccessException; the other shapes are matched too, so
+    // that a refusal can never be taken for a failure (which a screenshot would answer with PrintWindow).
+    private static bool IsDenial(Exception e) =>
+        e is UnauthorizedAccessException or System.Security.SecurityException or COMException { HResult: unchecked((int)0x80070005) };
 
     // A frame that did not match a window that did not change since the last mismatch counts up; true at the third in a row.
     private bool NoteMismatch(WindowGeometry geometry, (int Width, int Height) frameSize)
@@ -329,6 +387,8 @@ public sealed class WindowPictureCapture : IDisposable
 
     private bool CanUseGraphicsCapture()
     {
+        var borderNowUnavailable = false;
+        bool can;
         lock (_state)
         {
             _supported ??= _isSupported();
@@ -337,24 +397,49 @@ public sealed class WindowPictureCapture : IDisposable
                 return false;
             }
 
-            if (_failed && _time.GetElapsedTime(_failedAt) < RetryAfterFailure)
+            // Asked before any session (and so before the Direct3D device) is made: where the border cannot be switched off (a package,
+            // an old Windows) the answer is the same for the life of the process, and nothing of Windows.Graphics.Capture is touched.
+            if (_borderless && !_borderlessUnavailable && !_isBorderlessAvailable())
             {
-                return false;
+                _borderlessUnavailable = true;
+                borderNowUnavailable = true;
             }
 
-            _failed = false;
-            return true;
+            if (_borderless && _borderlessUnavailable)
+            {
+                can = false;
+            }
+            else if (_failed && _time.GetElapsedTime(_failedAt) < RetryAfterFailure)
+            {
+                can = false;
+            }
+            else
+            {
+                _failed = false;
+                can = true;
+            }
         }
+
+        if (borderNowUnavailable)
+        {
+            Report("wgc-border", "Windows.Graphics.Capture cannot be used without its border here (a package, or Windows before 10.0.20348): using PrintWindow");
+        }
+
+        return can;
     }
 
-    private void Fail(string why)
+    private void BackOff()
     {
         lock (_state)
         {
             _failed = true;
             _failedAt = _time.GetTimestamp();
         }
+    }
 
+    private void Fail(string why)
+    {
+        BackOff();
         Report("wgc-failed", $"Windows.Graphics.Capture could not be used ({why}): reading the window with PrintWindow for {(int)RetryAfterFailure.TotalSeconds} s");
     }
 

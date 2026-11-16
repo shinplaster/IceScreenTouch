@@ -295,6 +295,28 @@ internal static class SelfCheck
             return Task.FromResult($"taskbar {shot.Value.width}x{shot.Value.height} through Windows.Graphics.Capture");
         }).ConfigureAwait(false);
 
+        await Check("borderless capture", () =>
+        {
+            // The capture that finds the picture of a covered receiver window starts its sessions without the capture border (no consent,
+            // no capability). Where Windows or the package does not allow that, PrintWindow is used instead: a warning, not a failure.
+            var taskbar = Win32Windows.FindTopLevelByClass("Shell_TrayWnd");
+            if (taskbar == 0)
+            {
+                return Task.FromResult(WarningPrefix + "no taskbar window (no desktop): the borderless capture was not tested");
+            }
+
+            var notes = new List<string>();
+            using var capture = new WindowPictureCapture(null, (kind, message) => notes.Add($"{kind}: {message}"), borderless: true);
+            var shot = capture.Capture(taskbar, (_, width, height, stride) => (width, height, stride));
+            var packaged = PackageIdentity.IsPackaged ? "packaged" : "not packaged";
+            if (shot.Source == PictureSource.GraphicsCapture)
+            {
+                return Task.FromResult($"a session without the capture border started ({packaged}, taskbar {shot.Value.width}x{shot.Value.height})");
+            }
+
+            return Task.FromResult($"{WarningPrefix}no session without the capture border ({packaged}, {shot.Source}): a covered receiver window is read with PrintWindow. {string.Join("; ", notes)}");
+        }).ConfigureAwait(false);
+
         await Check("win32", () =>
         {
             var cursor = new Win32Desktop().CursorPosition;

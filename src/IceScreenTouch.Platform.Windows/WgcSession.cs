@@ -19,6 +19,23 @@ internal enum WgcReadStatus
     NoFrame,
 }
 
+/// <summary>
+/// A session without the capture border was asked for and cannot be had (Windows older than 10.0.20348, a package that is excluded
+/// from it, or Windows refused to switch the border off). The caller uses another way, and does not ask again: it will not change.
+/// </summary>
+internal sealed class BorderlessCaptureUnavailableException : InvalidOperationException
+{
+    public BorderlessCaptureUnavailableException(string message)
+        : base(message)
+    {
+    }
+
+    public BorderlessCaptureUnavailableException(string message, Exception inner)
+        : base(message, inner)
+    {
+    }
+}
+
 /// <summary>A running capture of one window: keeps the most recent frame and reads it on demand.</summary>
 internal interface IWgcSession : IDisposable
 {
@@ -58,10 +75,28 @@ internal sealed partial class WgcSession : IWgcSession
     private SizeInt32 _poolSize;
     private bool _disposed;
 
+    /// <summary>
+    /// The one place to flip: whether a borderless session (<c>IsBorderRequired</c> off) is tried in an MSIX package (the Store
+    /// build). Off: in a package without the user's consent (<c>GraphicsCaptureAccess.RequestAccessAsync</c>, which this app does
+    /// not ask for) setting the property neither throws nor works, and the yellow border is drawn anyway (verified 2026-11-17 with a
+    /// test-signed package). The locating capture therefore uses PrintWindow in a package. A build of your own (no package identity)
+    /// is not affected: there the border does go away.
+    /// </summary>
+    internal const bool AllowBorderlessInPackage = false;
+
     /// <summary>Starts capturing <paramref name="window"/> (a top-level window).</summary>
+    /// <param name="device">The Direct3D device.</param>
+    /// <param name="window">The top-level window.</param>
+    /// <param name="borderless">Without the capture border (no consent is asked for); the session does not start when that cannot be had.</param>
     /// <exception cref="COMException">The window cannot be captured (or no capture on this system).</exception>
-    public WgcSession(WgcDevice device, nint window)
+    /// <exception cref="BorderlessCaptureUnavailableException"><paramref name="borderless"/> and the border cannot be switched off.</exception>
+    public WgcSession(WgcDevice device, nint window, bool borderless = false)
     {
+        if (borderless && !BorderlessAvailable())
+        {
+            throw new BorderlessCaptureUnavailableException("a borderless capture is not available here (a package, or Windows before 10.0.20348)");
+        }
+
         _device = device;
         var item = CreateItem(window);
         _poolSize = item.Size;
@@ -70,7 +105,7 @@ internal sealed partial class WgcSession : IWgcSession
         {
             _pool.FrameArrived += OnFrameArrived;
             _session = _pool.CreateCaptureSession(item);
-            SetOptions(_session);
+            SetOptions(_session, borderless);
             _session.StartCapture();
         }
         catch
@@ -243,13 +278,25 @@ internal sealed partial class WgcSession : IWgcSession
         }
     }
 
-    // Options that only matter for looks; the capture works without them, so a failure is ignored.
-    // IsBorderRequired is deliberately left at the system default: Windows draws a colored border around the window while the session
-    // is open, which tells the user that the window is being captured. A borderless capture would need the user's consent
-    // (GraphicsCaptureAccess.RequestAccessAsync, a prompt) and, in a package, a capability; this does not ask for either.
-    private static void SetOptions(GraphicsCaptureSession session)
+    /// <summary>
+    /// Whether a session without the capture border can be tried at all: Windows 10.0.20348 or later (where <c>IsBorderRequired</c> exists)
+    /// and, in a package, only when <see cref="AllowBorderlessInPackage"/>. Answered without touching Windows.Graphics.Capture or Direct3D.
+    /// </summary>
+    internal static bool BorderlessAvailable() =>
+        OperatingSystem.IsWindowsVersionAtLeast(10, 0, 20348) && BorderlessAllowed(PackageIdentity.IsPackaged, AllowBorderlessInPackage);
+
+    /// <summary>Whether a borderless session may be tried: always in a build of your own, in a package only when <paramref name="allowInPackage"/>.</summary>
+    internal static bool BorderlessAllowed(bool packaged, bool allowInPackage) => !packaged || allowInPackage;
+
+    // The cursor is a matter of looks, and a failure there is ignored. The border is not: IsBorderRequired is left at the system default
+    // (Windows draws a colored border around the window while the session is open, which tells the user that it is being captured)
+    // unless the caller asks for a session without it, and then that must work: the session does not start otherwise (no yellow border
+    // while a window is only being looked at). IsBorderRequired = false needs no consent (GraphicsCaptureAccess.RequestAccessAsync is
+    // never called) and no capability in the manifest for a build of your own. In a package it is silently ignored without consent, so a
+    // package does not get here (AllowBorderlessInPackage).
+    private static void SetOptions(GraphicsCaptureSession session, bool borderless)
     {
-        // The mouse pointer is not part of a screenshot (IsCursorCaptureEnabled exists from Windows 10 version 1903).
+        // The mouse pointer is not part of a picture (IsCursorCaptureEnabled exists from Windows 10 version 1903).
         try
         {
             if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 18362))
@@ -259,6 +306,27 @@ internal sealed partial class WgcSession : IWgcSession
         }
         catch (Exception e) when (e is COMException or InvalidCastException or UnauthorizedAccessException or InvalidOperationException)
         {
+        }
+
+        if (!borderless)
+        {
+            return;
+        }
+
+        // IsBorderRequired exists from Windows 11 / Server 2022 (10.0.20348).
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 20348))
+        {
+            throw new BorderlessCaptureUnavailableException("the capture border cannot be switched off before Windows 10.0.20348");
+        }
+
+        try
+        {
+            session.IsBorderRequired = false;
+        }
+        catch (Exception e) when (e is COMException or InvalidCastException or UnauthorizedAccessException or InvalidOperationException
+            or TypeLoadException or NotSupportedException or NotImplementedException or EntryPointNotFoundException)
+        {
+            throw new BorderlessCaptureUnavailableException("Windows did not switch the capture border off: " + e.Message, e);
         }
     }
 
