@@ -68,7 +68,7 @@ internal static class SelfCheck
         {
             // A plain executable has no license check, and neither has a package that was not signed by the Store (a
             // local test package). A Store package reads the Store license (no UI, no window). A read that fails is not
-            // a fault here (offline): the app treats it as usable too.
+            // a fault here (offline): the session runs anyway, the Automation API stays off.
             if (!PackageIdentity.IsPackaged)
             {
                 return "not packaged (no license check)";
@@ -84,7 +84,7 @@ internal static class SelfCheck
                 ? await read.ConfigureAwait(false)
                 : LicenseState.Unknown;
             return state.Kind == LicenseKind.Unknown
-                ? "Store license could not be read (the app runs anyway)"
+                ? "Store license could not be read (the session runs anyway; the Automation API stays off)"
                 : $"signature kind Store; Store license: {state.Kind}{(state.Expiration is { } end ? $" until {end:u}" : string.Empty)}";
         }).ConfigureAwait(false);
 

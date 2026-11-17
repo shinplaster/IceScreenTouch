@@ -367,9 +367,59 @@ public sealed class ApiViewModelTests : IAsyncLifetime
                 Strings.SectionApi, Strings.OptionApiEnabled, Strings.ApiTrialNote, Strings.LabelApiPort, Strings.LabelApiToken,
                 Strings.ApiTokenPending, Strings.ButtonShowToken, Strings.ButtonHideToken, Strings.ButtonCopyToken,
                 Strings.ButtonRegenerateToken, Strings.ButtonCancelRegenerate, Strings.ApiRegenerateQuestion, Strings.ApiWarning,
-                Strings.ApiOperating, Strings.ApiNeedsPurchase, Strings.ApiFailed,
+                Strings.ApiOperating, Strings.ApiNeedsPurchase, Strings.ApiFailed, Strings.ApiUnknownNote, Strings.ApiLicenseUnknown,
             ];
             Assert.All(texts, t => Assert.False(string.IsNullOrWhiteSpace(t)));
         }
+    }
+
+    [Fact]
+    public async Task AnUnreadableLicenseKeepsTheSwitchUsableShowsItsOwnNoteAndTheApiStartsWhenTheLicenseIsRead()
+    {
+        _source.Next = LicenseState.Unknown;
+        using var license = new LicenseService(_source, _time);
+        await license.RefreshAsync(); // the first read fails: Unknown, and no guess any more
+        using var api = new ApiService(_mirror, license, _dir.Path, () => new AppSettings(), _log.Write, anyPort: true);
+        var vm = new MainViewModel(_mirror, _store!, _log, new AppSettings(), _posted.Add, license: license, api: api);
+
+        vm.Refresh();
+
+        Assert.True(vm.ApiAvailable); // the user may turn it on: it starts when the license is read
+        Assert.True(vm.ApiLicenseUnknown);
+        Assert.False(vm.ApiNeedsPurchase); // a paying user who is offline is not told to buy
+
+        vm.ApiEnabled = true;
+        vm.ApiPort = FreePort();
+        vm.ApplySettingsCommand.Execute(null);
+        await vm.ApplySettingsCommand.Last;
+
+        Assert.Equal(ApiRunState.LicenseUnknown, api.Status.State);
+        Assert.Equal("自動操作 API: Microsoft Store のライセンスを確認できるまで止まっています", vm.ApiStatusText);
+        Assert.Equal(StatusLevel.Waiting, vm.ApiStatusLevel);
+        Assert.False(vm.HasApiToken);
+
+        _source.Next = LicenseState.Purchased;
+        await license.RefreshAsync();
+        await TestWait.UntilAsync(() => api.Status.State == ApiRunState.Listening, "the API starts when the license is read");
+        vm.Refresh();
+
+        Assert.False(vm.ApiLicenseUnknown);
+        Assert.StartsWith("自動操作 API: 127.0.0.1:", vm.ApiStatusText, StringComparison.Ordinal);
+        await api.StopAsync();
+    }
+
+    [Fact]
+    public void TheUnreadableLicenseNoteAndTheTrialNoteAreDifferentInBothLanguages()
+    {
+        foreach (var culture in new[] { "ja-JP", "en-US" })
+        {
+            using var _ = new UiCulture(culture);
+
+            Assert.NotEqual(Strings.ApiTrialNote, Strings.ApiUnknownNote);
+            Assert.NotEqual(Strings.ApiNeedsPurchase, Strings.ApiLicenseUnknown);
+        }
+
+        using var en = new UiCulture("en-US");
+        Assert.Equal("Automation API: off until the Microsoft Store license can be checked", MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.LicenseUnknown, 47821)).Text);
     }
 }

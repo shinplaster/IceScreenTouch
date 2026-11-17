@@ -674,19 +674,69 @@ public sealed class ApiServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ABuildOfYourOwnAndAnUnreadableLicenseMayUseTheApi()
+    public async Task ABuildOfYourOwnMayUseTheApi()
     {
-        foreach (var state in new[] { LicenseState.NotPackaged, LicenseState.Unknown })
-        {
-            await Api.ConfigureAsync(enabled: false, port: 0);
-            _source.Next = state;
-            await _license!.RefreshAsync();
-            await Task.Delay(50);
+        await Api.ConfigureAsync(enabled: false, port: 0);
+        _source.Next = LicenseState.NotPackaged;
+        await _license!.RefreshAsync();
+        await Task.Delay(50);
 
-            await Api.ConfigureAsync(enabled: true, port: 0);
+        await Api.ConfigureAsync(enabled: true, port: 0);
 
-            Assert.Equal(ApiRunState.Listening, Api.Status.State);
-        }
+        Assert.Equal(ApiRunState.Listening, Api.Status.State);
+    }
+
+    [Fact]
+    public async Task AnUnreadableLicenseDoesNotStartTheServerAndTheLicenseBeingReadStartsItWithoutAnotherApply()
+    {
+        // The first read fails: Unknown, and the first read is over (no guess any more).
+        var source = new FakeLicenseSource { Next = LicenseState.Unknown };
+        using var license = new LicenseService(source, _time);
+        await license.RefreshAsync();
+        using var api = new ApiService(_mirror, license, _dir.Path, () => new AppSettings(), _log.Enqueue, anyPort: true);
+
+        await api.ConfigureAsync(enabled: true, port: 0);
+
+        Assert.False(license.IsChecking);
+        Assert.False(api.IsAllowed);
+        Assert.Equal(ApiRunState.LicenseUnknown, api.Status.State);
+        Assert.False(File.Exists(ConnectionFile));
+        Assert.False(File.Exists(TokenFile));
+
+        source.Next = LicenseState.Purchased;
+        await license.RefreshAsync(); // the Store answers at last (the timer reads Unknown again every minute)
+
+        await TestWait.UntilAsync(() => api.Status.State == ApiRunState.Listening, "the API starts once the license is read");
+        Assert.True(api.IsAllowed);
+        await api.StopAsync();
+    }
+
+    [Fact]
+    public async Task AControllerAnswersPurchaseRequiredWhileTheLicenseIsUnknown()
+    {
+        var source = new FakeLicenseSource { Next = LicenseState.Unknown };
+        using var license = new LicenseService(source, _time);
+        await license.RefreshAsync();
+        using var api = new ApiService(_mirror, license, _dir.Path, () => new AppSettings(), _log.Enqueue, anyPort: true);
+        var controller = new ApiController(api.Host, () => api.IsAllowed);
+
+        Assert.False(controller.GetStatus().IsSuccess);
+        Assert.Equal(ApiErrorCodes.PurchaseRequired, controller.GetStatus().Error!.Code);
+        controller.Dispose();
+    }
+
+    [Fact]
+    public async Task APurchasedLicenseThatCannotBeReadLaterStaysPurchasedAndTheServerKeepsRunning()
+    {
+        await Api.ConfigureAsync(enabled: true, port: 0);
+        Assert.Equal(ApiRunState.Listening, Api.Status.State);
+
+        _source.ReadFails = new InvalidOperationException("no store");
+        await _license!.RefreshAsync(); // the read fails (offline): the earlier answer stays
+
+        Assert.Equal(LicenseKind.Purchased, _license.Current.Kind);
+        Assert.True(Api.IsAllowed);
+        Assert.Equal(ApiRunState.Listening, Api.Status.State);
     }
 
     [Fact]

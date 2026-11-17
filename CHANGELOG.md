@@ -29,7 +29,8 @@ All notable changes to IceScreen Touch are recorded here. The format follows
   screenshots of the receiver window. It is a REST (HTTP/JSON) and WebSocket server on `127.0.0.1` only that web pages
   cannot call, protected by a token, and **off by default**: switch it on in Settings > "Automation API", where the
   token is created, copied and regenerated. The user's own mouse and keys take priority and interrupt a script. It is
-  available in the purchased Store version and in builds of your own, not in the trial. See `docs/API.md`.
+  available in the purchased Store version and in builds of your own, not in the trial, and it also stays off while
+  the Store license cannot be checked (it starts by itself once the license is read). See `docs/API.md`.
 - A Python client library and an MCP server for AI agents (`clients/python`; not on PyPI, installed from the repository
   with uv).
 

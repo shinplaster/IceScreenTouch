@@ -311,6 +311,7 @@
                   <TextBlock Text="{x:Static res:Strings.OptionApiEnabled}" TextWrapping="Wrap" />
                 </CheckBox>
                 <TextBlock Classes="note" Text="{x:Static res:Strings.ApiTrialNote}" IsVisible="{Binding ApiNeedsPurchase}" />
+                <TextBlock Classes="note" Text="{x:Static res:Strings.ApiUnknownNote}" IsVisible="{Binding ApiLicenseUnknown}" TextWrapping="Wrap" />
                 <StackPanel Spacing="6" IsEnabled="{Binding ApiAvailable}">
                   <TextBlock Classes="label" Text="{x:Static res:Strings.LabelApiPort}" TextWrapping="Wrap" />
                   <NumericUpDown Value="{Binding ApiPort}" Minimum="1024" Maximum="65535"

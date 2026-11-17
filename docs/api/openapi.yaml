@@ -29,7 +29,8 @@ info:
       `127.0.0.1` only (never on `::1` or another address) on port 47821 by default; the user can choose another
       port (1024 to 65535, not the probe page's port 8000). A port that is in use is an error in the app, the app
       never looks for another one.
-    * The API is part of the purchased app (and of a build made from the source). While the app is in its trial it
+    * The API is part of the purchased app (and of a build made from the source). While the app is in its trial, or while
+      the Microsoft Store license cannot be checked, it
       is not started; if the license stops covering it while the API runs, every call answers `403`
       `purchase_required`, except `POST /v1/cancel` (a stop command always works).
     * The API can only drive the one target device the app currently sends input to (see `PUT /v1/target`).

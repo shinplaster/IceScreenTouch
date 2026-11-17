@@ -13,8 +13,11 @@ public enum ApiRunState
     /// <summary>The setting is off: nothing listens.</summary>
     Off,
 
-    /// <summary>The setting is on but the license does not include the API (trial): nothing listens.</summary>
+    /// <summary>The setting is on but the license does not include the API (trial, ended): nothing listens.</summary>
     NotAllowed,
+
+    /// <summary>The setting is on but the Store license could not be read (<see cref="LicenseKind.Unknown"/>): nothing listens until it is read.</summary>
+    LicenseUnknown,
 
     /// <summary>Listening on 127.0.0.1.</summary>
     Listening,
@@ -106,16 +109,20 @@ public sealed class ApiService : IDisposable
     /// <summary>Raised (on any thread) when a request chose the target device (null = automatic): save the choice with the settings.</summary>
     public event Action<string?>? TargetChosen;
 
-    /// <summary>The API belongs to every license but the trial and the ended one (<see cref="LicenseKind.Trial"/>, <see cref="LicenseKind.Expired"/> do not).</summary>
+    /// <summary>
+    /// The API is a paid feature: only <see cref="LicenseKind.Purchased"/> and <see cref="LicenseKind.NotPackaged"/> (a build of
+    /// your own) include it. The trial, the ended license and a license that could not be read (<see cref="LicenseKind.Unknown"/>)
+    /// do not, unlike the session, which fails open on Unknown (<see cref="LicenseState.AllowsSession"/>).
+    /// </summary>
     public static bool Allows(LicenseState license)
     {
         ArgumentNullException.ThrowIfNull(license);
-        return license.Kind is LicenseKind.Purchased or LicenseKind.NotPackaged or LicenseKind.Unknown;
+        return license.Kind is LicenseKind.Purchased or LicenseKind.NotPackaged;
     }
 
     /// <summary>
     /// The current license includes the API AND has been read: until the first read finishes (the Store build) the state is only a
-    /// guess (Unknown, which is usable), and a trial user must not get a window in which the server runs.
+    /// guess (Unknown), and a trial user must not get a window in which the server runs.
     /// </summary>
     public bool IsAllowed => !_license.IsChecking && Allows(_license.Current);
 
@@ -249,7 +256,7 @@ public sealed class ApiService : IDisposable
 
     private void OnLicenseChanged(object? sender, EventArgs e)
     {
-        // A purchase makes the API usable at once; the end of the trial or of the license stops the server.
+        // A purchase (or a license that is read at last) makes the API usable at once; the end of the trial or of the license stops the server.
         _ = Task.Run(async () =>
         {
             try
@@ -285,7 +292,9 @@ public sealed class ApiService : IDisposable
                 await StopServerAsync().ConfigureAwait(false);
                 CleanLeftoverOnce();
                 // While the first license read is pending nothing is said (it is not a refusal yet).
-                SetStatus(!closed && enabled && !allowed && !_license.IsChecking ? new ApiServiceStatus(ApiRunState.NotAllowed, port) : ApiServiceStatus.Off);
+                SetStatus(!closed && enabled && !allowed && !_license.IsChecking
+                    ? new ApiServiceStatus(_license.Current.Kind == LicenseKind.Unknown ? ApiRunState.LicenseUnknown : ApiRunState.NotAllowed, port)
+                    : ApiServiceStatus.Off);
                 return;
             }
 

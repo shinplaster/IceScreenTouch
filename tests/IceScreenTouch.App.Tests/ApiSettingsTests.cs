@@ -82,10 +82,10 @@ public sealed class ApiSettingsTests : IDisposable
     [Theory]
     [InlineData(LicenseKind.Purchased, true)]
     [InlineData(LicenseKind.NotPackaged, true)]
-    [InlineData(LicenseKind.Unknown, true)]
+    [InlineData(LicenseKind.Unknown, false)]
     [InlineData(LicenseKind.Trial, false)]
     [InlineData(LicenseKind.Expired, false)]
-    public void TheApiBelongsToEveryLicenseButTheTrialAndTheEndedOne(LicenseKind kind, bool allowed)
+    public void TheApiBelongsToThePurchasedAppAndABuildOfYourOwnOnly(LicenseKind kind, bool allowed)
     {
         Assert.Equal(allowed, ApiService.Allows(new LicenseState(kind, kind == LicenseKind.Trial ? DateTimeOffset.UnixEpoch.AddYears(60) : null)));
     }

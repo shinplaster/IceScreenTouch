@@ -21,7 +21,7 @@ This page is the guide. The full reference (every field, default, limit and erro
 
 ## What you need
 
-- The purchased IceScreen Touch from the Microsoft Store, or an app you built yourself from the source code. The API does not start while the app is in its trial. If the license stops covering it while the API runs, every call answers `403` `purchase_required`, except `POST /v1/cancel` (a stop command always works).
+- The purchased IceScreen Touch from the Microsoft Store, or an app you built yourself from the source code. The API does not start while the app is in its trial, or while the Microsoft Store license cannot be checked (for example when the PC cannot reach the Store); it starts by itself once the license is read. If the license stops covering it while the API runs, every call answers `403` `purchase_required`, except `POST /v1/cancel` (a stop command always works).
 - **Zoom** turned on in the device (Settings > Accessibility > Zoom), as for the mouse. Without it, touches do not arrive.
 - A running mirroring session (the **Status** tab shows the state) and a device that is connected over Bluetooth.
 - For `screen` and `pixel` coordinates, an AirPlay receiver whose window shows the device's picture. If the window is closed or minimized, those calls answer `409` `no_picture`. `device` coordinates do not need the picture (see [Coordinates](#coordinates)).

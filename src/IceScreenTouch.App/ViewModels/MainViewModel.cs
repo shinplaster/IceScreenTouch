@@ -84,6 +84,7 @@ public sealed class MainViewModel : ObservableObject
     private string _apiStatusText = string.Empty;
     private StatusLevel _apiStatusLevel;
     private bool _apiAvailable = true;
+    private bool _apiLicenseUnknown;
     private string _apiToken = string.Empty;
     private bool _apiTokenVisible;
     private bool _apiConfirmingRegenerate;
@@ -544,7 +545,10 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>The license includes the API (the switch is enabled). False during the trial: the section says it works after the purchase.</summary>
+    /// <summary>
+    /// The API settings can be changed: the license includes the API, or it could not be read (then the API starts by itself once
+    /// it is read, see <see cref="ApiLicenseUnknown"/>). False during the trial and after it: the section says it works after the purchase.
+    /// </summary>
     public bool ApiAvailable
     {
         get => _apiAvailable;
@@ -559,6 +563,12 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The trial runs: the API can be used after buying the app.</summary>
     public bool ApiNeedsPurchase => !_apiAvailable && IsTrial;
+
+    /// <summary>
+    /// The Store license could not be read (and the first read is over): the API stays off until it is read, which is not the same
+    /// as "buy the app" for a paying user who is offline. The switch stays usable meanwhile.
+    /// </summary>
+    public bool ApiLicenseUnknown { get => _apiLicenseUnknown; private set => Set(ref _apiLicenseUnknown, value); }
 
     /// <summary>The API line of the status tab and the tray ("Automation API: listening on 127.0.0.1:47821"); empty while the API is off.</summary>
     public string ApiStatusText
@@ -758,6 +768,7 @@ public sealed class MainViewModel : ObservableObject
             ApiRunState.PortInUse => (Loc.Format(Strings.FormatApiPortInUse, status.Port), StatusLevel.Error),
             ApiRunState.Failed => (Strings.ApiFailed, StatusLevel.Error), // fixed sentence: the details are in the log only
             ApiRunState.NotAllowed => (Strings.ApiNeedsPurchase, StatusLevel.Waiting),
+            ApiRunState.LicenseUnknown => (Strings.ApiLicenseUnknown, StatusLevel.Waiting),
             _ => (string.Empty, StatusLevel.Idle),
         };
     }
@@ -991,8 +1002,11 @@ public sealed class MainViewModel : ObservableObject
         }
 
         // The API is for the licenses that include it, and only once the first read says which one this is (until then the
-        // state is a guess that counts as usable): the switch stays disabled meanwhile.
-        ApiAvailable = ApiService.Allows(state) && !_license.IsChecking;
+        // state is a guess): the switch stays disabled meanwhile. A license that could not be read leaves the switch usable (the
+        // API starts when the license is read) and shows its own note instead of the purchase note.
+        var read = !_license.IsChecking;
+        ApiLicenseUnknown = read && state.Kind == LicenseKind.Unknown;
+        ApiAvailable = read && (ApiService.Allows(state) || ApiLicenseUnknown);
 
         if (state is { Kind: LicenseKind.Trial, Expiration: { } end })
         {

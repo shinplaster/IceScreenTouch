@@ -82,8 +82,16 @@ public sealed class LicenseService : IDisposable
         {
             var state = await ReadWithTimeoutAsync(_source).ConfigureAwait(false);
             Interlocked.Exchange(ref _lastReadTicks, _time.GetUtcNow().UtcTicks);
-            Apply(state);
+
+            // The first read is marked done before the listeners hear of the change, so none of them sees a guess any more.
+            // When the first read leaves the state as it was (Unknown stays Unknown) they are told all the same: it is no guess now.
+            var first = !_hasRead;
             _hasRead = true;
+            if (!Apply(state) && first)
+            {
+                Changed?.Invoke(this, EventArgs.Empty);
+            }
+
             return _current;
         }
         finally
@@ -242,13 +250,13 @@ public sealed class LicenseService : IDisposable
         return state.Kind == LicenseKind.Trial && state.Expiration <= _time.GetUtcNow() ? LicenseState.Expired : state;
     }
 
-    private void Apply(LicenseState read)
+    private bool Apply(LicenseState read)
     {
         var state = Normalize(read);
         var before = Interlocked.Exchange(ref _current, state);
         if (before == state)
         {
-            return;
+            return false;
         }
 
         if (state.Kind == LicenseKind.Purchased)
@@ -259,6 +267,7 @@ public sealed class LicenseService : IDisposable
         // No personal data: the kind and the end of the trial only.
         _log?.Write($"[lic ] license: {Describe(state)}");
         Changed?.Invoke(this, EventArgs.Empty);
+        return true;
     }
 
     private void OnSourceChanged(object? sender, EventArgs e) => _ = RefreshAsync();

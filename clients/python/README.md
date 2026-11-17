@@ -4,7 +4,8 @@ Control an iPhone or iPad from Python, or from an AI agent over MCP, through the
 [IceScreen Touch](../../README.md) automation API (Windows).
 
 It needs the app running with **Settings > Automation API** switched on. The API is available in the purchased
-Microsoft Store build and in builds you make yourself from this repository; it is not available during the trial.
+Microsoft Store build and in builds you make yourself from this repository; it is not available during the trial or while
+the Store license cannot be checked.
 The API listens on `127.0.0.1` only.
 
 Python 3.10 or newer. The client itself uses only the standard library. Not published to PyPI yet: install from this

@@ -360,4 +360,6 @@
   <data name="FormatApiPortInUse" xml:space="preserve"><value>自動操作 API: 起動できません（ポート {0} はほかのプログラムが使っています）</value></data>
   <data name="ApiFailed" xml:space="preserve"><value>自動操作 API: 起動できません（詳しくは「ログ」タブを見てください）</value></data>
   <data name="ApiNeedsPurchase" xml:space="preserve"><value>自動操作 API: 購入すると使えます</value></data>
+  <data name="ApiUnknownNote" xml:space="preserve"><value>Microsoft Store のライセンスを確認できないため、自動操作 API は止まっています。ライセンスを確認できると自動で始まります。</value></data>
+  <data name="ApiLicenseUnknown" xml:space="preserve"><value>自動操作 API: Microsoft Store のライセンスを確認できるまで止まっています</value></data>
 </root>

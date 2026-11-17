@@ -277,6 +277,20 @@ public sealed class LicenseServiceTests
     }
 
     [Fact]
+    public async Task TheFirstReadTellsTheListenersEvenWhenItLeavesTheStateUnknown()
+    {
+        using var service = Service();
+        _source.ReadFails = new InvalidOperationException("no store");
+        var checkingWhenTold = new List<bool>();
+        service.Changed += (_, _) => checkingWhenTold.Add(service.IsChecking);
+
+        await service.RefreshAsync();
+        await service.RefreshAsync(); // nothing changed this time
+
+        Assert.Equal([false], checkingWhenTold); // once, and no longer a guess when they hear of it
+    }
+
+    [Fact]
     public async Task AHangingReadTimesOutAsUnknown()
     {
         using var service = Service();

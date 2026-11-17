@@ -362,4 +362,6 @@
   <data name="FormatApiPortInUse" xml:space="preserve"><value>Automation API: could not start (port {0} is in use by another program)</value></data>
   <data name="ApiFailed" xml:space="preserve"><value>Automation API: could not start (see the Log tab)</value></data>
   <data name="ApiNeedsPurchase" xml:space="preserve"><value>Automation API: available after you buy IceScreen Touch</value></data>
+  <data name="ApiUnknownNote" xml:space="preserve"><value>The automation API is off because the Microsoft Store license could not be checked. It starts by itself once the license is read.</value></data>
+  <data name="ApiLicenseUnknown" xml:space="preserve"><value>Automation API: off until the Microsoft Store license can be checked</value></data>
 </root>
