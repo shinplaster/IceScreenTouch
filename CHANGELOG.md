@@ -22,6 +22,8 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-17
+
 ### Added
 
 - The **Automation API**: scripts and AI agents on the same PC can operate the iPhone or iPad the way the mouse and
