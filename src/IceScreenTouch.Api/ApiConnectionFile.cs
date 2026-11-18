@@ -209,6 +209,9 @@ public sealed class ApiConnectionFile
         var user = WindowsIdentity.GetCurrent().User
             ?? throw new InvalidOperationException("the current Windows user has no SID");
         var security = new FileSecurity();
+        // Without this an elevated process gets the token's default owner (BUILTIN\Administrators), and the owner check in
+        // IsProtectedWindows would reject the file the app has just made.
+        security.SetOwner(user);
         security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
         security.AddAccessRule(new FileSystemAccessRule(user, FileSystemRights.FullControl, AccessControlType.Allow));
         var stream = new FileInfo(path).Create(FileMode.CreateNew, FileSystemRights.FullControl, FileShare.None, 4096, FileOptions.None, security);

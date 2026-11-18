@@ -22,6 +22,12 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- When IceScreen Touch runs as administrator, the Automation API token no longer changes at every start. The token file is
+  now created owned by the current user, so the app trusts it on the next start (a token file made by an earlier version
+  is replaced once more at the first start after the update).
+
 ## [0.3.0] - 2026-11-17
 
 ### Added

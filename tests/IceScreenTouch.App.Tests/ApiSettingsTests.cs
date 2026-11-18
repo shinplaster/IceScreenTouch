@@ -232,6 +232,24 @@ public sealed class ApiTokenStoreTests : IDisposable
         Assert.Throws<IOException>(() => ApiConnectionFile.CreateProtected(path)); // CreateNew: never opens an existing file
     }
 
+    [Fact]
+    public void AProtectedFileIsOwnedByTheCurrentUserEvenWhenTheProcessIsElevated()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var path = Path.Combine(_dir.Path, "owner.bin");
+        using (ApiConnectionFile.CreateProtected(path))
+        {
+        }
+
+        var user = System.Security.Principal.WindowsIdentity.GetCurrent().User;
+        var owner = new FileInfo(path).GetAccessControl().GetOwner(typeof(System.Security.Principal.SecurityIdentifier));
+        Assert.Equal(user, owner); // an elevated token would otherwise make it BUILTIN\Administrators
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   \n")]
