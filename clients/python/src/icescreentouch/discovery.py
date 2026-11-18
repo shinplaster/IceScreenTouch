@@ -9,8 +9,10 @@ Order (docs/API-DESIGN.md, chapter 4):
 2. the environment: ``ICESCREENTOUCH_API`` (``http://127.0.0.1:47821``) and ``ICESCREENTOUCH_TOKEN``;
 3. ``%ICESCREENTOUCH_DATA_DIR%\\api.json`` when that variable is set (an explicit choice of the data folder);
 4. ``api.json`` of the Microsoft Store package (the MSIX redirects the app's %LOCALAPPDATA% writes into
-   ``%LOCALAPPDATA%\\Packages\\<family>\\LocalCache\\Local\\IceScreenTouch``);
-5. ``%LOCALAPPDATA%\\IceScreenTouch\\api.json``.
+   ``%LOCALAPPDATA%\\Packages\\<family>\\LocalCache\\Local\\IceScreenTouch`` when ``%LOCALAPPDATA%\\IceScreenTouch``
+   did not exist yet);
+5. ``%LOCALAPPDATA%\\IceScreenTouch\\api.json`` (a build of your own, and the Store package when that folder already
+   existed).
 
 The client always talks to ``127.0.0.1`` (never ``localhost``, which may resolve to ``::1``; the server listens on IPv4
 loopback only) and never sends an ``Origin`` header.

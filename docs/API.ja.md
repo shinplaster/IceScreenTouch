@@ -50,7 +50,7 @@ API は**初期状態でオフ**です。
 | インストール | `api.json` の場所 |
 |---|---|
 | 通常（自分でビルドしたもの） | `%LOCALAPPDATA%\IceScreenTouch\api.json` |
-| Microsoft Store | `%LOCALAPPDATA%\Packages\Shin-plaster.IceScreenTouch_5c159ja95e6hm\LocalCache\Local\IceScreenTouch\api.json`（Windows がアプリの書き込みをここに振り向けます） |
+| Microsoft Store | `%LOCALAPPDATA%\Packages\Shin-plaster.IceScreenTouch_5c159ja95e6hm\LocalCache\Local\IceScreenTouch\api.json`（`%LOCALAPPDATA%\IceScreenTouch` がまだなかったときは、Windows がアプリの書き込みをここに振り向けます）。自分でビルドしたものを使っていたなどで、そのフォルダーがすでにあった場合は、通常と同じ `%LOCALAPPDATA%\IceScreenTouch\api.json` です。場所は**情報**タブの「データのフォルダ」に表示されます。 |
 
 `pid` はそのポートを持っているプロセスの ID です。クライアントはトークンを送る前に、そのポートで待ち受けているプロセスが `IceScreenTouch.exe` で、**あなたの** Windows ユーザーで動いていて、トークンを `api.json` から読んだ場合はその `pid` そのものであることを確かめてください。そうでなければファイルが古いか、別のプログラムがポートを取っていて、トークンがそちらへ渡ってしまいます。Python クライアントはこれを行います（下を参照）。クライアントは、まず環境変数 `ICESCREENTOUCH_API`（たとえば `http://127.0.0.1:47821`）と `ICESCREENTOUCH_TOKEN` を見て、次に `api.json` を見ることになっています。
 

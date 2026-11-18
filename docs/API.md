@@ -50,7 +50,7 @@ The app then shows "Automation API: listening on 127.0.0.1:<port>", and "Automat
 | Install | Location of `api.json` |
 |---|---|
 | Normal (an app you built) | `%LOCALAPPDATA%\IceScreenTouch\api.json` |
-| Microsoft Store | `%LOCALAPPDATA%\Packages\Shin-plaster.IceScreenTouch_5c159ja95e6hm\LocalCache\Local\IceScreenTouch\api.json` (Windows redirects the app's file there) |
+| Microsoft Store | `%LOCALAPPDATA%\Packages\Shin-plaster.IceScreenTouch_5c159ja95e6hm\LocalCache\Local\IceScreenTouch\api.json` (Windows redirects the app's files there when `%LOCALAPPDATA%\IceScreenTouch` did not exist yet). If that folder already existed, for example from a build of your own, it is `%LOCALAPPDATA%\IceScreenTouch\api.json` as for a normal install. The **About** tab shows it under "Data folder". |
 
 `pid` is the process that owns the port. Before a client sends the token it should check that the process listening on the port is `IceScreenTouch.exe`, runs as **your** Windows user and, when the token comes from `api.json`, is exactly that `pid`: otherwise the file is stale, or another program took the port, and the token would go to it. The Python client does this (see below). Clients are expected to look first at the environment variables `ICESCREENTOUCH_API` (for example `http://127.0.0.1:47821`) and `ICESCREENTOUCH_TOKEN`, then at `api.json`.
 

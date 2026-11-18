@@ -46,7 +46,9 @@ info:
 
     * Normal install: `%LOCALAPPDATA%\IceScreenTouch\api.json`.
     * Store (MSIX) install: the same file is redirected to
-      `%LOCALAPPDATA%\Packages\Shin-plaster.IceScreenTouch_5c159ja95e6hm\LocalCache\Local\IceScreenTouch\api.json`.
+      `%LOCALAPPDATA%\Packages\Shin-plaster.IceScreenTouch_5c159ja95e6hm\LocalCache\Local\IceScreenTouch\api.json`
+      when `%LOCALAPPDATA%\IceScreenTouch` did not exist yet; if that folder already existed (for example from a
+      build of your own), the Store install uses it like a normal install.
     * `pid` is the process that owns the port, so a client can check that it talks to IceScreen Touch (and that
       the process runs as the same Windows user, see the owner check in the API guide) before it sends the token.
     * Clients are expected to look first at the environment variables `ICESCREENTOUCH_API` (for example
