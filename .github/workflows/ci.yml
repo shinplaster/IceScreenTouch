@@ -41,8 +41,9 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:
-          # No global.json in the repo. Pinned to the SDK the project is developed with (already on the runner
-          # image); with TreatWarningsAsErrors, a newer SDK's analyzers could fail the build unannounced.
+          # Installs the SDK that global.json pins (10.0.403, latest patch allowed). global.json is what makes
+          # dotnet use it instead of a newer SDK on the runner image: with TreatWarningsAsErrors, a newer SDK's
+          # analyzers can fail the build unannounced (the 2026-11-16 image did, with CA2027).
           dotnet-version: 10.0.403
 
       - name: Restore
