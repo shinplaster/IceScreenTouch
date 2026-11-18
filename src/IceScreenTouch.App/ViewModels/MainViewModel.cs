@@ -217,7 +217,19 @@ public sealed class MainViewModel : ObservableObject
     public AsyncRelayCommand BuyCommand { get; }
 
     /// <summary>The trial runs: the status tab shows the time left and the Buy button.</summary>
-    public bool IsTrial { get => _isTrial; private set => Set(ref _isTrial, value); }
+    public bool IsTrial
+    {
+        get => _isTrial;
+        private set
+        {
+            if (Set(ref _isTrial, value))
+            {
+                // ApiAvailable may already be false (and stay false) when the trial becomes known, so the trial flag must
+                // announce the note too.
+                OnPropertyChanged(nameof(ApiNeedsPurchase));
+            }
+        }
+    }
 
     /// <summary>The trial ended and the app was not bought: the session does not run.</summary>
     public bool IsExpired { get => _isExpired; private set => Set(ref _isExpired, value); }

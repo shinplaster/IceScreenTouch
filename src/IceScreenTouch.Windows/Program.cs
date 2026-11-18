@@ -22,6 +22,8 @@ internal static class Program
         if (args is [SelfCheck.Argument])
         {
             // No window and no instance mutex: safe to run next to a running app.
+            // Physical pixels like the app (otherwise the window capture checks see logical sizes on a scaled display).
+            ProcessSetup.EnablePerMonitorDpiAwareness();
             return SelfCheck.RunAsync(Console.Out).GetAwaiter().GetResult();
         }
 

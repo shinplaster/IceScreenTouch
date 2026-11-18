@@ -193,6 +193,32 @@ public sealed class ApiViewModelTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TheTrialNoteAppearsWhenTheLicenseTurnsOutToBeATrialAfterTheApiWasAlreadyUnavailable()
+    {
+        // The startup order: the license is still being read (API unavailable, no trial known), then it says Trial.
+        var gate = new TaskCompletionSource<LicenseState>();
+        var source = new FakeLicenseSource { Hang = gate };
+        using var license = new LicenseService(source, _time);
+        using var api = new ApiService(_mirror, license, _dir.Path, () => new AppSettings(), _log.Write, anyPort: true);
+        var vm = new MainViewModel(_mirror, _store!, _log, new AppSettings(), _posted.Add, license: license, api: api);
+        vm.Refresh();
+        Assert.False(vm.ApiAvailable);
+        Assert.False(vm.ApiNeedsPurchase);
+
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        var refresh = license.RefreshAsync();
+        gate.SetResult(LicenseState.Trial(Start.AddHours(24)));
+        await refresh;
+        vm.Refresh();
+
+        Assert.False(vm.ApiAvailable); // unchanged, so only the trial flag can tell the note
+        Assert.True(vm.ApiNeedsPurchase);
+        Assert.Contains(nameof(MainViewModel.ApiNeedsPurchase), changed);
+        await api.StopAsync();
+    }
+
+    [Fact]
     public async Task RegeneratingTheTokenAsksFirstAndCancellingChangesNothing()
     {
         Vm.ApiEnabled = true;

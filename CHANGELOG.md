@@ -30,6 +30,10 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 - The API guide and the OpenAPI document now say that the Microsoft Store version keeps `api.json` in
   `%LOCALAPPDATA%\IceScreenTouch`, as a build of your own does, when that folder already existed (they only named
   the folder inside the package).
+- During the trial, Settings now shows the note that the Automation API can be used after you buy IceScreen Touch (it
+  stayed hidden, because the note was not updated once the license was read).
+- `IceScreenTouch.exe --self-check` no longer warns about the screenshot and borderless capture checks on a display
+  scaled above 100% (it now measures windows in physical pixels, like the app).
 
 ## [0.3.0] - 2026-11-17
 
