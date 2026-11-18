@@ -22,6 +22,8 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-18
+
 ### Fixed
 
 - When IceScreen Touch runs as administrator, the Automation API token no longer changes at every start. The token file is
