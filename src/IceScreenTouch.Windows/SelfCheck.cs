@@ -80,7 +80,7 @@ internal static class SelfCheck
             }
 
             var read = new StoreLicenseSource().ReadAsync();
-            var state = await Task.WhenAny(read, Task.Delay(TimeSpan.FromSeconds(20))).ConfigureAwait(false) == read
+            var state = await TaskWait.CompletesWithinAsync(read, TimeSpan.FromSeconds(20)).ConfigureAwait(false)
                 ? await read.ConfigureAwait(false)
                 : LicenseState.Unknown;
             return state.Kind == LicenseKind.Unknown
@@ -198,11 +198,11 @@ internal static class SelfCheck
                 Expect(service.Status.State == ApiRunState.Listening, $"the API did not start: {service.Status.State} {service.Status.Error}");
                 var token = service.Token;
                 Expect(ApiToken.IsValid(token), "no valid token");
-                var connection = JsonDocument.Parse(await File.ReadAllTextAsync(service.ConnectionFilePath).ConfigureAwait(false)).RootElement;
+                var connection = JsonElement.Parse(await File.ReadAllTextAsync(service.ConnectionFilePath).ConfigureAwait(false));
                 Expect(connection.GetProperty("port").GetInt32() == service.Status.Port && connection.GetProperty("token").GetString() == token, "api.json does not match the server");
 
                 using var http = new HttpClient { BaseAddress = new Uri(string.Create(CultureInfo.InvariantCulture, $"http://127.0.0.1:{service.Status.Port}")) };
-                var openApi = JsonDocument.Parse(await http.GetStringAsync(new Uri("/v1/openapi.json", UriKind.Relative)).ConfigureAwait(false)).RootElement;
+                var openApi = JsonElement.Parse(await http.GetStringAsync(new Uri("/v1/openapi.json", UriKind.Relative)).ConfigureAwait(false));
                 Expect(openApi.TryGetProperty("openapi", out _), "the embedded OpenAPI document has no \"openapi\" member");
 
                 using (var anonymous = await http.GetAsync(new Uri("/v1/status", UriKind.Relative)).ConfigureAwait(false))
@@ -214,7 +214,7 @@ internal static class SelfCheck
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
                 using var response = await http.SendAsync(request).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
-                var status = JsonDocument.Parse(await response.Content.ReadAsStringAsync().ConfigureAwait(false)).RootElement;
+                var status = JsonElement.Parse(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
                 Expect(status.GetProperty("apiVersion").GetInt32() == 1 && !status.GetProperty("running").GetBoolean(), "unexpected /v1/status");
 
                 await service.StopAsync().ConfigureAwait(false);

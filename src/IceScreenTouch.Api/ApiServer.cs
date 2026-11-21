@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using IceScreenTouch.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -335,7 +336,7 @@ public sealed class ApiServer : IAsyncDisposable
         var closing = _streams.CloseAllAsync(StreamEnd.ServerStopping, TimeSpan.FromSeconds(3));
 
         // A stream stuck in a device write is cancelled together with its session if it has not ended after a second.
-        if (await Task.WhenAny(closing, Task.Delay(TimeSpan.FromSeconds(1))).ConfigureAwait(false) != closing)
+        if (!await TaskWait.CompletesWithinAsync(closing, TimeSpan.FromSeconds(1)).ConfigureAwait(false))
         {
             _controller.CancelCurrent();
         }
@@ -349,7 +350,7 @@ public sealed class ApiServer : IAsyncDisposable
             while (!stop.IsCompleted)
             {
                 _controller.CancelCurrent();
-                await Task.WhenAny(stop, Task.Delay(25)).ConfigureAwait(false);
+                await TaskWait.CompletesWithinAsync(stop, TimeSpan.FromMilliseconds(25)).ConfigureAwait(false);
             }
 
             await stop.ConfigureAwait(false);

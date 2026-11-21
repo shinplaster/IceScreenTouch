@@ -41,10 +41,12 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:
-          # Installs the SDK that global.json pins (10.0.403, latest patch allowed). global.json is what makes
-          # dotnet use it instead of a newer SDK on the runner image: with TreatWarningsAsErrors, a newer SDK's
-          # analyzers can fail the build unannounced (the 2026-11-16 image did, with CA2027).
-          dotnet-version: 10.0.403
+          # Installs the newest patch of the SDK feature band that global.json pins (11.0.1xx). global.json
+          # (rollForward latestPatch, no previews) makes dotnet use that band instead of a newer SDK on the runner
+          # image. With TreatWarningsAsErrors and AnalysisLevel latest-recommended, a newer SDK's analyzers can fail
+          # the build unannounced (SDK 11.0.100 added CA2026 and CA2027, issue #25), so moving to a newer SDK is a
+          # deliberate change: update global.json and this line together, and fix the new warnings.
+          dotnet-version: 11.0.1xx
 
       - name: Restore
         run: dotnet restore IceScreenTouch.slnx

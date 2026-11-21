@@ -717,7 +717,7 @@ public sealed class HidPeripheral : ITouchSink, IHomeButtonSink, IKeyboardSink, 
 
         if (all is not null)
         {
-            await Task.WhenAny(all, Task.Delay(SendDeadline, cancellationToken)).ConfigureAwait(false);
+            await TaskWait.CompletesWithinAsync(all, SendDeadline, cancellationToken: cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
         }
     }

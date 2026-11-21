@@ -63,7 +63,7 @@ iPhone 用に売られている「ミラーリング + タッチ操作のワイ�
 
 自分でビルドするのは無料です。`tools\publish.ps1` で、Store のパッケージに入っているものと同じ単一ファイルの exe ができます（署名なし）。
 
-Windows に [.NET 10 SDK](https://dotnet.microsoft.com/download) が必要です。
+Windows に [.NET 11 SDK](https://dotnet.microsoft.com/download) が必要です（`global.json` の指定どおり 11.0.100 か、それより新しい 11.0.1xx のバージョン）。
 
 ```powershell
 dotnet build IceScreenTouch.slnx
