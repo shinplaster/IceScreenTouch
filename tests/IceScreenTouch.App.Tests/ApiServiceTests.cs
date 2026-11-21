@@ -528,7 +528,7 @@ public sealed class ApiServiceTests : IAsyncLifetime
         Assert.True(Api.Status.Port > 0);
         Assert.True(ApiToken.IsValid(Api.Token));
         Assert.Equal(Api.Token, File.ReadAllText(TokenFile));
-        var connection = JsonDocument.Parse(File.ReadAllText(ConnectionFile)).RootElement;
+        var connection = JsonElement.Parse(File.ReadAllText(ConnectionFile));
         Assert.Equal(Api.Status.Port, connection.GetProperty("port").GetInt32());
         Assert.Equal(Api.Token, connection.GetProperty("token").GetString());
         Assert.Equal(Environment.ProcessId, connection.GetProperty("pid").GetInt32());
@@ -586,7 +586,7 @@ public sealed class ApiServiceTests : IAsyncLifetime
 
         Assert.Equal(ApiRunState.Listening, Api.Status.State);
         Assert.Equal(second, Api.Status.Port);
-        Assert.Equal(second, JsonDocument.Parse(File.ReadAllText(ConnectionFile)).RootElement.GetProperty("port").GetInt32());
+        Assert.Equal(second, JsonElement.Parse(File.ReadAllText(ConnectionFile)).GetProperty("port").GetInt32());
         Assert.Equal(HttpStatusCode.OK, await StatusCodeAsync("/v1/status", Api.Token));
         await Assert.ThrowsAnyAsync<HttpRequestException>(() => _http.GetAsync($"http://127.0.0.1:{first}/v1/openapi.json"));
     }
@@ -633,7 +633,7 @@ public sealed class ApiServiceTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, await StatusCodeAsync("/v1/status", old));
         Assert.Equal(HttpStatusCode.OK, await StatusCodeAsync("/v1/status", token));
         Assert.Equal(token, File.ReadAllText(TokenFile));
-        Assert.Equal(token, JsonDocument.Parse(File.ReadAllText(ConnectionFile)).RootElement.GetProperty("token").GetString());
+        Assert.Equal(token, JsonElement.Parse(File.ReadAllText(ConnectionFile)).GetProperty("token").GetString());
     }
 
     [Fact]
@@ -852,12 +852,12 @@ public sealed class ApiServiceTests : IAsyncLifetime
         Assert.NotEqual(old, token);
         Assert.Equal(HttpStatusCode.OK, await StatusCodeAsync("/v1/status", token)); // in force in the server
         Assert.Equal(token, File.ReadAllText(TokenFile)); // and in the token file
-        Assert.Equal(old, JsonDocument.Parse(File.ReadAllText(ConnectionFile)).RootElement.GetProperty("token").GetString()); // api.json is stale
+        Assert.Equal(old, JsonElement.Parse(File.ReadAllText(ConnectionFile)).GetProperty("token").GetString()); // api.json is stale
         Assert.Contains(_log, l => l.Contains("api.json could not be updated", StringComparison.Ordinal));
 
         await Api.ConfigureAsync(enabled: true, port: 0); // the next apply
 
-        Assert.Equal(token, JsonDocument.Parse(File.ReadAllText(ConnectionFile)).RootElement.GetProperty("token").GetString());
+        Assert.Equal(token, JsonElement.Parse(File.ReadAllText(ConnectionFile)).GetProperty("token").GetString());
         Assert.Contains(_log, l => l.Contains("api.json was updated", StringComparison.Ordinal));
         Assert.DoesNotContain(_log, l => l.Contains(token, StringComparison.Ordinal) || l.Contains(old, StringComparison.Ordinal));
     }

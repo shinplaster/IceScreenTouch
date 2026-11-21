@@ -12,6 +12,7 @@ using IceScreenTouch.App.Resources;
 using IceScreenTouch.App.Services;
 using IceScreenTouch.App.Settings;
 using IceScreenTouch.App.ViewModels;
+using IceScreenTouch.Core;
 
 namespace IceScreenTouch.App;
 
@@ -329,10 +330,10 @@ public partial class App : Application
         // Its stop also deletes api.json (a script must not find a stale one). Then the session stops.
         if (_api is not null)
         {
-            await Task.WhenAny(_api.StopAsync(), Task.Delay(ApiStopTimeout)).ConfigureAwait(true);
+            await TaskWait.CompletesWithinAsync(_api.StopAsync(), ApiStopTimeout).ConfigureAwait(true);
         }
 
-        await Task.WhenAny(_vm.StopAsync(), Task.Delay(StopTimeout)).ConfigureAwait(true);
+        await TaskWait.CompletesWithinAsync(_vm.StopAsync(), StopTimeout).ConfigureAwait(true);
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.Shutdown();
