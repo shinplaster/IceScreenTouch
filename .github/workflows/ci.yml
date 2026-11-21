@@ -41,12 +41,12 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:
-          # Installs the newest .NET 11 SDK. global.json sets 10.0.403 as the lowest SDK and allows newer ones
-          # (rollForward latestMajor, no previews), so CI builds with the newest SDK on the runner while a PC with
-          # only a .NET 10 SDK still builds. With TreatWarningsAsErrors and AnalysisLevel latest-recommended, a newer
-          # SDK's analyzers can add build errors (SDK 11.0.100 added CA2026 and CA2027, fixed in issue #25): fix the
-          # code, or pin the SDK in global.json until it is fixed.
-          dotnet-version: 11.0.x
+          # Installs the newest patch of the SDK feature band that global.json pins (11.0.1xx). global.json
+          # (rollForward latestPatch, no previews) makes dotnet use that band instead of a newer SDK on the runner
+          # image. With TreatWarningsAsErrors and AnalysisLevel latest-recommended, a newer SDK's analyzers can fail
+          # the build unannounced (SDK 11.0.100 added CA2026 and CA2027, issue #25), so moving to a newer SDK is a
+          # deliberate change: update global.json and this line together, and fix the new warnings.
+          dotnet-version: 11.0.1xx
 
       - name: Restore
         run: dotnet restore IceScreenTouch.slnx

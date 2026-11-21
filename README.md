@@ -63,7 +63,7 @@ The full guide, including the controls and troubleshooting, is in [docs/USER-GUI
 
 Building it yourself is free. `tools\publish.ps1` makes the same single-file exe that the Store package contains, but unsigned.
 
-Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download) on Windows.
+Requires the [.NET 11 SDK](https://dotnet.microsoft.com/download) (11.0.100 or a later 11.0.1xx patch, as `global.json` pins it) on Windows.
 
 ```powershell
 dotnet build IceScreenTouch.slnx
