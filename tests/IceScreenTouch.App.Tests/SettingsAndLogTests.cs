@@ -144,6 +144,13 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("iPhone12,8", "iphone-home-button")] // SE 2nd
     [InlineData("iPhone14,6", "iphone-home-button")] // SE 3rd
     [InlineData("iPhone14,7", "iphone")] // 14
+    [InlineData("iPhone8,4", "iphone-home-button")] // SE 1st
+    [InlineData("iPhone11,8", "iphone")] // XR
+    [InlineData("iPhone17,5", "iphone")] // 16e
+    [InlineData("iPhone18,4", "iphone")] // Air
+    [InlineData("iPhone18,5", "iphone")] // 17e
+    [InlineData("iPhone19,2", "iphone")] // 18 Pro
+    [InlineData("iPhone19,4", "ipad-pro-11")] // Duo (foldable)
     [InlineData("iPhone99,1", "iphone")] // newer
     [InlineData("iPod9,1", "iphone-home-button")]
     [InlineData("iPad13,1", "ipad")]
@@ -155,10 +162,43 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("iPad14,1", "ipad-mini")]
     [InlineData("iPad12,1", "ipad-4x3")] // 9th gen
     [InlineData("iPad7,5", "ipad-4x3")]
+    [InlineData("iPad11,3", "ipad-4x3")] // Air 3rd
+    [InlineData("iPad15,8", "ipad")] // A16
+    [InlineData("iPad16,1", "ipad-mini")] // mini A17 Pro
+    [InlineData("iPad16,5", "ipad-4x3")] // Pro 13 M4
+    [InlineData("iPad16,8", "ipad")] // Air 11 M4
+    [InlineData("iPad16,11", "ipad-4x3")] // Air 13 M4
+    [InlineData("iPad17,2", "ipad-pro-11")] // Pro 11 M5
+    [InlineData("iPad17,3", "ipad-4x3")] // Pro 13 M5
+    [InlineData("iPad19,1", "ipad-mini")] // mini A20 Pro
     [InlineData("iPad99,1", "ipad")] // newer
     public void ModelNumbersHaveShapes(string model, string preset)
     {
         Assert.Equal(preset, ScreenPreset.ForModel(model)!.Id);
+    }
+
+    // Portrait pixels from Apple's technical specifications: the preset's shape is within the picture locator's 3%.
+    [Theory]
+    [InlineData("iPhone8,4", 640, 1136)] // SE 1st
+    [InlineData("iPhone10,2", 1080, 1920)] // 8 Plus
+    [InlineData("iPhone13,1", 1080, 2340)] // 12 mini
+    [InlineData("iPhone18,4", 1260, 2736)] // Air
+    [InlineData("iPhone19,4", 1878, 2670)] // Duo, inner display
+    [InlineData("iPhone19,4", 1398, 2034)] // Duo, outer display
+    [InlineData("iPad7,3", 1668, 2224)] // Pro 10.5
+    [InlineData("iPad12,1", 1620, 2160)] // 9th gen
+    [InlineData("iPad16,1", 1488, 2266)] // mini A17 Pro
+    [InlineData("iPad19,1", 1512, 2316)] // mini A20 Pro
+    [InlineData("iPad16,3", 1668, 2420)] // Pro 11 M4
+    [InlineData("iPad17,1", 1668, 2420)] // Pro 11 M5
+    [InlineData("iPad16,8", 1640, 2360)] // Air 11 M4
+    [InlineData("iPad14,5", 2048, 2732)] // Pro 12.9 6th
+    [InlineData("iPad16,10", 2048, 2732)] // Air 13 M4
+    [InlineData("iPad17,3", 2064, 2752)] // Pro 13 M5
+    public void ModelShapesMatchTheirScreens(string model, int width, int height)
+    {
+        var aspect = ScreenPreset.ForModel(model)!.PortraitAspect;
+        Assert.InRange(aspect / ((double)width / height), 0.97, 1.03);
     }
 
     [Theory]

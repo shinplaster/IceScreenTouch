@@ -33,6 +33,9 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 
 - With a receiver started outside the app (such as AirServer), other computers that keep a Google Cast connection
   to the receiver are no longer taken as possible mirrored devices when choosing which iPhone or iPad gets the input.
+- With the "Automatic" screen setting, the picture of these models is now looked for with the right shape: iPad Pro
+  13-inch (M5) and iPad Air 13-inch (M4) as 4:3, iPad mini (A20 Pro) as an iPad mini, and the iPhone Duo with the
+  shape of its displays (they were taken as an 11-inch iPad or as an iPhone X-style screen).
 
 ## [0.3.1] - 2026-11-18
 

@@ -42,8 +42,9 @@ public sealed record ScreenPreset(string Id, string LabelName, int Width, int He
     /// <summary>
     /// The shape of a model number as the device reports it over Bluetooth (Device Information, Model Number), such
     /// as "iPhone16,1" or "iPad13,1"; null for anything else. Seen on the devices: iPhone16,1 (iPhone 15 Pro) and
-    /// iPad13,1 (iPad Air 4th generation), 2026-11-06; the rest of the table follows Apple's published model
-    /// numbers. Unknown newer iPhones are taken as <see cref="Default"/>, unknown newer iPads as "ipad".
+    /// iPad13,1 (iPad Air 4th generation), 2026-11-06; the rest of the table follows the published model
+    /// numbers and Apple's technical specifications (checked up to iPhone19,x and iPad19,x, 2026-11-23). Unknown
+    /// newer iPhones are taken as <see cref="Default"/>, unknown newer iPads as "ipad".
     /// </summary>
     public static ScreenPreset? ForModel(string? model)
     {
@@ -65,16 +66,24 @@ public sealed record ScreenPreset(string Id, string LabelName, int Width, int He
             return null;
         }
 
+        // Shapes from Apple's technical specifications (pixels / scale). The iPhones with a Home button are 16:9
+        // (iPhone 5 to SE 3rd gen); the 3:2 ones (iPhone 4S and older) have no preset and get the 16:9 one.
         return family switch
         {
             "iPod" => HomeButton,
-            "iPhone" => major <= 9 || (major, minor) is (10, 1) or (10, 2) or (10, 4) or (10, 5) or (12, 8) or (14, 6) ? HomeButton : Default,
+            "iPhone" => (major, minor) switch
+            {
+                _ when major <= 9 => HomeButton,
+                (10, 1 or 2 or 4 or 5) or (12, 8) or (14, 6) => HomeButton, // 8, 8 Plus, SE 2nd and 3rd gen
+                (19, 4) => IpadPro11, // iPhone Duo: inner display 1878x2670, outer 1398x2034 (both within 2% of this shape)
+                _ => Default,
+            },
             _ => (major, minor) switch
             {
-                (14, 1 or 2) or (16, 1 or 2) => IpadMini, // mini 6th gen, mini A17 Pro
-                (8, >= 1 and <= 4) or (8, 9 or 10) or (13, >= 4 and <= 7) or (14, 3 or 4) or (16, 3 or 4) => IpadPro11,
-                (13, 1 or 2) or (13, >= 16 and <= 19) or (14, 8 or 9) or (15, 3 or 4) or (15, 7 or 8) => Ipad, // Air 11-inch, iPad 10th gen and A16
-                (13, >= 8 and <= 11) or (14, 5 or 6) or (14, 10 or 11) or (15, 5 or 6) or (16, 5 or 6) => Ipad4x3, // 12.9 and 13-inch
+                (14, 1 or 2) or (16, 1 or 2) or (19, 1 or 2) => IpadMini, // mini 6th gen, A17 Pro, A20 Pro (1512x2316)
+                (8, >= 1 and <= 4) or (8, 9 or 10) or (13, >= 4 and <= 7) or (14, 3 or 4) or (16, 3 or 4) or (17, 1 or 2) => IpadPro11, // Pro 11-inch
+                (13, 1 or 2) or (13, >= 16 and <= 19) or (14, 8 or 9) or (15, 3 or 4) or (15, 7 or 8) or (16, 8 or 9) => Ipad, // Air 11-inch, iPad 10th gen and A16
+                (13, >= 8 and <= 11) or (14, 5 or 6) or (14, 10 or 11) or (15, 5 or 6) or (16, 5 or 6) or (16, 10 or 11) or (17, 3 or 4) => Ipad4x3, // 12.9 and 13-inch
                 _ when major <= 12 => Ipad4x3, // models with a Home button, and older Pros
                 _ => Ipad,
             },
