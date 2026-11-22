@@ -39,7 +39,7 @@ iPhone 用に売られている「ミラーリング + タッチ操作のワイ�
 
 - Windows 10（2004 以降）または Windows 11、64 ビット
 - **LE のペリフェラル役**に対応した Bluetooth アダプタ（アプリが準備の手順の中で確かめます）
-- PC の **AirPlay 受信ソフト**: 5KPlayer、AirServer、LonelyScreen、Reflector 4、UxPlay で確認しています。それぞれの入れ方は [docs/USER-GUIDE.ja.md](docs/USER-GUIDE.ja.md#受信ソフトを入れる) にあります。IceScreen Touch はこれらの開発元とは関係がなく、紹介料も受け取っていません。使い方の文書では、各受信ソフトの公式サイトにだけリンクしています。受信ソフトは 1 つだけ起動してください
+- PC の **AirPlay 受信ソフト**: 5KPlayer、AirServer、LonelyScreen、Reflector 4、UxPlay で確認しています。それぞれの入れ方は [docs/USER-GUIDE.ja.md](docs/USER-GUIDE.ja.md#受信ソフトを入れる) にあります。IceScreen Touch はこれらの開発元とは関係がなく、紹介料も受け取っていません。ユーザーガイドでは、各受信ソフトの公式サイトにだけリンクしています。受信ソフトは 1 つだけ起動してください
 - 同じネットワークにつないだ iPhone か iPad。アクセシビリティの**ズーム**をオンにします。iPhone 15 Pro（iOS 26.6.1）と iPad Air 第 4 世代（iPadOS 18.6.2）で確認しています
 
 ## 使い始める

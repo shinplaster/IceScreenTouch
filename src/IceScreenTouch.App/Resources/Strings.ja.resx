@@ -99,10 +99,10 @@
   <data name="SectionReceivers" xml:space="preserve"><value>この PC の受信ソフト（AirPlay）</value></data>
   <data name="ReceiversIntro" xml:space="preserve"><value>IceScreen Touch は映像を受信しません。AirPlay を受信するソフトのウィンドウを追い、その上のクリックを iPhone へのタッチにします。</value></data>
   <data name="ButtonLaunch" xml:space="preserve"><value>起動</value></data>
-  <data name="NoReceivers" xml:space="preserve"><value>見つかりませんでした。AirPlay の受信ソフトを入れて起動してから「探し直す」を押してください（確認済みの受信ソフトと入れ方は、「受信ソフトの入れ方」で開く使い方の文書にあります）。一覧にないソフトは「設定」タブでプロセス名を指定すると追えます。</value></data>
+  <data name="NoReceivers" xml:space="preserve"><value>見つかりませんでした。AirPlay の受信ソフトを入れて起動してから「探し直す」を押してください（確認済みの受信ソフトと入れ方は、「受信ソフトの入れ方」で開くユーザーガイドにあります）。一覧にないソフトは「設定」タブでプロセス名を指定すると追えます。</value></data>
   <data name="ButtonSearch" xml:space="preserve"><value>探し直す</value></data>
   <data name="ButtonReceiverGuide" xml:space="preserve"><value>受信ソフトの入れ方</value></data>
-  <data name="TipReceiverGuide" xml:space="preserve"><value>使い方の文書の「受信ソフトを入れる」の章（GitHub）をブラウザーで開きます。確認済みの受信ソフトが、名前順に公式サイトへのリンクつきで並んでいます。</value></data>
+  <data name="TipReceiverGuide" xml:space="preserve"><value>ユーザーガイドの「受信ソフトを入れる」の章（GitHub）をブラウザーで開きます。確認済みの受信ソフトが、名前順に公式サイトへのリンクつきで並んでいます。</value></data>
   <data name="ReceiverRunning" xml:space="preserve"><value>動作中</value></data>
   <data name="ReceiverInstalled" xml:space="preserve"><value>インストール済み（停止中）</value></data>
   <data name="ReceiverInUse" xml:space="preserve"><value>使用中</value></data>
@@ -301,8 +301,8 @@
   <data name="TabAbout" xml:space="preserve"><value>情報</value></data>
   <data name="FormatAboutVersion" xml:space="preserve"><value>バージョン {0}</value></data>
   <data name="FormatAboutVersionCommit" xml:space="preserve"><value>バージョン {0}（コミット {1}）</value></data>
-  <data name="ButtonUserGuide" xml:space="preserve"><value>使い方の文書</value></data>
-  <data name="TipUserGuide" xml:space="preserve"><value>使い方の文書（GitHub）をブラウザーで開きます。</value></data>
+  <data name="ButtonUserGuide" xml:space="preserve"><value>ユーザーガイド</value></data>
+  <data name="TipUserGuide" xml:space="preserve"><value>ユーザーガイド（GitHub）をブラウザーで開きます。</value></data>
   <data name="ButtonGitHub" xml:space="preserve"><value>GitHub</value></data>
   <data name="ButtonReportIssue" xml:space="preserve"><value>問題を報告</value></data>
   <data name="ButtonCopyInfo" xml:space="preserve"><value>バージョン情報をコピー</value></data>
