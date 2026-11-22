@@ -24,6 +24,17 @@ public static class AppInfo
     /// <summary>Where users report problems.</summary>
     public const string IssuesUrl = RepositoryUrl + "/issues";
 
+    /// <summary>The user guide on GitHub (English); the Japanese one is <see cref="UserGuideJaUrl"/>.</summary>
+    public const string UserGuideUrl = RepositoryUrl + "/blob/main/docs/USER-GUIDE.md";
+
+    /// <summary>The Japanese user guide on GitHub.</summary>
+    public const string UserGuideJaUrl = RepositoryUrl + "/blob/main/docs/USER-GUIDE.ja.md";
+
+    // The GitHub anchors of the chapter "Installing an AirPlay receiver" / "受信ソフトを入れる". Released builds open
+    // them on main, so once released the headings must keep these anchors (or the guide must keep an <a id> for them).
+    private const string ReceiverChapterAnchor = "installing-an-airplay-receiver";
+    private const string ReceiverChapterAnchorJa = "受信ソフトを入れる";
+
     private const string LicenseResource = "IceScreenTouch.App.LICENSE.txt";
     private const string NoticesResource = "IceScreenTouch.App.THIRD-PARTY-NOTICES.txt";
 
@@ -71,6 +82,26 @@ public static class AppInfo
         $".NET {Environment.Version}, {RuntimeInformation.ProcessArchitecture}",
         $"OS: {RuntimeInformation.OSDescription}",
         $"UI language: {CultureInfo.CurrentUICulture.Name}");
+
+    /// <summary>The user guide, in the language of <paramref name="uiCulture"/> (Japanese for <c>ja</c>, English otherwise).</summary>
+    public static Uri UserGuideUri(CultureInfo uiCulture) =>
+        new(IsJapanese(uiCulture) ? UserGuideJaUrl : UserGuideUrl);
+
+    /// <summary>
+    /// The user guide's chapter on installing an AirPlay receiver, in the language of <paramref name="uiCulture"/>
+    /// (as <see cref="UserGuideUri"/>). The guide lists the tested receivers in name order and links to their
+    /// official sites only, so the button that opens it names none of them.
+    /// </summary>
+    public static Uri ReceiverGuideUri(CultureInfo uiCulture) =>
+        IsJapanese(uiCulture)
+            ? new Uri(UserGuideJaUrl + "#" + Uri.EscapeDataString(ReceiverChapterAnchorJa))
+            : new Uri(UserGuideUrl + "#" + ReceiverChapterAnchor);
+
+    private static bool IsJapanese(CultureInfo uiCulture)
+    {
+        ArgumentNullException.ThrowIfNull(uiCulture);
+        return string.Equals(uiCulture.TwoLetterISOLanguageName, "ja", StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>Splits <c>version+metadata</c>; the metadata is a commit when it starts with 7 hex digits.</summary>
     internal static (string Version, string? Commit) SplitVersion(string informational)

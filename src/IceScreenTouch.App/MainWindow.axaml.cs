@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Specialized;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
@@ -122,6 +123,12 @@ public partial class MainWindow : Window
 
     private async void OpenIssues(object? sender, RoutedEventArgs e) =>
         await Launcher.LaunchUriAsync(new Uri(AppInfo.IssuesUrl));
+
+    private async void OpenUserGuide(object? sender, RoutedEventArgs e) =>
+        await Launcher.LaunchUriAsync(AppInfo.UserGuideUri(CultureInfo.CurrentUICulture));
+
+    private async void OpenReceiverGuide(object? sender, RoutedEventArgs e) =>
+        await Launcher.LaunchUriAsync(AppInfo.ReceiverGuideUri(CultureInfo.CurrentUICulture));
 
     private async void OpenDataFolder(object? sender, RoutedEventArgs e)
     {

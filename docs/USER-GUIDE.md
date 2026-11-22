@@ -52,7 +52,7 @@ IceScreen Touch does not receive the video. A separate program, an AirPlay recei
 - Run **only one** receiver at a time. Several receivers running together can get in each other's way, and it is not guaranteed to work. In a test, with UxPlay running together with LonelyScreen and Reflector 4, the iPhone's Screen Mirroring list showed only "LonelyScreen" and the PC's name; UxPlay's name was missing until the other two were closed.
 - The iPhone and the PC must be on the same network.
 - Each receiver shows its own entry in the iPhone's list (Control Center > Screen Mirroring). The name is given in its section below.
-- In IceScreen Touch, the **Status** tab lists the receivers on this PC under "AirPlay receivers on this PC": the ones installed in their usual folders and the ones that are running. Press **Start** to start one, then **Use** so that IceScreen Touch follows it (IceScreen Touch restarts its session). The list updates by itself, or press **Search again**. A receiver installed in another folder appears only while it is running.
+- In IceScreen Touch, the **Status** tab lists the receivers on this PC under "AirPlay receivers on this PC": the ones installed in their usual folders and the ones that are running. Press **Start** to start one, then **Use** so that IceScreen Touch follows it (IceScreen Touch restarts its session). The list updates by itself, or press **Search again**. A receiver installed in another folder appears only while it is running. **How to install a receiver**, under the list, opens this chapter on GitHub in the language IceScreen Touch shows (English or Japanese).
 - AirServer from the Microsoft Store can be followed only by IceScreen Touch **0.2.0 or later**. From 0.2.0, 5KPlayer and Reflector 4 are in the receiver list, and dragging over the picture does not move their window.
 
 **At a glance**
@@ -173,6 +173,7 @@ With a test page opened in Safari on the iPhone, IceScreen Touch can measure the
 - Logs: `logs\` in the data folder ("Open the log folder" in the **Log** tab)
 - Automation API: the **Settings** tab has a collapsible "Automation API" section, **off by default**. When you turn it on, scripts and AI agents on this PC can operate the connected iPhone or iPad the way you do with the mouse and keyboard (tap, swipe, type, and screenshots of the mirror window). Only programs on this PC can reach it, and they need the token shown in that section. A script can do everything you can do on the device, so turn it on only for scripts you trust. It is available in the purchased Store version and in a build of your own, not in the trial or while the Microsoft Store license cannot be checked. How to set it up and use it: [the Automation API guide](https://github.com/shinplaster/IceScreenTouch/blob/main/docs/API.md).
 - Version and licenses: the **About** tab (version, the "License:" line that says whether this copy is in its trial, purchased or self-built, the open-source licenses, third-party software, data folder). When you report a problem, paste the text that "Copy version info" copies.
+- This guide: **User guide** in the **About** tab opens it on GitHub, in the language IceScreen Touch shows (English or Japanese).
 - The environment variable `ICESCREENTOUCH_DATA_DIR` moves the settings and logs to another folder.
 
 ## Troubleshooting

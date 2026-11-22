@@ -194,7 +194,11 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
               <TextBlock TextWrapping="Wrap" IsVisible="{Binding NoReceivers}" Text="{x:Static res:Strings.NoReceivers}" />
-              <Button Content="{x:Static res:Strings.ButtonSearch}" Command="{Binding SearchCommand}" />
+              <!-- The guide's chapter lists the tested receivers in name order with their official sites; the button names none. -->
+              <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">
+                <Button Content="{x:Static res:Strings.ButtonSearch}" Command="{Binding SearchCommand}" />
+                <Button Content="{x:Static res:Strings.ButtonReceiverGuide}" Click="OpenReceiverGuide" ToolTip.Tip="{x:Static res:Strings.TipReceiverGuide}" />
+              </WrapPanel>
             </StackPanel>
           </Expander>
 
@@ -458,6 +462,7 @@
             <TextBlock Text="{Binding Copyright}" Classes="note" HorizontalAlignment="Center" />
           </StackPanel>
           <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Center" Margin="0,4,0,0">
+            <Button Content="{x:Static res:Strings.ButtonUserGuide}" Click="OpenUserGuide" ToolTip.Tip="{x:Static res:Strings.TipUserGuide}" />
             <Button Content="{x:Static res:Strings.ButtonGitHub}" Click="OpenRepository" />
             <Button Content="{x:Static res:Strings.ButtonReportIssue}" Click="OpenIssues" />
             <Button Content="{x:Static res:Strings.ButtonCopyInfo}" Click="CopyInfo" ToolTip.Tip="{x:Static res:Strings.TipCopyInfo}" />
