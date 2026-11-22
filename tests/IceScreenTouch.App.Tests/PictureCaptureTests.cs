@@ -140,14 +140,26 @@ public sealed class PictureCaptureMathTests
     }
 }
 
+// The time limits run on a fake clock: a limit passes only when a test advances the clock, never because a runner is slow.
 public sealed class CaptureRunnerTests
 {
-    private static readonly TimeSpan Short = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan Ms = TimeSpan.FromMilliseconds(1);
+    private static readonly TimeSpan Long = TimeSpan.FromSeconds(10); // a real-time bound for a thread to get somewhere
 
-    private static (CaptureRunner Runner, List<CaptureIssue> Issues) Make(TimeSpan? timeout = null)
+    private static (CaptureRunner Runner, List<CaptureIssue> Issues, FakeTimeProvider Time) Make(TimeSpan? timeout = null)
     {
         List<CaptureIssue> issues = [];
-        return (new CaptureRunner(timeout ?? Short, issue => { lock (issues) { issues.Add(issue); } }), issues);
+        var time = new FakeTimeProvider();
+        return (new CaptureRunner(timeout ?? Limit, issue => { lock (issues) { issues.Add(issue); } }, time), issues, time);
+    }
+
+    private static CaptureIssue[] Reported(List<CaptureIssue> issues)
+    {
+        lock (issues)
+        {
+            return [.. issues];
+        }
     }
 
     private static async Task WaitUntil(Func<bool> condition)
@@ -155,7 +167,7 @@ public sealed class CaptureRunnerTests
         var watch = Stopwatch.StartNew();
         while (!condition())
         {
-            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), "the condition was never met");
+            Assert.True(watch.Elapsed < Long, "the condition was never met");
             await Task.Delay(10);
         }
     }
@@ -163,29 +175,29 @@ public sealed class CaptureRunnerTests
     [Fact]
     public async Task ACaptureRunsAndItsResultIsReturned()
     {
-        var (runner, issues) = Make();
+        var (runner, issues, _) = Make();
 
         Assert.Equal("pixels", await runner.RunAsync(() => "pixels", CancellationToken.None));
         Assert.Equal("again", await runner.RunAsync(() => "again", CancellationToken.None));
-        Assert.Empty(issues);
+        Assert.Empty(Reported(issues));
     }
 
     [Fact]
     public async Task AFailedCaptureThrowsAndFreesTheGate()
     {
-        var (runner, issues) = Make();
+        var (runner, issues, _) = Make();
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await runner.RunAsync<string>(() => throw new InvalidOperationException("boom"), CancellationToken.None));
 
         Assert.Equal("next", await runner.RunAsync(() => "next", CancellationToken.None));
-        Assert.Empty(issues);
+        Assert.Empty(Reported(issues));
         Assert.False(runner.IsStuck);
     }
 
     [Fact]
     public async Task CapturesNeverOverlap()
     {
-        var (runner, _) = Make(TimeSpan.FromSeconds(10));
+        var (runner, issues, _) = Make();
         var inside = 0;
         var most = 0;
 
@@ -198,29 +210,31 @@ public sealed class CaptureRunnerTests
             return "x";
         }
 
+        // The fake clock stands still, so no limit passes however long the six take in real time.
         await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => runner.RunAsync(Work, CancellationToken.None).AsTask()));
 
         Assert.Equal(1, most);
+        Assert.Empty(Reported(issues));
     }
 
     [Fact]
     public async Task ATimedOutCaptureAnswersNullAndTheNextRequestIsRefusedAtOnce()
     {
-        var (runner, issues) = Make();
+        var (runner, issues, time) = Make();
         using var release = new ManualResetEventSlim();
 
-        var first = await runner.RunAsync(() => { release.Wait(); return "late"; }, CancellationToken.None);
+        var first = runner.RunAsync(() => { release.Wait(); return "late"; }, CancellationToken.None).AsTask();
+        time.Advance(Limit);
 
-        Assert.Null(first);
-        Assert.Equal([CaptureIssue.TimedOut], issues);
+        Assert.Null(await first);
+        Assert.Equal([CaptureIssue.TimedOut], Reported(issues));
         Assert.True(runner.IsStuck);
 
-        var watch = Stopwatch.StartNew();
-        var second = await runner.RunAsync(() => "never", CancellationToken.None);
-
-        Assert.Null(second);
-        Assert.True(watch.Elapsed < Short / 2, $"the refusal took {watch.Elapsed}");
-        Assert.Equal([CaptureIssue.TimedOut, CaptureIssue.StillStuck], issues);
+        // Refused without waiting: the answer is there before the clock moves at all.
+        var second = runner.RunAsync(() => "never", CancellationToken.None);
+        Assert.True(second.IsCompleted);
+        Assert.Null(await second);
+        Assert.Equal([CaptureIssue.TimedOut, CaptureIssue.StillStuck], Reported(issues));
 
         // The stuck capture ends at last: the gate is free and the runner works again.
         release.Set();
@@ -231,10 +245,12 @@ public sealed class CaptureRunnerTests
     [Fact]
     public async Task AFailureAfterATimeoutAlsoFreesTheGate()
     {
-        var (runner, _) = Make();
+        var (runner, _, time) = Make();
         using var release = new ManualResetEventSlim();
 
-        Assert.Null(await runner.RunAsync<string>(() => { release.Wait(); throw new InvalidOperationException("late failure"); }, CancellationToken.None));
+        var first = runner.RunAsync<string>(() => { release.Wait(); throw new InvalidOperationException("late failure"); }, CancellationToken.None).AsTask();
+        time.Advance(Limit);
+        Assert.Null(await first);
         release.Set();
         await WaitUntil(() => !runner.IsStuck);
 
@@ -244,17 +260,18 @@ public sealed class CaptureRunnerTests
     [Fact]
     public async Task ACallerThatCancelsGetsACancellationNotATimeoutAndTheGateIsFreedWhenTheCaptureEnds()
     {
-        var (runner, issues) = Make(TimeSpan.FromSeconds(30));
+        var (runner, issues, _) = Make();
         using var release = new ManualResetEventSlim();
         using var started = new ManualResetEventSlim();
         using var cancel = new CancellationTokenSource();
 
         var call = runner.RunAsync<string>(() => { started.Set(); release.Wait(); return "late"; }, cancel.Token).AsTask();
-        Assert.True(started.Wait(TimeSpan.FromSeconds(10)));
+        Assert.True(started.Wait(Long));
         await cancel.CancelAsync();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
-        Assert.Empty(issues);
+        var ex = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
+        Assert.Equal(cancel.Token, ex.CancellationToken);
+        Assert.Empty(Reported(issues));
         Assert.False(runner.IsStuck);
 
         release.Set();
@@ -264,60 +281,93 @@ public sealed class CaptureRunnerTests
     [Fact]
     public async Task ARequestThatCancelsBeforeItsTurnDoesNotRunItsCapture()
     {
-        var (runner, issues) = Make(TimeSpan.FromSeconds(30));
+        var (runner, issues, _) = Make();
         using var release = new ManualResetEventSlim();
         using var started = new ManualResetEventSlim();
         var first = runner.RunAsync<string>(() => { started.Set(); release.Wait(); return "first"; }, CancellationToken.None).AsTask();
-        Assert.True(started.Wait(TimeSpan.FromSeconds(10)));
+        Assert.True(started.Wait(Long));
         using var cancel = new CancellationTokenSource();
         var ran = false;
 
         var second = runner.RunAsync<string>(() => { ran = true; return "second"; }, cancel.Token).AsTask();
         await cancel.CancelAsync();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => second);
+        var ex = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => second);
+        Assert.Equal(cancel.Token, ex.CancellationToken); // the caller's own cancellation, not the time limit's
         release.Set();
         Assert.Equal("first", await first);
         Assert.False(ran);
-        Assert.Empty(issues);
+        Assert.Empty(Reported(issues));
+    }
+
+    [Fact]
+    public async Task ARequestThatHasAlreadyCancelledDoesNotRunItsCapture()
+    {
+        var (runner, issues, _) = Make();
+        using var cancel = new CancellationTokenSource();
+        await cancel.CancelAsync();
+        var ran = false;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await runner.RunAsync<string>(() => { ran = true; return "never"; }, cancel.Token));
+
+        Assert.False(ran);
+        Assert.Empty(Reported(issues));
+        Assert.Equal("fine", await runner.RunAsync(() => "fine", CancellationToken.None));
     }
 
     [Fact]
     public async Task TheTimeLimitStartsWhenTheCaptureStartsNotWhenTheRequestArrives()
     {
-        // Each capture takes 600 ms of the 1 s limit; the second one waits 600 ms for its turn and is done after 1.2 s, which is
-        // more than the limit, but only its own 600 ms count: waiting is not "the window did not answer".
-        var (runner, issues) = Make(TimeSpan.FromSeconds(1));
-        string? Slow(string name)
-        {
-            Thread.Sleep(600);
-            return name;
-        }
+        // Each capture takes 600 ms of the 1 s limit. The second one asks at the same time as the first, waits 600 ms for its turn
+        // and is done 1.2 s after it asked, which is more than the limit, but only its own 600 ms count: waiting is not "the window
+        // did not answer".
+        var (runner, issues, time) = Make();
+        using var releaseFirst = new ManualResetEventSlim();
+        using var releaseSecond = new ManualResetEventSlim();
+        using var secondStarted = new ManualResetEventSlim();
 
-        var first = runner.RunAsync(() => Slow("first"), CancellationToken.None).AsTask();
-        await Task.Delay(100); // the first one holds the gate
-        var second = runner.RunAsync(() => Slow("second"), CancellationToken.None).AsTask();
+        var first = runner.RunAsync(() => { releaseFirst.Wait(); return "first"; }, CancellationToken.None).AsTask();
+        var second = runner.RunAsync(() => { secondStarted.Set(); releaseSecond.Wait(); return "second"; }, CancellationToken.None).AsTask();
 
+        time.Advance(600 * Ms);
+        releaseFirst.Set();
         Assert.Equal("first", await first);
+        Assert.True(secondStarted.Wait(Long)); // its turn came at 600 ms
+
+        time.Advance(600 * Ms);
+        releaseSecond.Set();
         Assert.Equal("second", await second);
-        Assert.Empty(issues);
+        Assert.Empty(Reported(issues));
         Assert.False(runner.IsStuck);
     }
 
     [Fact]
     public async Task ARequestThatWaitsAsLongAsACaptureMayTakeForItsTurnIsRefusedAsStuckNotAsTimedOut()
     {
-        var (runner, issues) = Make();
+        // The second request comes 100 ms after the first, while the first is running but not stuck yet: it waits for its turn.
+        var (runner, issues, time) = Make();
         using var release = new ManualResetEventSlim();
         using var started = new ManualResetEventSlim();
         var first = runner.RunAsync<string>(() => { started.Set(); release.Wait(); return "first"; }, CancellationToken.None).AsTask();
-        Assert.True(started.Wait(TimeSpan.FromSeconds(10)));
+        Assert.True(started.Wait(Long));
+        time.Advance(100 * Ms);
+        var second = runner.RunAsync(() => "second", CancellationToken.None).AsTask();
 
-        Assert.Null(await runner.RunAsync(() => "second", CancellationToken.None));
-        Assert.Contains(CaptureIssue.StillStuck, issues); // it never got to run: what it reports is that the one in front has not finished
+        // At 1 s the first one times out and is stuck; the second one is still waiting for its turn.
+        time.Advance(900 * Ms);
+        Assert.Null(await first);
+        Assert.Equal([CaptureIssue.TimedOut], Reported(issues));
+        Assert.True(runner.IsStuck);
+        time.Advance(99 * Ms);
+        Assert.False(second.IsCompleted);
+
+        // At 1.1 s it has waited as long as a capture may take: it never got to run, and what it reports is that the one in front
+        // has not finished, not a timeout of its own.
+        time.Advance(Ms);
+        Assert.Null(await second);
+        Assert.Equal([CaptureIssue.TimedOut, CaptureIssue.StillStuck], Reported(issues));
 
         release.Set();
-        Assert.Null(await first); // the first one timed out as well (it took longer than the limit)
         await WaitUntil(() => !runner.IsStuck);
         Assert.Equal("fine", await runner.RunAsync(() => "fine", CancellationToken.None));
     }
