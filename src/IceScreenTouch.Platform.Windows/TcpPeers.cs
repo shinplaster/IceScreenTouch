@@ -24,11 +24,34 @@ public static partial class TcpPeers
     private const int Row6Size = 56;
 
     /// <summary>
+    /// The Google Cast port. AirServer keeps Cast connections from other computers on the network open on it
+    /// (2026-11-06); a device mirroring over AirPlay connects to the AirPlay ports instead.
+    /// </summary>
+    internal const int GoogleCastPort = 8009;
+
+    /// <summary>
     /// The distinct remote addresses of the established connections owned by <paramref name="processId"/>,
     /// leaving out loopback (receivers talk to the local Bonjour service).
     /// </summary>
-    public static IReadOnlyList<IPAddress> RemoteAddresses(int processId) =>
-        Distinct(ReadAll().Where(r => r.Pid == (uint)processId && r.State == StateEstablished));
+    public static IReadOnlyList<IPAddress> RemoteAddresses(int processId) => Distinct(Established(processId));
+
+    /// <summary>
+    /// Like <see cref="RemoteAddresses"/>, but leaving out the machines whose every connection to the process is a
+    /// Google Cast one: other computers casting to the receiver (issue #3). A device mirroring over AirPlay stays,
+    /// as it always has connections on the AirPlay ports.
+    /// </summary>
+    public static IReadOnlyList<IPAddress> MirrorCandidates(int processId) => WithoutGoogleCast(Established(processId));
+
+    /// <summary>
+    /// The distinct remote addresses of <paramref name="connections"/>, leaving out Google Cast connections (port
+    /// 8009 at either end).
+    /// </summary>
+    internal static IReadOnlyList<IPAddress> WithoutGoogleCast(IEnumerable<Row> connections) =>
+        Distinct(connections.Where(r => r.LocalPort != GoogleCastPort && r.RemotePort != GoogleCastPort));
+
+    /// <summary>The established connections owned by <paramref name="processId"/>.</summary>
+    internal static IEnumerable<Row> Established(int processId) =>
+        ReadAll().Where(r => r.Pid == (uint)processId && r.State == StateEstablished);
 
     /// <summary>
     /// Like <see cref="RemoteAddresses"/>, but only the connections that other machines opened to the process: on a
@@ -103,6 +126,7 @@ public static partial class TcpPeers
                     BinaryPrimitives.ReadUInt32LittleEndian(row),
                     Port(row[8..]),
                     new IPAddress(row.Slice(12, 4)),
+                    Port(row[16..]),
                     BinaryPrimitives.ReadUInt32LittleEndian(row[20..])));
             }
             else
@@ -114,6 +138,7 @@ public static partial class TcpPeers
                     BinaryPrimitives.ReadUInt32LittleEndian(row[48..]),
                     Port(row[20..]),
                     remote.IsIPv4MappedToIPv6 ? remote.MapToIPv4() : remote,
+                    Port(row[44..]),
                     BinaryPrimitives.ReadUInt32LittleEndian(row[52..])));
             }
         }
@@ -124,7 +149,8 @@ public static partial class TcpPeers
     // A port in the table is a DWORD whose first two bytes hold the port in network byte order.
     private static int Port(ReadOnlySpan<byte> field) => BinaryPrimitives.ReadUInt16BigEndian(field);
 
-    private readonly record struct Row(uint State, int LocalPort, IPAddress Remote, uint Pid);
+    /// <summary>One row of a TCP table.</summary>
+    internal readonly record struct Row(uint State, int LocalPort, IPAddress Remote, int RemotePort, uint Pid);
 
     [LibraryImport("iphlpapi.dll")]
     private static partial uint GetExtendedTcpTable(byte[] table, ref int size, [MarshalAs(UnmanagedType.Bool)] bool order, int family, int tableClass, uint reserved);
