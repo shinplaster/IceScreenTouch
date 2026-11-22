@@ -26,10 +26,13 @@ public static class ReceiverQuirks
 
     /// <summary>
     /// The receiver keeps its window open without a device, showing a standby screen that can pass for a portrait
-    /// picture (LonelyScreen's television and toolbar, 2026-11-06): its window is the mirror window only while a
-    /// device is connected (<see cref="WindowVideoSourceOptions.OnlyWhileConnected"/>).
+    /// picture (LonelyScreen's television and toolbar, 2026-11-06). AirServer, 2026-11-23: the Microsoft Store
+    /// edition keeps a window with its activation screen open, found as a 415x900 portrait picture in 1200x900, and
+    /// the installer edition opens its activation dialog at start during the trial, found as a 524x242 landscape
+    /// picture in 524x333. Its window is the mirror window only while a device is connected
+    /// (<see cref="WindowVideoSourceOptions.OnlyWhileConnected"/>).
     /// </summary>
-    public static bool ShowsStandbyScreen(string processName) => Is(processName, "LonelyScreen");
+    public static bool ShowsStandbyScreen(string processName) => Is(processName, "LonelyScreen") || Is(processName, "AirServer");
 
     /// <summary>
     /// A left-button drag on the picture moves the receiver's own window (Reflector 4 and 5KPlayer's Airplay.exe,

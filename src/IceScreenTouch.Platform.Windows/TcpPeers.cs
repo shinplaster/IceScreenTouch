@@ -56,13 +56,22 @@ public static partial class TcpPeers
     /// <summary>
     /// Like <see cref="RemoteAddresses"/>, but only the connections that other machines opened to the process: on a
     /// local port it listens on (a device mirroring to a receiver connects to its AirPlay port), not the ones it
-    /// opened itself (a license server, an update check).
+    /// opened itself (a license server, an update check), and not Google Cast ones (other computers keep them open to
+    /// AirServer while nothing is mirrored).
     /// </summary>
-    public static IReadOnlyList<IPAddress> IncomingAddresses(int processId)
+    public static IReadOnlyList<IPAddress> IncomingAddresses(int processId) =>
+        Incoming(ReadAll().Where(r => r.Pid == (uint)processId));
+
+    /// <summary>
+    /// The distinct remote addresses of the established connections among <paramref name="rows"/> (one process's)
+    /// on a local port that has a listening row, leaving out the Google Cast port.
+    /// </summary>
+    internal static IReadOnlyList<IPAddress> Incoming(IEnumerable<Row> rows)
     {
-        var rows = ReadAll().Where(r => r.Pid == (uint)processId).ToList();
-        var listening = rows.Where(r => r.State == StateListen).Select(r => r.LocalPort).ToHashSet();
-        return Distinct(rows.Where(r => r.State == StateEstablished && listening.Contains(r.LocalPort)));
+        var list = rows.ToList();
+        var listening = list.Where(r => r.State == StateListen).Select(r => r.LocalPort).ToHashSet();
+        listening.Remove(GoogleCastPort);
+        return Distinct(list.Where(r => r.State == StateEstablished && listening.Contains(r.LocalPort)));
     }
 
     private static List<IPAddress> Distinct(IEnumerable<Row> rows)
