@@ -93,6 +93,30 @@ public sealed class TcpPeersTests
         Assert.Equal([phone, phoneV6, castingPhone], TcpPeers.WithoutGoogleCast(rows));
     }
 
+    // A receiver showing nothing while another computer keeps Google Cast connections to it (AirServer, 2026-11-23)
+    // has no incoming device; a device mirroring over AirPlay is one. Outgoing connections never count.
+    [Fact]
+    public void IncomingConnectionsLeaveOutGoogleCast()
+    {
+        var phone = IPAddress.Parse("192.0.2.10");
+        var computer = IPAddress.Parse("192.0.2.20");
+        var server = IPAddress.Parse("198.51.100.1");
+        var any = IPAddress.Any;
+        TcpPeers.Row[] standby =
+        [
+            new(2, 7000, any, 0, 1),
+            new(2, 7100, any, 0, 1),
+            new(2, TcpPeers.GoogleCastPort, any, 0, 1),
+            new(5, TcpPeers.GoogleCastPort, computer, 52000, 1),
+            new(5, TcpPeers.GoogleCastPort, computer, 52001, 1),
+            new(5, 60000, server, 443, 1),
+        ];
+        Assert.Empty(TcpPeers.Incoming(standby));
+
+        TcpPeers.Row[] mirroring = [.. standby, new(5, 7000, phone, 51000, 1), new(5, 7100, phone, 51001, 1)];
+        Assert.Equal([phone], TcpPeers.Incoming(mirroring));
+    }
+
     // The remote port is read from the right place in both tables: each side of a loopback connection is a row.
     [Theory]
     [InlineData("127.0.0.1")]

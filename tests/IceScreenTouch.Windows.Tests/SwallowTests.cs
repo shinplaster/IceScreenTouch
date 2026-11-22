@@ -658,6 +658,19 @@ public class ReceiverCatalogTests
         Assert.Equal(expected, ReceiverQuirks.MovesWindowOnDrag(process));
     }
 
+    // Both AirServer editions show a window without a device (activation screen or dialog) that passed for a picture.
+    [Theory]
+    [InlineData("LonelyScreen", true)]
+    [InlineData("AirServer", true)]
+    [InlineData("airserver.exe", true)]
+    [InlineData("Reflector4", false)]
+    [InlineData("Airplay", false)]
+    [InlineData("uxplay", false)]
+    public void ReceiversWithAStandbyWindowAreFollowedOnlyWhileADeviceIsConnected(string process, bool expected)
+    {
+        Assert.Equal(expected, ReceiverQuirks.ShowsStandbyScreen(process));
+    }
+
     [Fact]
     public void TheNewReceiversAreKnownByTheProcessThatShowsThePicture()
     {
