@@ -25,8 +25,8 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 ### Added
 
 - **How to install a receiver**, next to **Search again** in the Status tab's receiver list, opens the user guide's
-  chapter on installing an AirPlay receiver on GitHub, in the language of the app (English or Japanese). The app itself
-  names no receiver; the guide lists the tested ones in name order with links to their official sites.
+  chapter on installing an AirPlay receiver on GitHub, in the language of the app (English or Japanese). The button and its
+  tooltip name no receiver; the guide lists the tested ones in name order with links to their official sites.
 - **User guide** in the About tab opens the user guide on GitHub, in the language of the app.
 
 ## [0.3.1] - 2026-11-18

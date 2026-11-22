@@ -96,6 +96,7 @@ public sealed class AboutTests
     [InlineData("en", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.md#installing-an-airplay-receiver")]
     [InlineData("en-US", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.md#installing-an-airplay-receiver")]
     [InlineData("fr", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.md#installing-an-airplay-receiver")]
+    [InlineData("", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.md#installing-an-airplay-receiver")]
     [InlineData("ja", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.ja.md#%E5%8F%97%E4%BF%A1%E3%82%BD%E3%83%95%E3%83%88%E3%82%92%E5%85%A5%E3%82%8C%E3%82%8B")]
     [InlineData("ja-JP", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.ja.md#%E5%8F%97%E4%BF%A1%E3%82%BD%E3%83%95%E3%83%88%E3%82%92%E5%85%A5%E3%82%8C%E3%82%8B")]
     public void TheReceiverGuideOpensInTheAppLanguage(string culture, string expected)

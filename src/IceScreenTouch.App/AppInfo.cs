@@ -30,7 +30,8 @@ public static class AppInfo
     /// <summary>The Japanese user guide on GitHub.</summary>
     public const string UserGuideJaUrl = RepositoryUrl + "/blob/main/docs/USER-GUIDE.ja.md";
 
-    // The GitHub anchors of the chapter "Installing an AirPlay receiver" / "受信ソフトを入れる".
+    // The GitHub anchors of the chapter "Installing an AirPlay receiver" / "受信ソフトを入れる". Released builds open
+    // them on main, so once released the headings must keep these anchors (or the guide must keep an <a id> for them).
     private const string ReceiverChapterAnchor = "installing-an-airplay-receiver";
     private const string ReceiverChapterAnchorJa = "受信ソフトを入れる";
 
@@ -89,7 +90,7 @@ public static class AppInfo
     /// <summary>
     /// The user guide's chapter on installing an AirPlay receiver, in the language of <paramref name="uiCulture"/>
     /// (as <see cref="UserGuideUri"/>). The guide lists the tested receivers in name order and links to their
-    /// official sites only, so the app itself names none of them.
+    /// official sites only, so the button that opens it names none of them.
     /// </summary>
     public static Uri ReceiverGuideUri(CultureInfo uiCulture) =>
         IsJapanese(uiCulture)

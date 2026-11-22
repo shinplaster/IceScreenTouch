@@ -194,7 +194,7 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
               <TextBlock TextWrapping="Wrap" IsVisible="{Binding NoReceivers}" Text="{x:Static res:Strings.NoReceivers}" />
-              <!-- The guide's chapter lists the tested receivers in name order with their official sites; the app names none. -->
+              <!-- The guide's chapter lists the tested receivers in name order with their official sites; the button names none. -->
               <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">
                 <Button Content="{x:Static res:Strings.ButtonSearch}" Command="{Binding SearchCommand}" />
                 <Button Content="{x:Static res:Strings.ButtonReceiverGuide}" Click="OpenReceiverGuide" ToolTip.Tip="{x:Static res:Strings.TipReceiverGuide}" />
