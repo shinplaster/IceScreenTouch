@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Shin-plaster
 // SPDX-License-Identifier: MIT
 
+using System.Globalization;
 using IceScreenTouch.App.ViewModels;
 using IceScreenTouch.Core;
 
@@ -89,5 +90,72 @@ public sealed class AboutTests
         Assert.NotEmpty(about.Components);
         Assert.Equal($"部品の一覧（{about.Components.Count} 個）", about.ComponentsHeader);
         Assert.False(about.Copied);
+    }
+
+    [Theory]
+    [InlineData("en", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.md#installing-an-airplay-receiver")]
+    [InlineData("en-US", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.md#installing-an-airplay-receiver")]
+    [InlineData("fr", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.md#installing-an-airplay-receiver")]
+    [InlineData("ja", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.ja.md#%E5%8F%97%E4%BF%A1%E3%82%BD%E3%83%95%E3%83%88%E3%82%92%E5%85%A5%E3%82%8C%E3%82%8B")]
+    [InlineData("ja-JP", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.ja.md#%E5%8F%97%E4%BF%A1%E3%82%BD%E3%83%95%E3%83%88%E3%82%92%E5%85%A5%E3%82%8C%E3%82%8B")]
+    public void TheReceiverGuideOpensInTheAppLanguage(string culture, string expected)
+    {
+        Assert.Equal(expected, AppInfo.ReceiverGuideUri(CultureInfo.GetCultureInfo(culture)).AbsoluteUri);
+    }
+
+    [Theory]
+    [InlineData("en", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.md")]
+    [InlineData("en-US", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.md")]
+    [InlineData("fr", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.md")]
+    [InlineData("", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.md")]
+    [InlineData("ja", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.ja.md")]
+    [InlineData("ja-JP", "https://github.com/shinplaster/IceScreenTouch/blob/main/docs/USER-GUIDE.ja.md")]
+    public void TheUserGuideOpensInTheAppLanguage(string culture, string expected)
+    {
+        Assert.Equal(expected, AppInfo.UserGuideUri(CultureInfo.GetCultureInfo(culture)).AbsoluteUri);
+    }
+
+    [Fact]
+    public void TheGuideLinksAreTheGuideFilesOfTheRepository()
+    {
+        // The About tab and the receiver list open the same two files on the main branch.
+        foreach (var culture in new[] { "en", "ja" })
+        {
+            var top = AppInfo.UserGuideUri(CultureInfo.GetCultureInfo(culture));
+            var chapter = AppInfo.ReceiverGuideUri(CultureInfo.GetCultureInfo(culture));
+            Assert.StartsWith(AppInfo.RepositoryUrl + "/blob/main/docs/USER-GUIDE.", top.AbsoluteUri, StringComparison.Ordinal);
+            Assert.Equal(top.AbsoluteUri, chapter.GetLeftPart(UriPartial.Path));
+            Assert.Empty(top.Fragment);
+            Assert.True(File.Exists(Path.Combine(RepositoryRoot(), "docs", top.Segments[^1])));
+        }
+    }
+
+    [Theory]
+    [InlineData("en", "USER-GUIDE.md")]
+    [InlineData("ja", "USER-GUIDE.ja.md")]
+    public void TheReceiverGuideAnchorIsAChapterOfTheGuide(string culture, string file)
+    {
+        // GitHub's anchor of a heading: lower case, spaces as hyphens, punctuation other than hyphens dropped.
+        var uri = AppInfo.ReceiverGuideUri(CultureInfo.GetCultureInfo(culture));
+        Assert.EndsWith("/docs/" + file, uri.GetLeftPart(UriPartial.Path), StringComparison.Ordinal);
+        var anchor = Uri.UnescapeDataString(uri.Fragment.TrimStart('#'));
+        var headings = File.ReadAllLines(Path.Combine(RepositoryRoot(), "docs", file))
+            .Where(l => l.StartsWith("## ", StringComparison.Ordinal))
+            .Select(l => new string([.. l[3..].Trim().ToLowerInvariant().Replace(' ', '-').Where(c => char.IsLetterOrDigit(c) || c == '-')]));
+        Assert.Contains(anchor, headings);
+    }
+
+    // The nearest folder above the test assembly that has IceScreenTouch.slnx.
+    private static string RepositoryRoot()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "IceScreenTouch.slnx")))
+            {
+                return dir.FullName;
+            }
+        }
+
+        throw new InvalidOperationException("IceScreenTouch.slnx was not found above " + AppContext.BaseDirectory);
     }
 }

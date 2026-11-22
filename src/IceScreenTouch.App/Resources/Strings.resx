@@ -101,8 +101,10 @@
   <data name="SectionReceivers" xml:space="preserve"><value>AirPlay receivers on this PC</value></data>
   <data name="ReceiversIntro" xml:space="preserve"><value>IceScreen Touch does not receive the video itself. It follows the window of an AirPlay receiver and turns clicks on it into touches on the iPhone.</value></data>
   <data name="ButtonLaunch" xml:space="preserve"><value>Start</value></data>
-  <data name="NoReceivers" xml:space="preserve"><value>None found. Install and start an AirPlay receiver (the user guide lists the tested ones and how to install them), then press "Search again". A receiver that is not listed can be followed by entering its process name in the Settings tab.</value></data>
+  <data name="NoReceivers" xml:space="preserve"><value>None found. Install and start an AirPlay receiver ("How to install a receiver" opens the user guide's list of the tested ones), then press "Search again". A receiver that is not listed can be followed by entering its process name in the Settings tab.</value></data>
   <data name="ButtonSearch" xml:space="preserve"><value>Search again</value></data>
+  <data name="ButtonReceiverGuide" xml:space="preserve"><value>How to install a receiver</value></data>
+  <data name="TipReceiverGuide" xml:space="preserve"><value>Opens the user guide's chapter "Installing an AirPlay receiver" on GitHub in your web browser: the tested receivers, in name order, with links to their official sites.</value></data>
   <data name="ReceiverRunning" xml:space="preserve"><value>Running</value></data>
   <data name="ReceiverInstalled" xml:space="preserve"><value>Installed (not running)</value></data>
   <data name="ReceiverInUse" xml:space="preserve"><value>In use</value></data>
@@ -301,6 +303,8 @@
   <data name="TabAbout" xml:space="preserve"><value>About</value></data>
   <data name="FormatAboutVersion" xml:space="preserve"><value>Version {0}</value></data>
   <data name="FormatAboutVersionCommit" xml:space="preserve"><value>Version {0} (commit {1})</value></data>
+  <data name="ButtonUserGuide" xml:space="preserve"><value>User guide</value></data>
+  <data name="TipUserGuide" xml:space="preserve"><value>Opens the user guide on GitHub in your web browser.</value></data>
   <data name="ButtonGitHub" xml:space="preserve"><value>GitHub</value></data>
   <data name="ButtonReportIssue" xml:space="preserve"><value>Report a problem</value></data>
   <data name="ButtonCopyInfo" xml:space="preserve"><value>Copy version info</value></data>
