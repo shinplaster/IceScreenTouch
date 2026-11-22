@@ -34,9 +34,9 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 - With a receiver started outside the app (such as AirServer), other computers that keep a Google Cast connection
   to the receiver are no longer taken as possible mirrored devices when choosing which iPhone or iPad gets the input.
 - AirServer's window counts as the mirror window only while a device is connected to it, as LonelyScreen's already did.
-  Without a device, the Microsoft Store edition shows its activation screen and the installer edition its activation
-  dialog at start; IceScreen Touch took them for the device's picture ("Showing" in the Status tab), so a click on them
-  became a touch on the iPhone. Google Cast connections from other computers no longer count as a connected device.
+  Without a device, AirServer can show a window of its own (seen: the Microsoft Store edition's activation screen, and
+  the installer edition's activation dialog at start); IceScreen Touch took it for the device's picture ("Showing" in
+  the Status tab), so a click on it became a touch on the iPhone. Google Cast connections from other computers no longer count as a connected device.
 
 ## [0.3.1] - 2026-11-18
 
