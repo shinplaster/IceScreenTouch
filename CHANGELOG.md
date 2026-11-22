@@ -22,6 +22,8 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-23
+
 ### Added
 
 - **How to install a receiver**, next to **Search again** in the Status tab's receiver list, opens the user guide's
