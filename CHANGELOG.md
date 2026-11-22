@@ -29,6 +29,11 @@ All notable changes to IceScreen Touch are recorded here. The format follows
   tooltip name no receiver; the guide lists the tested ones in name order with links to their official sites.
 - **User guide** in the About tab opens the user guide on GitHub, in the language of the app.
 
+### Fixed
+
+- With a receiver started outside the app (such as AirServer), other computers that keep a Google Cast connection
+  to the receiver are no longer taken as possible mirrored devices when choosing which iPhone or iPad gets the input.
+
 ## [0.3.1] - 2026-11-18
 
 ### Fixed

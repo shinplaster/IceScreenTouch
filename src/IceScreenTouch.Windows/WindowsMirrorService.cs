@@ -399,8 +399,9 @@ internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null
 
             // Only machines on this PC's own subnets: the phone is one of them. The receiver also talks to servers
             // on the internet (updates, licences), which must not get our queries nor be able to name the device
-            // the input goes to (security review, 2026-11-07).
-            foreach (var address in TcpPeers.RemoteAddresses(attached.ProcessId).Where(a => !own.Contains(a) && unicast.Any(u => Subnet.Contains(u.Address, u.PrefixLength, a))))
+            // the input goes to (security review, 2026-11-07). Other computers casting to the receiver (Google
+            // Cast) are not the device either (issue #3).
+            foreach (var address in TcpPeers.MirrorCandidates(attached.ProcessId).Where(a => !own.Contains(a) && unicast.Any(u => Subnet.Contains(u.Address, u.PrefixLength, a))))
             {
                 if (await HostNameAsync(address, ct).ConfigureAwait(false) is { } host && !hosts.Contains(host))
                 {
