@@ -90,10 +90,14 @@ public enum CaptureIssue
 /// the caller is not a timeout: it ends the wait with <see cref="OperationCanceledException"/> (the capture itself still runs to its
 /// end and then frees the gate).
 /// </summary>
+/// <param name="timeout">How long a capture may take, and how long a request waits for its turn.</param>
+/// <param name="report">Told about every timeout and refusal.</param>
+/// <param name="time">The clock of both time limits; <see cref="TimeProvider.System"/> when null.</param>
 #pragma warning disable CA1001 // The SemaphoreSlim has no wait handle (AvailableWaitHandle is never used): nothing to dispose.
-public sealed class CaptureRunner(TimeSpan timeout, Action<CaptureIssue> report)
+public sealed class CaptureRunner(TimeSpan timeout, Action<CaptureIssue> report, TimeProvider? time = null)
 #pragma warning restore CA1001
 {
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Lock _state = new();
     private bool _running;
@@ -125,7 +129,7 @@ public sealed class CaptureRunner(TimeSpan timeout, Action<CaptureIssue> report)
         }
 
         // Waiting is not the capture's time. Waiting as long as a capture may take means the one in front has not finished in its time.
-        if (!await _gate.WaitAsync(timeout, cancellationToken).ConfigureAwait(false))
+        if (!await WaitForTurnAsync(cancellationToken).ConfigureAwait(false))
         {
             report(CaptureIssue.StillStuck);
             return default;
@@ -157,7 +161,7 @@ public sealed class CaptureRunner(TimeSpan timeout, Action<CaptureIssue> report)
             CancellationToken.None);
         try
         {
-            return await work.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
+            return await work.WaitAsync(timeout, _time, cancellationToken).ConfigureAwait(false);
         }
         catch (TimeoutException)
         {
@@ -168,6 +172,35 @@ public sealed class CaptureRunner(TimeSpan timeout, Action<CaptureIssue> report)
 
             report(CaptureIssue.TimedOut);
             return default;
+        }
+    }
+
+    // Takes the gate within the time limit (measured on _time): false when the limit passed first. A cancelled caller gets
+    // an OperationCanceledException of its own token. SemaphoreSlim never both grants the gate and throws, so a refused or
+    // cancelled wait holds nothing.
+    private async ValueTask<bool> WaitForTurnAsync(CancellationToken cancellationToken)
+    {
+        // A caller that has already given up gets its cancellation here, before any capture runs.
+        if (_gate.Wait(0, cancellationToken))
+        {
+            return true;
+        }
+
+        using var limit = new CancellationTokenSource(timeout, _time);
+        using var either = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, limit.Token);
+        try
+        {
+            await _gate.WaitAsync(either.Token).ConfigureAwait(false);
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
         }
     }
 }

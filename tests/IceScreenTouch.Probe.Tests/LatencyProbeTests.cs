@@ -8,18 +8,20 @@ using IceScreenTouch.Probe;
 
 namespace IceScreenTouch.Probe.Tests;
 
-// The latency probe against a simulated phone and mirror window, in real time (about a second per test).
+// The latency probe against a simulated phone and mirror window (about a second per test). The measuring tests run on a clock
+// that moves only when the simulated screen is looked at, so what they measure does not depend on how fast the runner is.
 public sealed class LatencyProbeTests
 {
     private const double TouchMs = 30;
     private const double PaintMs = 8;
     private const double PictureMs = 50;
+    private const double LookMs = 2;
 
     [Fact]
     public async Task MeasuresTheWholeDelayAndSplitsIt()
     {
         var server = new ProbeServer(0, IPAddress.Loopback);
-        var phone = new SimulatedPhone(server);
+        var phone = new SimulatedPhone(server, new LookClock());
 
         var result = await Probe(server, phone).RunAsync(3);
 
@@ -27,11 +29,13 @@ public sealed class LatencyProbeTests
         Assert.Equal(6, result.Seen);
         foreach (var trials in new[] { result.Downs, result.Ups })
         {
-            Assert.InRange(LatencyResult.Median(trials.Select(t => t.TotalMs))!.Value, TouchMs + PaintMs + PictureMs - 6, TouchMs + PaintMs + PictureMs + 12);
-            Assert.InRange(LatencyResult.Median(trials.Select(t => t.TouchMs))!.Value, TouchMs - 2, TouchMs + 5);
-            Assert.InRange(LatencyResult.Median(trials.Select(t => t.PictureMs))!.Value, PictureMs - 6, PictureMs + 12);
+            // A change is seen by the first look that ends after it and timed at the middle of that look: within a look of the truth.
+            Assert.InRange(LatencyResult.Median(trials.Select(t => t.TotalMs))!.Value, TouchMs + PaintMs + PictureMs - LookMs, TouchMs + PaintMs + PictureMs + LookMs);
+            Assert.InRange(LatencyResult.Median(trials.Select(t => t.TouchMs))!.Value, TouchMs - 0.01, TouchMs + 0.01);
+            Assert.InRange(LatencyResult.Median(trials.Select(t => t.PictureMs))!.Value, PictureMs - LookMs, PictureMs + LookMs);
         }
 
+        Assert.Equal(LookMs, result.SampleMs, 0.01);
         Assert.False(phone.FingerDown);
     }
 
@@ -39,7 +43,7 @@ public sealed class LatencyProbeTests
     public async Task WithoutThePagesReportsOnlyTheTotalIsKnown()
     {
         var server = new ProbeServer(0, IPAddress.Loopback);
-        var phone = new SimulatedPhone(server) { ReportsEvents = false };
+        var phone = new SimulatedPhone(server, new LookClock()) { ReportsEvents = false };
 
         var result = await Probe(server, phone).RunAsync(2);
 
@@ -86,18 +90,29 @@ public sealed class LatencyProbeTests
     }
 
     private static LatencyProbe Probe(ProbeServer server, SimulatedPhone phone) =>
-        new(phone, server, phone, TextWriter.Null)
+        new(phone, server, phone, TextWriter.Null, phone.Now)
         {
             Settle = TimeSpan.FromMilliseconds(40),
             Jitter = TimeSpan.FromMilliseconds(20),
             Hold = TimeSpan.FromMilliseconds(30),
         };
 
+    /// <summary>A clock (seconds) that stands still until <see cref="Advance"/> moves it.</summary>
+    private sealed class LookClock
+    {
+        private long _ticks;
+
+        public double Now() => (double)Interlocked.Read(ref _ticks) / TimeSpan.TicksPerSecond;
+
+        public void Advance(TimeSpan by) => Interlocked.Add(ref _ticks, by.Ticks);
+    }
+
     /// <summary>
     /// The phone and the mirror window: a touch reaches the page after <see cref="TouchMs"/>, the page paints
-    /// <see cref="PaintMs"/> later, and the PC shows it <see cref="PictureMs"/> after that.
+    /// <see cref="PaintMs"/> later, and the PC shows it <see cref="PictureMs"/> after that. A look at the screen takes
+    /// <see cref="LookMs"/>: on <paramref name="clock"/> when there is one (it moves only then), else in real time.
     /// </summary>
-    private sealed class SimulatedPhone(ProbeServer server) : ITouchSink, IPictureSampler
+    private sealed class SimulatedPhone(ProbeServer server, LookClock? clock = null) : ITouchSink, IPictureSampler
     {
         private readonly Lock _lock = new();
         private readonly List<(double At, bool White)> _changes = [];
@@ -114,6 +129,9 @@ public sealed class LatencyProbeTests
 
         public bool IsSubscribed => true;
 
+        /// <summary>The time in seconds: the look clock's, or <see cref="ProbeClock"/>'s.</summary>
+        public double Now() => clock?.Now() ?? ProbeClock.Now();
+
         public ValueTask SendAsync(ReadOnlyMemory<TouchContact> contacts, CancellationToken ct)
         {
             Reports++;
@@ -124,7 +142,7 @@ public sealed class LatencyProbeTests
 
             var down = contacts.Span[0].Tip;
             FingerDown = down;
-            var now = ProbeClock.Now();
+            var now = Now();
             var eventAt = now + (TouchMs / 1000);
             var paintAt = eventAt + (PaintMs / 1000);
             lock (_lock)
@@ -142,13 +160,22 @@ public sealed class LatencyProbeTests
 
         public double? MeanLuma()
         {
-            Thread.Sleep(2); // a look at the screen takes a while
+            // A look at the screen takes a while.
+            if (clock is null)
+            {
+                Thread.Sleep(TimeSpan.FromMilliseconds(LookMs));
+            }
+            else
+            {
+                clock.Advance(TimeSpan.FromMilliseconds(LookMs));
+            }
+
             if (Frozen)
             {
                 return White ? 250 : 5;
             }
 
-            var now = ProbeClock.Now();
+            var now = Now();
             var white = false;
             lock (_lock)
             {
