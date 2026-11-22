@@ -41,12 +41,27 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:
-          # Installs the newest patch of the SDK feature band that global.json pins (11.0.1xx). global.json
-          # (rollForward latestPatch, no previews) makes dotnet use that band instead of a newer SDK on the runner
-          # image. With TreatWarningsAsErrors and AnalysisLevel latest-recommended, a newer SDK's analyzers can fail
-          # the build unannounced (SDK 11.0.100 added CA2026 and CA2027, issue #25), so moving to a newer SDK is a
-          # deliberate change: update global.json and this line together, and fix the new warnings.
-          dotnet-version: 11.0.1xx
+          # 11.0.1xx: the newest patch of the SDK feature band that global.json pins. global.json (rollForward
+          # latestPatch, no previews) makes dotnet use that band instead of any other SDK on the runner, including
+          # the 10.0.x SDK below. With TreatWarningsAsErrors and AnalysisLevel latest-recommended, a newer SDK's
+          # analyzers can fail the build unannounced (SDK 11.0.100 added CA2026 and CA2027, issue #25), so moving to
+          # a newer SDK is a deliberate change: update global.json and the 11.0.1xx line together, and fix the new
+          # warnings.
+          # 10.0.x: a full SDK (setup-dotnet has no runtime-only install), installed for its bundled runtimes and
+          # never selected (see global.json above). The projects target net10.0 (and net10.0-windows), so the test
+          # hosts need the .NET 10 runtimes (Microsoft.NETCore.App and Microsoft.WindowsDesktop.App), which the
+          # 11.0 SDK does not include; this way the tests do not depend on the runner image still shipping them.
+          # Change this line together with the target framework.
+          dotnet-version: |
+            10.0.x
+            11.0.1xx
+
+      # Shows which SDK global.json selected and which runtimes the tests can use.
+      - name: Show .NET SDK and runtimes
+        run: |
+          dotnet --version
+          dotnet --list-sdks
+          dotnet --list-runtimes
 
       - name: Restore
         run: dotnet restore IceScreenTouch.slnx
