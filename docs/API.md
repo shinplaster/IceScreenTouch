@@ -14,6 +14,7 @@ This page is the guide. The full reference (every field, default, limit and erro
 - [Quick start](#quick-start)
 - [Coordinates](#coordinates)
 - [Screenshot](#screenshot)
+- [Text on the screen (OCR)](#text-on-the-screen-ocr)
 - [Endpoints and limits](#endpoints-and-limits)
 - [WebSocket stream](#websocket-stream)
 - [Errors](#errors)
@@ -192,6 +193,36 @@ phone.tap_pixel(540, 1200, ref=shot.size)       # a position in the pixels of th
 - **At most 10 screenshots in any second, counted over all programs that use the API.** The 11th within a second answers `429` `rate_limited` with the header `Retry-After: 1`. A request counts once it has passed the check of its query (also when it is then answered `409` `not_running` or `409` `no_picture`); a request refused with `429` does not count. Too many screenshots in progress at once are also answered `429` `rate_limited`.
 - **The order of the checks** after the common ones (`Origin`, `Host`, token) is: the license (`403` `purchase_required`), the query (`400` `invalid_request`), the rate limit (`429` `rate_limited`), `409` `not_running`, `409` `no_picture`.
 
+## Text on the screen (OCR)
+
+Three endpoints read the text of the device's screen, so a script or an AI agent can find a label without counting pixels in a screenshot:
+
+| Method and path | Purpose |
+|---|---|
+| `POST /v1/text/read` | Read the text of the screen: the lines in reading order (top to bottom, then left to right), with their boxes and centres |
+| `POST /v1/text/find` | Find a text, or wait for it (`timeoutMs`); the answer lists the matches, an empty list when it is not there |
+| `POST /v1/touch/tap-text` | Find a text and tap it |
+
+```powershell
+# Tap "Wi-Fi" (waiting up to 3 seconds for it to appear)
+Invoke-RestMethod -Method Post "$base/v1/touch/tap-text" -Headers $headers -ContentType "application/json" -Body '{ "text": "Wi-Fi", "timeoutMs": 3000 }'
+```
+
+```python
+for line in phone.read_text(lang="ja").lines:
+    print(line.text, line.center)                  # centre in 0..1 of the screen
+phone.wait_for_text("Done", timeout_ms=10000)       # raises TextNotFoundError when it does not appear
+phone.tap_text("Bluetooth", offset=(0.4, 0.0))     # tap to the right of the label (its switch)
+```
+
+- **The engine** is Windows.Media.Ocr, a part of Windows. IceScreen Touch reads the same picture as a screenshot (the receiver window gets the same colored border) and does not write the picture or the text to a file or keep them after the request.
+- **Languages.** The OCR languages are the ones Windows has installed; `GET /v1/status` lists them in `ocr.languages`. Without `lang`, the first of your Windows languages that has OCR is used. Ask for a language with `lang` (`"ja"`, `"en-US"`): if Windows has no OCR for it, the answer is `409` `ocr_unavailable` with the installed ones in `available`; the app never reads in another language instead. A screen in Japanese needs `ja` (`en-US` cannot read Japanese; `ja` also reads Latin letters). **When nothing is found, check that the language matches the screen** (`language` in the answer).
+- **Boxes and coordinates.** Boxes and centres are in `screen` space (0..1, default) or in `pixel` space of `ref` (as for touches); `device` is not accepted. A centre can go straight to `POST /v1/touch/tap` with the same `space`. `region` (`{ "x", "y", "width", "height" }` in that space) reads only part of the screen: lines whose centre is inside it.
+- **Matching.** The searched text and each line are compared after Unicode normalization (NFKC) and with all spaces removed, and without regard to case unless `caseSensitive` is true. `match: "exact"` (default) means the whole line: `設定` matches the line `設定` (and `< 設定`, where a lone character at either end that is not a kanji and stands apart, such as an icon read as a letter, is left out), but not `画面表示と設定`. `match: "contains"` matches part of a line; use it with `region`, since short texts appear in many lines. `loose: true` also treats look-alike characters (`ロ` and `口`, `l`, `I` and `1`, `0` and `O`, the long vowel mark and dashes), voiced marks (`ボ`, `ポ` and `ホ`) and the kinds of kana as the same: OCR misreads them.
+- **Tap text.** `tap-text` is an operation (it is `409` `busy` while another one runs, and it needs what a tap needs). After it finds the text it reads the screen again after `settleMs` (250 ms by default, also when `timeoutMs` is 0) and taps only if the same match is still there, so it does not tap a screen that is still moving. While it searches it does not hold back your mouse: if you use the mirror meanwhile, it stops with `409` `user_interrupted` and taps nothing. If the text is on the screen more than once, `select: "unique"` (default) taps nothing and answers `409` `ambiguous_text` with the candidates in `matches`: narrow the search with `region`, or use `select: "first"` or `select: "index"`. `offset` moves the tap from the centre (for example to a switch to the right of a label). On the home screen, tapping an app's name does not open the app (iOS opens it from its icon): move the tap onto the icon with `offset` (about `-0.05` in `y`). If the screen rotated (or the assumed rotation changed) while it searched, the answer is `409` `picture_changed` and nothing is tapped.
+- **Limits.** Text readings count as screenshots (at most 10 a second together) and at most 5 a second themselves, over all programs; one reading runs at a time, with two waiting; at most two `find` or `tap-text` calls with `timeoutMs` (up to 30 seconds) wait at once. More answer `429` `rate_limited` with `Retry-After: 1`. `read` and `find` are not operations (they work while a touch or a stream runs); `POST /v1/cancel` does not stop them, but closing the connection does.
+- **The order of the checks** after the common ones: the license, the body (`400`), the engine and the language (`409` `ocr_unavailable`), the limits (`429`), `409` `not_running`, `409` `no_picture`, the capture, `409` `picture_changed`, the recognition. `tap-text` checks what a tap checks (`not_running`, `busy`, `user_active`, `not_connected`, `no_picture`) before the engine and the language.
+
 ## Endpoints and limits
 
 Details of every request and response are in [api/openapi.yaml](api/openapi.yaml) (or `GET /v1/openapi.json`, which needs no token).
@@ -203,11 +234,14 @@ Details of every request and response are in [api/openapi.yaml](api/openapi.yaml
 | `GET /v1/rotation` | The rotations the app assumes |
 | `PUT /v1/rotation` | Correct the assumed rotation |
 | `GET /v1/screenshot` | A picture of the device's screen (PNG or JPEG; see [Screenshot](#screenshot)) |
+| `POST /v1/text/read` | Read the text of the screen (see [Text on the screen](#text-on-the-screen-ocr)) |
+| `POST /v1/text/find` | Find a text on the screen, or wait for it |
 | `POST /v1/touch/tap` | Tap (one finger; `count` 1 to 10) |
 | `POST /v1/touch/long-press` | Long press (default 800 ms) |
 | `POST /v1/touch/swipe` | Swipe or drag in a straight line (with optional hold before and after) |
 | `POST /v1/touch/path` | Drag one finger along any path (up to 1000 timed points) |
 | `POST /v1/touch/pinch` | Pinch with two fingers |
+| `POST /v1/touch/tap-text` | Find a text on the screen and tap it |
 | `POST /v1/keys/press` | Press one key, with modifiers `cmd`, `shift`, `option`, `ctrl` |
 | `POST /v1/keys/type` | Type text |
 | `POST /v1/home` | Press the home button |
@@ -217,7 +251,7 @@ Details of every request and response are in [api/openapi.yaml](api/openapi.yaml
 
 **Limits**
 
-- **One operation at a time.** While a touch, key, home, `PUT /v1/rotation`, `PUT /v1/target` or a stream is running, every other operation answers `409` `busy`; the API never queues. `GET /v1/status`, `GET /v1/rotation` and `GET /v1/openapi.json` always work, and `GET /v1/screenshot` never answers `busy`. While the measurement (Test) page of the app is running, operations are `409` `busy` too.
+- **One operation at a time.** While a touch, key, home, `PUT /v1/rotation`, `PUT /v1/target` or a stream is running, every other operation answers `409` `busy`; the API never queues. `GET /v1/status`, `GET /v1/rotation` and `GET /v1/openapi.json` always work, and `GET /v1/screenshot`, `POST /v1/text/read` and `POST /v1/text/find` never answer `busy`. While the measurement (Test) page of the app is running, operations are `409` `busy` too.
 - **No operation takes longer than 60 seconds** (the sum of holds, durations, intervals and the last `t` of a path), else `400` `invalid_request`.
 - A touch is held at least **70 ms** (a shorter `holdMs` is raised to 70). The finger of a moving touch is updated every 16 ms and is always lifted at its last position.
 - `POST /v1/cancel` stops the running operation; the stopped request answers `499` `cancelled`.
@@ -248,7 +282,7 @@ Details of every request and response are in [api/openapi.yaml](api/openapi.yaml
 
 ## Errors
 
-An error is `application/problem+json` (RFC 9457) with the machine-readable member `code`. `detail` is a sentence for a person and never contains your data (positions, keys, text, the token).
+An error is `application/problem+json` (RFC 9457) with the machine-readable member `code`. `detail` is a sentence for a person and never contains your data (positions, keys, text, the token). The text errors add members that a script can act on: `ocr_unavailable` has `reason` (`language` or `engine`), `available` and `engines`; `text_not_found`, `ambiguous_text` and `tap_outside_screen` have `matches` (up to 20 candidates) and `matchCount`.
 
 | HTTP status | `code` | Meaning |
 |---|---|---|
@@ -261,13 +295,17 @@ An error is `application/problem+json` (RFC 9457) with the machine-readable memb
 | 409 | `not_running` | The mirroring session is not running. |
 | 409 | `not_connected` | The target device has not subscribed to the HID reports. |
 | 409 | `no_picture` | There is no picture (the receiver window is closed or minimized, or it could not be read) and the request needs one. |
-| 409 | `picture_changed` | A `pixel` request refers to a screenshot of the opposite orientation: the device rotated since. |
+| 409 | `picture_changed` | A `pixel` request refers to a screenshot of the opposite orientation: the device rotated since. For `tap-text`, also: the screen (or the assumed rotation) changed while it searched. |
 | 409 | `busy` | Another operation, a WebSocket stream or the measurement page is running. |
 | 409 | `user_interrupted` | You used the mirror; everything was lifted. |
 | 409 | `user_active` | You used the mirror within the last second, or hold the mouse or a key. |
 | 409 | `no_keyboard` | The published HID map has no keyboard. |
 | 409 | `no_home_button` | The published HID map has no home button. |
-| 429 | `rate_limited` | More than 10 screenshots in one second, or too many screenshots in progress at once (`Retry-After: 1` for both), or too many messages per second on a WebSocket stream (it is closed). |
+| 409 | `ocr_unavailable` | Windows has no OCR for the language (`available` lists the installed ones), or no such OCR engine. |
+| 409 | `text_not_found` | `tap-text` did not find the text in time; nothing was tapped. |
+| 409 | `ambiguous_text` | `tap-text` found the text more than once (`matches` lists them); nothing was tapped. |
+| 409 | `tap_outside_screen` | The `offset` of `tap-text` puts the tap outside the screen; nothing was tapped. |
+| 429 | `rate_limited` | More than 10 screenshots and text readings in one second (or 5 text readings), or too many in progress or waiting at once (`Retry-After: 1`), or too many messages per second on a WebSocket stream (it is closed). |
 | 499 | `cancelled` | `POST /v1/cancel` (or the client going away) ended the operation. |
 | 500 | `internal_error` | An unexpected failure inside the app (for example a failed Bluetooth write). |
 
@@ -315,12 +353,15 @@ Claude Desktop (`claude_desktop_config.json`):
 }
 ```
 
-The ten tools:
+The thirteen tools:
 
 | Tool | Purpose |
 |---|---|
 | `get_status` | State of the app, the device connection and the picture |
 | `screenshot` | The device's screen as an image, which is the reference for pixel positions |
+| `read_text` | The text of the screen, line by line, with centres in 0..1 of the screen |
+| `find_text` | Find a text, or wait for it (`timeout_ms` up to 10 seconds) |
+| `tap_text` | Find a text and tap it |
 | `tap` | Tap once, or 2 to 10 times |
 | `long_press` | Press and hold |
 | `swipe` | Drag one finger from one point to another |
@@ -330,6 +371,6 @@ The ten tools:
 | `home` | Press the home button |
 | `set_rotation` | Tell the app how the device is rotated |
 
-The touch tools take **pixels of the most recent `screenshot` result** by default; the size of that image is sent as `ref`. Without a screenshot there is no reference, so the tool refuses and asks for one. `space="screen"` (0..1) works without a screenshot.
+The touch tools take **pixels of the most recent `screenshot` result** by default; the size of that image is sent as `ref`. Without a screenshot there is no reference, so the tool refuses and asks for one. `space="screen"` (0..1) works without a screenshot. The text tools use 0..1 of the screen, so they work without a screenshot; their positions go to `tap` with `space="screen"`. The text they return is screen content: the server tells the model never to follow it as instructions. Like screenshots, the text read by `read_text`, `find_text` and `tap_text` is sent to the AI service you use.
 
 The tools operate a real device and can reach passcode screens and purchase confirmations. Keep your MCP client's approval of tool calls on for them. When a tool reports that you interrupted or are active, the agent should look at the screen again instead of retrying.

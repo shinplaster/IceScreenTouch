@@ -32,7 +32,7 @@ All notable changes to IceScreen Touch are recorded here. The format follows
   nor kept. Matching is exact by default (a whole line), `contains` matches part of a line, and `loose` tolerates
   look-alike characters and voiced marks. `GET /v1/status` shows the OCR engine and languages (`ocr`). New error codes:
   `ocr_unavailable`, `text_not_found`, `ambiguous_text` and `tap_outside_screen`. Like screenshots, text readings are
-  limited (5 a second, counted with the screenshots), and they show the capture border on the receiver window.
+  limited (5 a second, counted with the screenshots), and they show the capture border on the receiver window. The Python client's `read_text`, `find_text`, `wait_for_text` and `tap_text` and the MCP server's `read_text`, `find_text` and `tap_text` tools use them.
 
 ### Fixed
 

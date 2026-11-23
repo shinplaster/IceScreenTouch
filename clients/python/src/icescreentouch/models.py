@@ -57,6 +57,7 @@ class Status:
     rotation: RotationInfo
     operating: bool
     raw: Mapping[str, Any] = field(repr=False, default_factory=dict)
+    ocr: Optional["OcrInfo"] = None  # None: an app version without text recognition
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "Status":
@@ -79,6 +80,7 @@ class Status:
             rotation=RotationInfo(int(rotation.get("landscape", 90)), int(rotation.get("portrait", 0))),
             operating=bool(data.get("operating", False)),
             raw=dict(data),
+            ocr=OcrInfo.from_json(data.get("ocr")),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -95,6 +97,7 @@ class Status:
                 "width": self.picture.width, "height": self.picture.height, "orientation": self.picture.orientation},
             "rotation": {"landscape": self.rotation.landscape, "portrait": self.rotation.portrait},
             "operating": self.operating,
+            "ocr": None if self.ocr is None else self.ocr.to_dict(),
         }
 
 
@@ -188,3 +191,252 @@ def parse_source_size(value: Optional[str]) -> Optional[Tuple[int, int]]:
     match = _SOURCE_SIZE.fullmatch(value.strip().lower())
     return (int(match.group(1)), int(match.group(2))) if match else None
 
+
+
+# ---- Text (OCR) ----------------------------------------------------------------------------------------------
+
+Point = Tuple[float, float]
+
+
+def _num(value: Any) -> float:
+    """A JSON number as a float; anything else (null, a string) as 0, so a malformed answer does not raise."""
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
+
+
+def _int(value: Any) -> int:
+    return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
+
+
+@dataclass(frozen=True)
+class TextBox:
+    """A rectangle in the space of the request (``screen`` 0..1 or ``pixel`` of ``ref``): top left and size."""
+
+    x: float
+    y: float
+    width: float
+    height: float
+
+    @property
+    def center(self) -> Point:
+        return (self.x + self.width / 2, self.y + self.height / 2)
+
+    @classmethod
+    def from_json(cls, data: Mapping[str, Any]) -> "TextBox":
+        return cls(_num(data.get("x")), _num(data.get("y")), _num(data.get("width")), _num(data.get("height")))
+
+
+def _point(data: Any) -> Point:
+    return (_num(data.get("x")), _num(data.get("y"))) if isinstance(data, Mapping) else (0.0, 0.0)
+
+
+def _confidence(data: Mapping[str, Any]) -> Optional[float]:
+    value = data.get("confidence")
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+@dataclass(frozen=True)
+class TextWord:
+    """A word of a read line (only when ``read_text(words=True)``)."""
+
+    text: str
+    box: TextBox
+    confidence: Optional[float] = None  # None: the engine gives none (Windows.Media.Ocr)
+
+
+@dataclass(frozen=True)
+class TextLine:
+    """A line of text on the screen, in reading order."""
+
+    text: str
+    box: TextBox
+    center: Point
+    words: Tuple[TextWord, ...] = ()
+    confidence: Optional[float] = None
+
+    @classmethod
+    def from_json(cls, data: Mapping[str, Any]) -> "TextLine":
+        return cls(
+            text=str(data.get("text", "")),
+            box=TextBox.from_json(data.get("box") or {}),
+            center=_point(data.get("center")),
+            words=tuple(TextWord(str(w.get("text", "")), TextBox.from_json(w.get("box") or {}), _confidence(w))
+                        for w in (data.get("words") or []) if isinstance(w, Mapping)),
+            confidence=_confidence(data),
+        )
+
+
+@dataclass(frozen=True)
+class TextMatch:
+    """A place where the searched text is.
+
+    Attributes:
+        text: The words that matched.
+        line_text: The whole line they are in.
+        box: Their box; ``center`` is where ``tap_text`` taps (before ``offset``).
+        box_level: ``"word"``, or ``"line"`` when the engine has no word boxes (the box is then the whole line's).
+    """
+
+    text: str
+    line_text: str
+    box: TextBox
+    center: Point
+    box_level: str = "word"
+    confidence: Optional[float] = None
+
+    @classmethod
+    def from_json(cls, data: Mapping[str, Any]) -> "TextMatch":
+        return cls(
+            text=str(data.get("text", "")),
+            line_text=str(data.get("lineText", "")),
+            box=TextBox.from_json(data.get("box") or {}),
+            center=_point(data.get("center")),
+            box_level=str(data.get("boxLevel", "word")),
+            confidence=_confidence(data),
+        )
+
+
+@dataclass(frozen=True)
+class OcrEngineInfo:
+    """The OCR engine that read the text (``id`` is ``"windows"``: Windows.Media.Ocr).
+
+    ``kind``, ``word_boxes`` and ``confidence`` are known only in ``Status.ocr`` (None in a text result).
+    """
+
+    id: str
+    name: str
+    version: str
+    kind: Optional[str] = None
+    word_boxes: Optional[bool] = None
+    confidence: Optional[bool] = None
+
+    @classmethod
+    def from_json(cls, data: Any) -> Optional["OcrEngineInfo"]:
+        if not isinstance(data, Mapping):
+            return None
+        capabilities = data.get("capabilities") if isinstance(data.get("capabilities"), Mapping) else {}
+        return cls(
+            id=str(data.get("id", "")),
+            name=str(data.get("name", "")),
+            version=str(data.get("version", "")),
+            kind=data.get("kind") if isinstance(data.get("kind"), str) else None,
+            word_boxes=capabilities.get("wordBoxes") if isinstance(capabilities.get("wordBoxes"), bool) else None,
+            confidence=capabilities.get("confidence") if isinstance(capabilities.get("confidence"), bool) else None,
+        )
+
+
+@dataclass(frozen=True)
+class OcrInfo:
+    """``Status.ocr``: whether text can be read, the engine and the OCR languages Windows has installed."""
+
+    available: bool
+    engine: Optional[OcrEngineInfo]
+    engines: Tuple[str, ...]
+    languages: Tuple[str, ...]
+    default_language: Optional[str]
+
+    @classmethod
+    def from_json(cls, data: Any) -> Optional["OcrInfo"]:
+        if not isinstance(data, Mapping):
+            return None
+        return cls(
+            available=bool(data.get("available", False)),
+            engine=OcrEngineInfo.from_json(data.get("engine")),
+            engines=tuple(str(e.get("id", "")) for e in (data.get("engines") or []) if isinstance(e, Mapping) and e.get("available")),
+            languages=tuple(str(lang) for lang in (data.get("languages") or [])),
+            default_language=data.get("defaultLanguage") if isinstance(data.get("defaultLanguage"), str) else None,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "available": self.available,
+            "engine": None if self.engine is None else {"id": self.engine.id, "name": self.engine.name, "version": self.engine.version},
+            "engines": list(self.engines),
+            "languages": list(self.languages),
+            "default_language": self.default_language,
+        }
+
+
+@dataclass(frozen=True)
+class TextPicture:
+    """The picture the text was read from (as the headers of a screenshot describe it)."""
+
+    width: int
+    height: int
+    orientation: str
+    rotation: int
+
+    @classmethod
+    def from_json(cls, data: Any) -> "TextPicture":
+        data = data if isinstance(data, Mapping) else {}
+        return cls(_int(data.get("width")), _int(data.get("height")), str(data.get("orientation", "portrait")),
+                   _int(data.get("rotation")))
+
+
+@dataclass(frozen=True)
+class TextResult:
+    """``read_text()``: the lines of the screen in reading order.
+
+    Attributes:
+        language: The language the recognizer used (check it when nothing was found).
+        space: ``"screen"`` or ``"pixel"``: the space of every box and centre.
+        duration_ms: Capture and recognition.
+    """
+
+    language: str
+    engine: Optional[OcrEngineInfo]
+    picture: TextPicture
+    space: str
+    duration_ms: int
+    lines: Tuple[TextLine, ...]
+    raw: Mapping[str, Any] = field(repr=False, default_factory=dict)
+
+    @classmethod
+    def from_json(cls, data: Mapping[str, Any]) -> "TextResult":
+        return cls(
+            language=str(data.get("language", "")),
+            engine=OcrEngineInfo.from_json(data.get("engine")),
+            picture=TextPicture.from_json(data.get("picture")),
+            space=str(data.get("space", "screen")),
+            duration_ms=_int(data.get("durationMs")),
+            lines=tuple(TextLine.from_json(line) for line in (data.get("lines") or []) if isinstance(line, Mapping)),
+            raw=dict(data),
+        )
+
+
+@dataclass(frozen=True)
+class TapTextResult:
+    """``tap_text()``: what was tapped.
+
+    Attributes:
+        tapped: The match that was tapped.
+        at: Where the finger went down (``tapped.center`` plus the offset), in ``space``.
+        match_count: The matches on the picture the tap was decided on.
+        attempts: The readings made (with the one that confirmed the match).
+    """
+
+    language: str
+    engine: Optional[OcrEngineInfo]
+    picture: TextPicture
+    space: str
+    duration_ms: int
+    attempts: int
+    tapped: TextMatch
+    at: Point
+    match_count: int
+    raw: Mapping[str, Any] = field(repr=False, default_factory=dict)
+
+    @classmethod
+    def from_json(cls, data: Mapping[str, Any]) -> "TapTextResult":
+        tapped = data.get("tapped") if isinstance(data.get("tapped"), Mapping) else {}
+        return cls(
+            language=str(data.get("language", "")),
+            engine=OcrEngineInfo.from_json(data.get("engine")),
+            picture=TextPicture.from_json(data.get("picture")),
+            space=str(data.get("space", "screen")),
+            duration_ms=_int(data.get("durationMs")),
+            attempts=_int(data.get("attempts")),
+            tapped=TextMatch.from_json(tapped),
+            at=_point(tapped.get("at")),
+            match_count=_int(data.get("matchCount")),
+            raw=dict(data),
+        )
