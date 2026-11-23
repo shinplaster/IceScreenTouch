@@ -13,7 +13,7 @@ The error texts never contain the bearer token.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional, Tuple
 
 
 class IceScreenTouchError(Exception):
@@ -73,6 +73,10 @@ class ApiUnavailableError(IceScreenTouchError):
 
 class ApiTimeoutError(ApiUnavailableError, TimeoutError):
     """The API did not answer in time. An operation that was already started may still be running (see Client.cancel)."""
+
+
+class RequestAbortedError(ApiUnavailableError):
+    """The request was abandoned from another thread (see ``Client.abortable``); the app may have carried it out."""
 
 
 # ---- Errors the API reports ----------------------------------------------------------------------------------
@@ -182,6 +186,65 @@ class InternalError(ApiError):
     code = "internal_error"
 
 
+class TextUnsupportedError(NotFoundError):
+    """The app answers 404 for /v1/text/* and /v1/touch/tap-text: this version of the app cannot read text (update the app)."""
+
+
+class OcrUnavailableError(ApiError):
+    """409 ocr_unavailable: the text cannot be read with that language or engine on this PC.
+
+    Attributes:
+        reason: ``"language"`` (Windows has no OCR for the language; nothing is read in another language instead) or
+            ``"engine"`` (no such engine, or it stopped answering).
+        engine: The engine asked for, or None when the app has none.
+        available: The OCR languages of that engine on this PC (pass one as ``lang``); empty when there is none.
+        engines: The engines that can be used.
+    """
+
+    code = "ocr_unavailable"
+    reason: Optional[str] = None
+    engine: Optional[str] = None
+    available: Tuple[str, ...] = ()
+    engines: Tuple[str, ...] = ()
+
+
+class _MatchesError(ApiError):
+    """An error of tap_text that lists the candidates it saw.
+
+    Attributes:
+        matches: The candidates on the last picture (at most 20), as :class:`icescreentouch.models.TextMatch`.
+        match_count: How many there were (also beyond the 20 listed), or None when the answer did not say.
+    """
+
+    matches: Tuple[Any, ...] = ()
+    match_count: Optional[int] = None
+
+
+class TextNotFoundError(_MatchesError):
+    """409 text_not_found (tap_text), or nothing found by wait_for_text: the text was not on the screen in time.
+
+    Check that ``lang`` matches the language of the screen, the spelling, or try ``match="contains"`` or
+    ``loose=True``. Nothing was tapped.
+    """
+
+    code = "text_not_found"
+
+
+class AmbiguousTextError(_MatchesError):
+    """409 ambiguous_text: tap_text with ``select="unique"`` found the text more than once; nothing was tapped.
+
+    Narrow the search with ``region`` (around one of ``matches``), or choose with ``select="first"`` or ``"index"``.
+    """
+
+    code = "ambiguous_text"
+
+
+class TapOutsideScreenError(_MatchesError):
+    """409 tap_outside_screen: the ``offset`` of tap_text puts the tap outside the screen; nothing was tapped."""
+
+    code = "tap_outside_screen"
+
+
 class ScreenshotUnsupportedError(NotFoundError):
     """The app answers 404 for /v1/screenshot: this version of the app has no screenshot endpoint (update the app)."""
 
@@ -190,7 +253,8 @@ _BY_CODE = {cls.code: cls for cls in (
     InvalidRequestError, UnauthorizedError, ForbiddenOriginError, PurchaseRequiredError, NotRunningError,
     NotConnectedError, NoPictureError, BusyError, UserInterruptedError, UserActiveError, NoKeyboardError,
     NoHomeButtonError, PictureChangedError, RateLimitedError, CancelledError, NotFoundError,
-    MethodNotAllowedError, InternalError)}
+    MethodNotAllowedError, InternalError, OcrUnavailableError, TextNotFoundError, AmbiguousTextError,
+    TapOutsideScreenError)}
 
 # The HTTP status of each code (used for errors that arrive on the WebSocket, which carries no status).
 _STATUS_BY_CODE = {
@@ -198,7 +262,8 @@ _STATUS_BY_CODE = {
     "forbidden_origin": 403, "purchase_required": 403, "rate_limited": 429, "internal_error": 500,
     "cancelled": 499, "not_running": 409, "not_connected": 409, "no_picture": 409, "busy": 409,
     "user_interrupted": 409, "user_active": 409, "no_keyboard": 409, "no_home_button": 409,
-    "picture_changed": 409,
+    "picture_changed": 409, "ocr_unavailable": 409, "text_not_found": 409, "ambiguous_text": 409,
+    "tap_outside_screen": 409,
 }
 
 
@@ -280,5 +345,6 @@ __all__ = [
     "PurchaseRequiredError", "NotRunningError", "NotConnectedError", "NoPictureError", "BusyError",
     "UserInterruptedError", "UserActiveError", "NoKeyboardError", "NoHomeButtonError", "PictureChangedError",
     "RateLimitedError", "CancelledError", "NotFoundError", "MethodNotAllowedError", "InternalError",
-    "ScreenshotUnsupportedError", "StreamError", "StreamInterruptedError", "StreamClosedError",
+    "ScreenshotUnsupportedError", "TextUnsupportedError", "OcrUnavailableError", "TextNotFoundError",
+    "AmbiguousTextError", "TapOutsideScreenError", "RequestAbortedError", "StreamError", "StreamInterruptedError", "StreamClosedError",
 ]

@@ -16,11 +16,13 @@ An operation call returns when the device has received everything (a swipe retur
 
 from __future__ import annotations
 
+import contextlib
 import http.client
 import json
 import re
 import socket
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Mapping, Optional, Sequence, Tuple, TypeVar
+import threading
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple, TypeVar
 from urllib.parse import urlencode
 
 from . import discovery
@@ -32,13 +34,27 @@ from .errors import (
     ConnectionDiscoveryError,
     InvalidArgumentError,
     NotFoundError,
+    OcrUnavailableError,
     RateLimitedError,
+    RequestAbortedError,
     ScreenshotUnsupportedError,
+    TextNotFoundError,
+    TextUnsupportedError,
+    _MatchesError,
     StaleConnectionError,
     UnauthorizedError,
     error_for_code,
 )
-from .models import RotationInfo, Screenshot, Status, image_size, parse_source_size
+from .models import (
+    RotationInfo,
+    Screenshot,
+    Status,
+    TapTextResult,
+    TextMatch,
+    TextResult,
+    image_size,
+    parse_source_size,
+)
 
 if TYPE_CHECKING:
     from .stream import Stream
@@ -108,6 +124,98 @@ def _ms(value: Optional[int], default: int) -> int:
     return default if value is None else int(value)
 
 
+_TEXT_SPACES = ("screen", "pixel")
+_TEXT_MATCHES = ("exact", "contains")
+_SELECTS = ("unique", "first", "index")
+_TEXT_READING_SECONDS = 6.0  # the app gives one reading 5 s
+
+
+def _region(region: Any) -> Dict[str, float]:
+    """``(x, y, width, height)``, or anything with those attributes (a TextBox), as the API's region."""
+    if all(hasattr(region, name) for name in ("x", "y", "width", "height")):
+        values = (region.x, region.y, region.width, region.height)
+    else:
+        values = region
+    try:
+        x, y, width, height = (float(v) for v in values)
+    except (TypeError, ValueError):
+        raise InvalidArgumentError("region must be (x, y, width, height)") from None
+    return {"x": x, "y": y, "width": width, "height": height}
+
+
+def _text_scope(lang: Optional[str], engine: Optional[str], space: str, ref: Any, region: Any) -> Dict[str, Any]:
+    if space not in _TEXT_SPACES:
+        raise InvalidArgumentError(f"space must be one of {_TEXT_SPACES} for text, not {space!r}")
+    fields = _space_fields(space, ref)
+    if lang is not None:
+        fields["lang"] = str(lang)
+    if engine is not None:
+        fields["engine"] = str(engine)
+    if region is not None:
+        fields["region"] = _region(region)
+    return fields
+
+
+def _search_fields(text: str, match: str, loose: bool, case_sensitive: bool, timeout_ms: int,
+                   poll_ms: Optional[int]) -> Dict[str, Any]:
+    if not isinstance(text, str) or not 1 <= len(text) <= 200:
+        raise InvalidArgumentError("text must be a string of 1 to 200 characters")
+    if match not in _TEXT_MATCHES:
+        raise InvalidArgumentError(f"match must be one of {_TEXT_MATCHES}, not {match!r}")
+    if not 0 <= _whole("timeout_ms", timeout_ms) <= 30000:
+        raise InvalidArgumentError("timeout_ms must be 0 to 30000")
+    body: Dict[str, Any] = {"text": text}
+    if match != "exact":
+        body["match"] = match
+    if loose:
+        body["loose"] = True
+    if case_sensitive:
+        body["caseSensitive"] = True
+    if timeout_ms:
+        body["timeoutMs"] = timeout_ms
+    if poll_ms is not None:
+        if not 300 <= _whole("poll_ms", poll_ms) <= 5000:
+            raise InvalidArgumentError("poll_ms must be 300 to 5000")
+        body["pollMs"] = poll_ms
+    return body
+
+
+class RequestScope:
+    """See :meth:`Client.abortable`. ``abort()`` may be called from any thread, also before the request starts."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._sockets: List[socket.socket] = []
+        self.aborted = False
+
+    def abort(self) -> None:
+        with self._lock:
+            self.aborted = True
+            sockets = list(self._sockets)
+        for sock in sockets:
+            # On Windows a shutdown does not wake a thread blocked in recv; closing the handle does. The plain close() of
+            # a socket that http.client has made a file of only drops a reference, so the base class's close is called.
+            for stop in (lambda s: s.shutdown(socket.SHUT_RDWR), lambda s: super(socket.socket, s).close()):
+                try:
+                    stop(sock)
+                except OSError:
+                    pass
+
+    def _enter(self, sock: Optional[socket.socket]) -> bool:
+        """Registers the socket of a request; False when the scope was aborted already (the request must not start)."""
+        with self._lock:
+            if self.aborted:
+                return False
+            if sock is not None:
+                self._sockets.append(sock)
+            return True
+
+    def _leave(self, sock: Optional[socket.socket]) -> None:
+        with self._lock:
+            if sock in self._sockets:
+                self._sockets.remove(sock)
+
+
 class Client:
     """A connection to the IceScreen Touch API on this PC.
 
@@ -137,6 +245,7 @@ class Client:
         self._verify_owner = bool(verify_owner)
         self._explicit = base_url is not None
         self._connection: Optional[Connection] = None
+        self._scopes = threading.local()  # the abortable scope of each thread (see abortable)
         if self._explicit:
             self._connection = discovery.discover(base_url, token, env, self._verify_owner)
 
@@ -342,6 +451,141 @@ class Client:
             source_size=source,
         )
 
+    # ---- Text (OCR) ----------------------------------------------------------------------------------------
+
+    def read_text(self, lang: Optional[str] = None, *, engine: Optional[str] = None, space: str = "screen",
+                  ref: Any = None, region: Any = None, words: bool = False) -> TextResult:
+        """Reads the text of the screen: the lines in reading order, with boxes and centres in ``space``.
+
+        Args:
+            lang: A language tag such as ``"ja"`` or ``"en-US"``. Without it, the first of the Windows user's languages
+                that has OCR. A screen in Japanese needs ``"ja"`` (it also reads Latin letters). When nothing is found,
+                check ``language`` of the result against the screen.
+            engine: The OCR engine (``"windows"``, the only one and the default).
+            space: ``"screen"`` (0..1, default) or ``"pixel"`` (needs ``ref``, the size of a screenshot).
+            region: Only this part of the screen: ``(x, y, width, height)`` in ``space`` (or a :class:`TextBox`).
+            words: Also return the words of every line.
+
+        Raises:
+            OcrUnavailableError: Windows has no OCR for ``lang`` (see ``available``), or no such engine.
+            NotRunningError, NoPictureError, PictureChangedError, RateLimitedError: as for a screenshot.
+            TextUnsupportedError: The app is a version without text recognition (404).
+
+        Not an operation: it also works while a touch or a stream runs, and it sends nothing to the device.
+        """
+        body = _text_scope(lang, engine, space, ref, region)
+        if words:
+            body["words"] = True
+        return TextResult.from_json(self._text_json("POST", "/v1/text/read", body, op_seconds=_TEXT_READING_SECONDS))
+
+    def find_text(self, text: str, *, match: str = "exact", loose: bool = False, case_sensitive: bool = False,
+                  timeout_ms: int = 0, poll_ms: Optional[int] = None, lang: Optional[str] = None,
+                  engine: Optional[str] = None, space: str = "screen", ref: Any = None,
+                  region: Any = None) -> List[TextMatch]:
+        """The places where ``text`` is on the screen, in reading order; ``[]`` when it is not there.
+
+        Args:
+            text: 1 to 200 characters.
+            match: ``"exact"`` (default): the whole line equals the text (an icon read as a letter at either end, such as
+                ``Q`` for a magnifier, may be left out). ``"contains"``: part of a line.
+            loose: Treat look-alike characters, voiced marks and the kinds of kana as the same (OCR misreads them).
+            case_sensitive: Tell upper from lower case.
+            timeout_ms: Wait up to this long (0 to 30000) for the text to appear, reading again every ``poll_ms``
+                (300 to 5000, default 500). 0 reads once.
+            lang, engine, space, ref, region: As for :meth:`read_text`.
+        """
+        body = {**_search_fields(text, match, loose, case_sensitive, timeout_ms, poll_ms),
+                **_text_scope(lang, engine, space, ref, region)}
+        data = self._text_json("POST", "/v1/text/find", body, op_seconds=_TEXT_READING_SECONDS + timeout_ms / 1000)
+        return [TextMatch.from_json(m) for m in (data.get("matches") or []) if isinstance(m, Mapping)]
+
+    def wait_for_text(self, text: str, timeout_ms: int = 10000, **options: Any) -> TextMatch:
+        """Waits until ``text`` is on the screen and returns the first match (reading order).
+
+        Takes the options of :meth:`find_text`. Raises :class:`TextNotFoundError` when it did not appear within
+        ``timeout_ms``.
+        """
+        matches = self.find_text(text, timeout_ms=timeout_ms, **options)
+        if not matches:
+            raise TextNotFoundError(
+                "text_not_found: the text did not appear in time (check lang against the language of the screen)",
+                code="text_not_found")
+        return matches[0]
+
+    def tap_text(self, text: str, *, match: str = "exact", loose: bool = False, case_sensitive: bool = False,
+                 timeout_ms: int = 0, poll_ms: Optional[int] = None, select: str = "unique", index: Optional[int] = None,
+                 offset: Optional[Point] = None, settle_ms: Optional[int] = None, hold_ms: Optional[int] = None,
+                 count: Optional[int] = None, interval_ms: Optional[int] = None, lang: Optional[str] = None,
+                 engine: Optional[str] = None, space: str = "screen", ref: Any = None,
+                 region: Any = None) -> TapTextResult:
+        """Finds ``text`` on the screen and taps its centre (moved by ``offset``).
+
+        The app reads the screen again after ``settle_ms`` (default 250) and taps only when the same match is still
+        there, so a screen that is still moving is not tapped (``settle_ms=0`` skips this). While it searches, the user's
+        mouse keeps working; when the user uses the mirror meanwhile, it raises :class:`UserInterruptedError` and taps
+        nothing.
+
+        Args:
+            select: ``"unique"`` (default) raises :class:`AmbiguousTextError` when the text is there more than once (its
+                ``matches`` list the candidates; narrow with ``region``); ``"first"`` taps the first in reading order;
+                ``"index"`` taps the ``index``-th.
+            offset: ``(dx, dy)`` from the centre of the match: -1..1 in ``screen`` space, within ``ref`` in ``pixel``
+                space (for example the switch to the right of a label).
+            hold_ms, count, interval_ms: As for :meth:`tap`.
+            The others: as for :meth:`find_text`.
+
+        Raises:
+            TextNotFoundError, AmbiguousTextError, TapOutsideScreenError: nothing was tapped.
+            BusyError, UserActiveError, UserInterruptedError, PictureChangedError, ...: as for :meth:`tap`.
+        """
+        if select not in _SELECTS:
+            raise InvalidArgumentError(f"select must be one of {_SELECTS}, not {select!r}")
+        body: Dict[str, Any] = {**_search_fields(text, match, loose, case_sensitive, timeout_ms, poll_ms),
+                                **_text_scope(lang, engine, space, ref, region)}
+        if select != "unique":
+            body["select"] = select
+        if select == "index":
+            if index is None:
+                raise InvalidArgumentError("select='index' needs index (0 or more)")
+            body["index"] = _whole("index", index)
+        elif index is not None:
+            raise InvalidArgumentError("index only applies to select='index'")
+        if offset is not None:
+            body["offset"] = _point(offset)
+        _put(body, "settleMs", settle_ms)
+        _put(body, "holdMs", hold_ms)
+        _put(body, "count", count)
+        _put(body, "intervalMs", interval_ms)
+        taps = (_ms(count, 1) * max(_ms(hold_ms, 80), 70) + (_ms(count, 1) - 1) * _ms(interval_ms, 120)) / 1000
+        seconds = timeout_ms / 1000 + _ms(settle_ms, 250) / 1000 + 2 + taps
+        return TapTextResult.from_json(self._text_json("POST", "/v1/touch/tap-text", body, op_seconds=seconds))
+
+    @contextlib.contextmanager
+    def abortable(self) -> Iterator["RequestScope"]:
+        """A scope whose requests (made on this thread) another thread can abandon with ``scope.abort()``.
+
+        The socket of the request in progress is shut down, so a long ``find_text`` returns at once with
+        :class:`RequestAbortedError` instead of waiting for its timeout; the app sees the client go away. It is meant
+        for a call that only reads (an operation such as a tap is stopped with :meth:`cancel`).
+        """
+        scope = RequestScope()
+        previous = getattr(self._scopes, "current", None)
+        self._scopes.current = scope
+        try:
+            yield scope
+        finally:
+            self._scopes.current = previous
+
+    def _text_json(self, method: str, path: str, body: Mapping[str, Any], *, op_seconds: float) -> Dict[str, Any]:
+        try:
+            return self._json(method, path, body, op_seconds=op_seconds)
+        except NotFoundError as exc:
+            if type(exc) is NotFoundError:
+                raise TextUnsupportedError(
+                    "this version of IceScreen Touch cannot read text on the screen (no OCR endpoints); update the app",
+                    code="not_found", status=404, detail=exc.detail) from None
+            raise
+
     # ---- WebSocket -----------------------------------------------------------------------------------------
 
     def stream(self, **options: Any) -> "Stream":
@@ -426,6 +670,13 @@ class Client:
                     "is the app running with the Automation API switched on?")
                 unavailable.request_sent = False
                 raise unavailable from None
+            # A request of an abortable scope registers its socket, so another thread can shut it down.
+            scope: Optional[RequestScope] = getattr(self._scopes, "current", None)
+            sock = http_connection.sock
+            if scope is not None and not scope._enter(sock):
+                aborted = RequestAbortedError("the request was abandoned before it was sent")
+                aborted.request_sent = False
+                raise aborted
             built = False
             try:
                 http_connection.request(method, path, body=payload, headers=headers)
@@ -445,9 +696,14 @@ class Client:
                     "IceScreen Touch did not answer in time (an operation that already started may still be running; "
                     "call cancel())") from None
             except (OSError, http.client.HTTPException) as exc:
+                if scope is not None and scope.aborted:
+                    raise RequestAbortedError("the request was abandoned (aborted from another thread)") from None
                 raise ApiUnavailableError(
                     f"IceScreen Touch could not be reached on 127.0.0.1:{connection.port} ({type(exc).__name__}): "
                     "is the app running with the Automation API switched on?") from None
+            finally:
+                if scope is not None:
+                    scope._leave(sock)
         finally:
             http_connection.close()
         if len(data) > _MAX_RESPONSE_BYTES:
@@ -467,6 +723,7 @@ def _encode(body: Mapping[str, Any]) -> bytes:
 
 def _problem(status: int, content_type: str, data: bytes, retry_after: Optional[str] = None) -> ApiError:
     code = detail = None
+    parsed: Any = None
     if "json" in content_type:
         try:
             parsed = json.loads(data.decode("utf-8"))
@@ -480,7 +737,27 @@ def _problem(status: int, content_type: str, data: bytes, retry_after: Optional[
     error = error_for_code(code, detail, status)
     if isinstance(error, RateLimitedError) and retry_after is not None and _RETRY_AFTER.fullmatch(retry_after.strip()):
         error.retry_after = float(min(int(retry_after.strip()), _MAX_RETRY_AFTER))
+    if isinstance(parsed, dict):
+        _extensions(error, parsed)
     return error
+
+
+def _strings(value: Any) -> Tuple[str, ...]:
+    return tuple(v for v in value if isinstance(v, str)) if isinstance(value, list) else ()
+
+
+def _extensions(error: ApiError, parsed: Mapping[str, Any]) -> None:
+    """The extension members of the OCR errors (what languages and engines there are; the candidates of a match)."""
+    if isinstance(error, OcrUnavailableError):
+        error.reason = parsed.get("reason") if isinstance(parsed.get("reason"), str) else None
+        error.engine = parsed.get("engine") if isinstance(parsed.get("engine"), str) else None
+        error.available = _strings(parsed.get("available"))
+        error.engines = _strings(parsed.get("engines"))
+    elif isinstance(error, _MatchesError):
+        matches = parsed.get("matches")
+        error.matches = tuple(TextMatch.from_json(m) for m in matches if isinstance(m, Mapping)) if isinstance(matches, list) else ()
+        count = parsed.get("matchCount")
+        error.match_count = count if isinstance(count, int) and not isinstance(count, bool) else None
 
 
 def _rotation(data: Mapping[str, Any]) -> RotationInfo:

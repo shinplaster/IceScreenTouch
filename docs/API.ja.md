@@ -14,6 +14,7 @@ IceScreen Touch には、自動操作 API があります。同じ PC のスク�
 - [すぐに試す](#すぐに試す)
 - [座標](#座標)
 - [スクリーンショット](#スクリーンショット)
+- [画面の文字（OCR）](#画面の文字ocr)
 - [エンドポイントと上限](#エンドポイントと上限)
 - [WebSocket のストリーム](#websocket-のストリーム)
 - [エラー](#エラー)
@@ -192,6 +193,36 @@ phone.tap_pixel(540, 1200, ref=shot.size)       # その画像のピクセルで
 - **1 秒に最大 10 枚です。API を使うすべてのプログラムの合計で数えます。** 1 秒の間の 11 枚目は、ヘッダー `Retry-After: 1` つきの `429` `rate_limited` です。クエリの確認を通ったリクエストは数えます（そのあとで `409` `not_running` や `409` `no_picture` になった場合も）。`429` で断られたリクエストは数えません。同時に進行中のスクリーンショットが多すぎるときも `429` `rate_limited` です。
 - **確認の順番。** 共通の確認（`Origin`、`Host`、トークン）のあとは、ライセンス（`403` `purchase_required`）、クエリ（`400` `invalid_request`）、頻度の上限（`429` `rate_limited`）、`409` `not_running`、`409` `no_picture` の順です。
 
+## 画面の文字（OCR）
+
+3 つのエンドポイントで端末の画面の文字を読めます。スクリプトや AI エージェントが、スクリーンショットでピクセルを数えずにラベルを探せます。
+
+| メソッドとパス | 用途 |
+|---|---|
+| `POST /v1/text/read` | 画面の文字を読む。行を読む順（上から下、左から右）に、枠と中心つきで返します |
+| `POST /v1/text/find` | 文字を探す、または現れるまで待つ（`timeoutMs`）。当たりの一覧を返し、なければ空の一覧です |
+| `POST /v1/touch/tap-text` | 文字を探してタップする |
+
+```powershell
+# 「Wi-Fi」をタップ（現れるまで最大 3 秒待つ）
+Invoke-RestMethod -Method Post "$base/v1/touch/tap-text" -Headers $headers -ContentType "application/json" -Body '{ "text": "Wi-Fi", "timeoutMs": 3000 }'
+```
+
+```python
+for line in phone.read_text(lang="ja").lines:
+    print(line.text, line.center)                  # 中心は画面の 0〜1
+phone.wait_for_text("完了", timeout_ms=10000)       # 現れなければ TextNotFoundError
+phone.tap_text("Bluetooth", offset=(0.4, 0.0))     # ラベルの右（スイッチ）をタップ
+```
+
+- **文字を読む部品**は、Windows に含まれる Windows.Media.Ocr です。IceScreen Touch はスクリーンショットと同じ映像を読み（受信ソフトのウィンドウに同じ色つきの枠が出ます）、映像も文字もファイルに書かず、リクエストが終われば持ち続けません。
+- **言語。** 使える言語は、Windows に入っている OCR の言語です。`GET /v1/status` の `ocr.languages` に一覧があります。`lang` を付けないときは、Windows の言語のうち OCR のある最初の言語を使います。`lang`（`"ja"`、`"en-US"`）で言語を指定でき、その言語の OCR が Windows になければ `409` `ocr_unavailable` になり、`available` に入っている言語の一覧が付きます。アプリが勝手に別の言語で読むことはありません。日本語の画面には `ja` が要ります（`en-US` は日本語を読めません。`ja` は英字も読みます）。**何も見つからないときは、言語が画面と合っているかを確かめてください**（応答の `language`）。
+- **枠と座標。** 枠と中心は `screen`（0〜1、既定）か、`ref` の大きさの `pixel` で返します（タッチと同じです）。`device` は使えません。中心はそのまま同じ `space` で `POST /v1/touch/tap` に渡せます。`region`（その座標の `{ "x", "y", "width", "height" }`）で画面の一部だけを読めます（中心がその内側にある行だけ）。
+- **一致のしかた。** 探す文字と各行は、Unicode の正規化（NFKC）をしてから、空白をすべて除いて比べます。`caseSensitive` を true にしない限り、大文字と小文字は区別しません。`match: "exact"`（既定）は行全体です。`設定` は行 `設定` に当たり（行の端にある、漢字でない離れた 1 字、たとえばアイコンを字と読んだものは除いて比べるので `< 設定` にも当たります）、`画面表示と設定` には当たりません。`match: "contains"` は行の一部に当たります。短い文字は多くの行に当たるので、`region` と組み合わせてください。`loose: true` にすると、形の似た字（`ロ` と `口`、`l` と `I` と `1`、`0` と `O`、長音と横線）、濁点・半濁点（`ボ`・`ポ` と `ホ`）、かなの種類も同じとみなします。OCR はこれらを読み違えることがあります。
+- **文字のタップ。** `tap-text` は操作です（ほかの操作の間は `409` `busy`、タップと同じものが要ります）。文字を見つけたら `settleMs`（既定は 250 ms。`timeoutMs` が 0 でも行います）のあとでもう一度読み、同じ当たりがあるときだけタップします。動いている途中の画面をタップしないためです。探している間はあなたのマウスを止めません。その間にミラー画面を操作すると、`409` `user_interrupted` で止まり、何もタップしません。文字が画面に 2 つ以上あると、`select: "unique"`（既定）は何もタップせず、`409` `ambiguous_text` で `matches` に候補を返します。`region` で絞るか、`select: "first"` や `select: "index"` を使ってください。`offset` でタップする点を中心からずらせます（たとえばラベルの右のスイッチ）。探している間に画面が回転した（または仮定している回転が変わった）ときは、`409` `picture_changed` で何もタップしません。
+- **上限。** 文字の読み取りはスクリーンショットとしても数え（合わせて 1 秒に最大 10 回）、読み取りだけでも 1 秒に最大 5 回です（すべてのプログラムの合計）。読み取りは同時に 1 つで、順番を待てるのは 2 つまでです。`timeoutMs`（最大 30 秒）で待つ `find` と `tap-text` は、同時に 2 つまでです。超えると `Retry-After: 1` つきの `429` `rate_limited` です。`read` と `find` は操作ではありません（タッチやストリームの間も使えます）。`POST /v1/cancel` では止まりませんが、接続を閉じれば止まります。
+- **確認の順番。** 共通の確認のあとは、ライセンス、本文（`400`）、部品と言語（`409` `ocr_unavailable`）、上限（`429`）、`409` `not_running`、`409` `no_picture`、取り込み、`409` `picture_changed`、認識の順です。`tap-text` は、部品と言語の前に、タップと同じ確認（`not_running`、`busy`、`user_active`、`not_connected`、`no_picture`）をします。
+
 ## エンドポイントと上限
 
 各リクエストとレスポンスの詳細は [api/openapi.yaml](api/openapi.yaml)（またはトークンの要らない `GET /v1/openapi.json`）にあります。
@@ -203,11 +234,14 @@ phone.tap_pixel(540, 1200, ref=shot.size)       # その画像のピクセルで
 | `GET /v1/rotation` | アプリが仮定している回転 |
 | `PUT /v1/rotation` | 仮定している回転を直す |
 | `GET /v1/screenshot` | 端末の画面の画像（PNG か JPEG。[スクリーンショット](#スクリーンショット)を見てください） |
+| `POST /v1/text/read` | 画面の文字を読む（[画面の文字](#画面の文字ocr)を見てください） |
+| `POST /v1/text/find` | 画面の文字を探す、または現れるまで待つ |
 | `POST /v1/touch/tap` | タップ（1 本指。`count` は 1 から 10） |
 | `POST /v1/touch/long-press` | 長押し（既定は 800 ms） |
 | `POST /v1/touch/swipe` | 直線のスワイプかドラッグ（前後に止める時間も指定できます） |
 | `POST /v1/touch/path` | 1 本指を任意の経路でドラッグ（時刻つきの点を 1000 個まで） |
 | `POST /v1/touch/pinch` | 2 本指のピンチ |
+| `POST /v1/touch/tap-text` | 画面の文字を探してタップする |
 | `POST /v1/keys/press` | キーを 1 つ押す（修飾キー `cmd`、`shift`、`option`、`ctrl` つき） |
 | `POST /v1/keys/type` | 文字入力 |
 | `POST /v1/home` | ホームキーを押す |
@@ -217,7 +251,7 @@ phone.tap_pixel(540, 1200, ref=shot.size)       # その画像のピクセルで
 
 **上限**
 
-- **操作は同時に 1 つだけです。** タッチ、キー、ホーム、`PUT /v1/rotation`、`PUT /v1/target`、ストリームのどれかが動いている間、ほかの操作は `409` `busy` になります。API は待たせません。`GET /v1/status`、`GET /v1/rotation`、`GET /v1/openapi.json` はいつでも使え、`GET /v1/screenshot` は `busy` になりません。アプリの計測（テスト）のページが動いている間も、操作は `409` `busy` です。
+- **操作は同時に 1 つだけです。** タッチ、キー、ホーム、`PUT /v1/rotation`、`PUT /v1/target`、ストリームのどれかが動いている間、ほかの操作は `409` `busy` になります。API は待たせません。`GET /v1/status`、`GET /v1/rotation`、`GET /v1/openapi.json` はいつでも使え、`GET /v1/screenshot`、`POST /v1/text/read`、`POST /v1/text/find` は `busy` になりません。アプリの計測（テスト）のページが動いている間も、操作は `409` `busy` です。
 - **1 つの操作は 60 秒を超えられません**（保持、所要時間、間隔、経路の最後の `t` の合計）。超えると `400` `invalid_request` です。
 - タッチは少なくとも **70 ms** 保ちます（それより短い `holdMs` は 70 に引き上げます）。動かす指は 16 ms ごとに更新し、最後の位置で必ず離します。
 - `POST /v1/cancel` は動作中の操作を止めます。止められたリクエストは `499` `cancelled` を返します。
@@ -248,7 +282,7 @@ phone.tap_pixel(540, 1200, ref=shot.size)       # その画像のピクセルで
 
 ## エラー
 
-エラーは `application/problem+json`（RFC 9457）で、機械が読むメンバー `code` を持ちます。`detail` は人向けの 1 文で、あなたのデータ（位置、キー、文字、トークン）は入りません。
+エラーは `application/problem+json`（RFC 9457）で、機械が読むメンバー `code` を持ちます。`detail` は人向けの 1 文で、あなたのデータ（位置、キー、文字、トークン）は入りません。文字のエラーには、スクリプトが使えるメンバーが付きます。`ocr_unavailable` には `reason`（`language` か `engine`）、`available`、`engines`、`text_not_found`、`ambiguous_text`、`tap_outside_screen` には `matches`（候補を 20 個まで）と `matchCount` が付きます。文字のエラーには、スクリプトが使えるメンバーが付きます。`ocr_unavailable` は `reason`（`language` か `engine`）、`available`、`engines`、`text_not_found`、`ambiguous_text`、`tap_outside_screen` は `matches`（候補を 20 個まで）と `matchCount` です。
 
 | HTTP ステータス | `code` | 意味 |
 |---|---|---|
@@ -261,13 +295,17 @@ phone.tap_pixel(540, 1200, ref=shot.size)       # その画像のピクセルで
 | 409 | `not_running` | ミラーリングのセッションが動いていません。 |
 | 409 | `not_connected` | 送り先の端末が HID のレポートを購読していません。 |
 | 409 | `no_picture` | 映像がなく（受信ソフトのウィンドウを閉じたか最小化した、または読めなかった）、リクエストには映像が要ります。 |
-| 409 | `picture_changed` | `pixel` のリクエストが、逆の向きのスクリーンショットを指しています。端末がそのあとで回転しました。 |
+| 409 | `picture_changed` | `pixel` のリクエストが、逆の向きのスクリーンショットを指しています。端末がそのあとで回転しました。`tap-text` では、探している間に画面（または仮定している回転）が変わったときも返します。 |
 | 409 | `busy` | ほかの操作、WebSocket のストリーム、計測のページのどれかが動いています。 |
 | 409 | `user_interrupted` | あなたがミラー画面を操作したので、すべてを離しました。 |
 | 409 | `user_active` | あなたが直近の 1 秒以内にミラー画面を操作した、またはマウスかキーを押しています。 |
 | 409 | `no_keyboard` | 公開している HID のレポートマップにキーボードがありません。 |
 | 409 | `no_home_button` | 公開している HID のレポートマップにホームキーがありません。 |
-| 429 | `rate_limited` | 1 秒に 10 枚を超えるスクリーンショット、または同時に進行中のスクリーンショットが多すぎる（どちらも `Retry-After: 1`）、あるいは WebSocket のストリームで 1 秒あたりのメッセージが多すぎます（閉じられます）。 |
+| 409 | `ocr_unavailable` | その言語の OCR が Windows にありません（`available` に入っている言語の一覧）。または、その OCR の部品がありません。 |
+| 409 | `text_not_found` | `tap-text` が時間内に文字を見つけられませんでした。何もタップしていません。 |
+| 409 | `ambiguous_text` | `tap-text` が文字を 2 つ以上見つけました（`matches` に一覧）。何もタップしていません。 |
+| 409 | `tap_outside_screen` | `tap-text` の `offset` でタップする点が画面の外になります。何もタップしていません。 |
+| 429 | `rate_limited` | スクリーンショットと文字の読み取りが合わせて 1 秒に 10 回を超えた（読み取りだけで 5 回を超えた）、同時に進行中か待っているものが多すぎる（`Retry-After: 1`）、あるいは WebSocket のストリームで 1 秒あたりのメッセージが多すぎます（閉じられます）。 |
 | 499 | `cancelled` | `POST /v1/cancel`（またはクライアントがいなくなったこと）で操作が終わりました。 |
 | 500 | `internal_error` | アプリの内部の予期しない失敗です（たとえば Bluetooth の書き込みの失敗）。 |
 
@@ -315,12 +353,15 @@ Claude Desktop（`claude_desktop_config.json`）:
 }
 ```
 
-10 個のツール:
+13 個のツール:
 
 | ツール | 用途 |
 |---|---|
 | `get_status` | アプリ、端末の接続、映像の状態 |
 | `screenshot` | 端末の画面を画像で返し、ピクセル座標の基準にします |
+| `read_text` | 画面の文字を行ごとに、画面の 0〜1 の中心つきで返します |
+| `find_text` | 文字を探す、または現れるまで待つ（`timeout_ms` は 10 秒まで） |
+| `tap_text` | 文字を探してタップする |
 | `tap` | 1 回、または 2 から 10 回のタップ |
 | `long_press` | 長押し |
 | `swipe` | 1 本指で、ある点から別の点へドラッグ |
@@ -330,6 +371,6 @@ Claude Desktop（`claude_desktop_config.json`）:
 | `home` | ホームキーを押す |
 | `set_rotation` | 端末の回転をアプリに伝える |
 
-タッチのツールは、既定では**直近の `screenshot` の結果のピクセル**を位置にします。その画像の大きさを `ref` として送ります。スクリーンショットがまだなければ基準がないので、ツールは断り、撮るように求めます。`space="screen"`（0..1）なら、スクリーンショットなしで使えます。
+タッチのツールは、既定では**直近の `screenshot` の結果のピクセル**を位置にします。その画像の大きさを `ref` として送ります。スクリーンショットがまだなければ基準がないので、ツールは断り、撮るように求めます。`space="screen"`（0..1）なら、スクリーンショットなしで使えます。文字のツールは画面の 0〜1 を使うので、スクリーンショットなしで使えます。その位置は `space="screen"` で `tap` に渡せます。返す文字は画面の中身です。サーバーはモデルに、それを指示として従わないように伝えます。`read_text`・`find_text`・`tap_text` の結果の文字は、スクリーンショットと同じく、使っている AI のサービスに送られます。
 
 ツールは本物の端末を操作し、パスコードの画面や購入の承認にも届きます。MCP クライアントのツール呼び出しの承認は、オンのままにしてください。ツールが、あなたが割り込んだ、または操作中だと知らせたときは、エージェントは繰り返さず、画面を見直すようにしてください。

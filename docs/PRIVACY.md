@@ -11,7 +11,7 @@ This policy covers IceScreen Touch ("the app"), both the Microsoft Store version
 - The app does not send any data to the developer or to any other third party. It has no accounts, no advertising, no analytics, no crash reporting and no update check.
 - Everything the app does with your input stays between your PC and your own iPhone or iPad, over Bluetooth and your local network.
 - The app keeps a small settings file and log files on your PC. They are not uploaded anywhere. You can delete them at any time.
-- The Automation API, for scripts and AI agents on your PC, is off by default. When you turn it on, it can be reached only from programs on this PC, and each call needs a token. Screenshots it takes go only to the program that asked for them.
+- The Automation API, for scripts and AI agents on your PC, is off by default. When you turn it on, it can be reached only from programs on this PC, and each call needs a token. Screenshots it takes, and the text it reads from the screen, go only to the program that asked for them.
 - The Microsoft Store version asks Windows for its license (trial or purchased); see "Other software and services". A build you make yourself does not.
 
 ## What the app does
@@ -44,9 +44,9 @@ The log is meant for finding problems. It contains times, the app version, and w
 - the name and model of the device that UxPlay reports, when the app starts UxPlay;
 - if the PC cannot act as a Bluetooth peripheral, the PC's Bluetooth adapter address.
 - in the Store version, the license kind (trial or purchased) and the time the trial ends, each time they change;
-- if you turn on the Automation API: that it started or stopped (with its port number), when the token was regenerated, and a line for each operation a script ran or the app refused (the kind of operation, such as tap or screenshot, the result and how long it took; refusals are counted, not listed one by one).
+- if you turn on the Automation API: that it started or stopped (with its port number), when the token was regenerated, and a line for each operation a script ran or the app refused (the kind of operation, such as tap, screenshot or text reading, the result, the text recognition engine used and how long it took; refusals are counted, not listed one by one).
 
-The log does **not** contain the keys you type (even the detailed log only records how many keys are held at a moment, never which keys), the positions of your clicks or touches, the Automation API's token or the text a script types, or any picture of the screen.
+The log does **not** contain the keys you type (even the detailed log only records how many keys are held at a moment, never which keys), the positions of your clicks or touches, the Automation API's token or the text a script types, the text the app reads from the screen or what a script searched for, or any picture of the screen.
 
 If you attach a log to a bug report, please look through it first. The detailed UxPlay log, which is off by default, also contains what UxPlay prints about the connection (for example the device's name, its operating system build and its network addresses). The app removes the hardware-style identifiers and the session keys that UxPlay prints, but not everything.
 
@@ -67,7 +67,7 @@ You can stop the session (the Stop button, or the tray menu), which removes both
 
 ## Screen content
 
-To find where the picture is inside the receiver app's window, the app reads the pixels of that window from the screen, and in the latency test it reads the brightness of a small square of the screen. These pixels are examined in memory and discarded. They are not saved, recorded or sent anywhere. On its own, the app does not record the screen, take screenshots, or look at any other window's content. If you turn on the Automation API, a script on this PC can ask the app for a screenshot of the receiver app's window (only that window's own pixels, not other windows). The app hands the picture to that script. It does not store it or send it anywhere else. Windows shows a colored border around the receiver window for about 2 seconds after such a screenshot; the border is not in the picture.
+To find where the picture is inside the receiver app's window, the app reads the pixels of that window from the screen, and in the latency test it reads the brightness of a small square of the screen. These pixels are examined in memory and discarded. They are not saved, recorded or sent anywhere. On its own, the app does not record the screen, take screenshots, or look at any other window's content. If you turn on the Automation API, a script on this PC can ask the app for a screenshot of the receiver app's window (only that window's own pixels, not other windows). The app hands the picture to that script. It does not store it or send it anywhere else. Windows shows a colored border around the receiver window for about 2 seconds after such a screenshot; the border is not in the picture. A script can also ask the app to read the text in that window. The app recognizes the text with a feature built into Windows (Windows.Media.Ocr), hands the text to that script, and does not record it or send it anywhere else; Windows shows the same colored border. What a script or an AI agent that receives the text through the API does with it depends on that program.
 
 ## Bluetooth
 

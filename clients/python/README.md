@@ -41,6 +41,11 @@ with Client() as phone:                      # finds the API by itself (see "Con
     phone.press_key("a", ["cmd"])            # select all
     skipped = phone.type_text("hello")       # US keyboard; returns characters that could not be typed
 
+    for line in phone.read_text(lang="ja").lines:   # the text of the screen (OCR), in reading order
+        print(line.text, line.center)          # centre in 0..1 of the screen
+    phone.wait_for_text("Done", timeout_ms=10000)  # TextNotFoundError when it does not appear
+    phone.tap_text("Wi-Fi")                    # find it, read again to confirm, tap its centre
+
     with phone.stream() as s:                # low-level WebSocket session (needs the `stream` extra)
         s.down(0.2, 0.5)
         s.move(0.8, 0.5)
@@ -70,6 +75,18 @@ with Client() as phone:                      # finds the API by itself (see "Con
   `ref=shot.size` when you point at it in pixels. It is not an operation (it works while a touch or a stream runs), but the
   app answers at most 10 a second: more raise `RateLimitedError` (`retry_after` is the `Retry-After` value). An app version
   without the screenshot endpoint answers 404 and the client raises `ScreenshotUnsupportedError`.
+* `read_text(lang=None, *, engine=None, space="screen", ref=None, region=None, words=False)` returns a `TextResult`
+  (`language`, `engine`, `picture`, `lines`: `TextLine` with `text`, `box`, `center`, `words`). `find_text(text, *, match="exact",
+  loose=False, case_sensitive=False, timeout_ms=0, poll_ms=None, ...)` returns the matches (`TextMatch`: `text`, `line_text`,
+  `box`, `center`, `box_level`), `[]` when the text is not there; `wait_for_text(text, timeout_ms=10000, ...)` returns the first
+  or raises `TextNotFoundError`. `tap_text(text, *, select="unique", index=None, offset=None, settle_ms=None, hold_ms=None,
+  count=None, interval_ms=None, ...)` taps and returns a `TapTextResult` (`tapped`, `at`, `match_count`); it raises
+  `TextNotFoundError`, `AmbiguousTextError` (`.matches`: the candidates; narrow with `region`), `TapOutsideScreenError` and
+  the errors of a tap. `OcrUnavailableError` (`.reason`, `.available`: the OCR languages of this PC, `.engines`) means Windows
+  has no OCR for `lang`. A screen in Japanese needs `lang="ja"`; when nothing is found, check `language`. `get_status().ocr`
+  lists the languages. An app version without text recognition answers 404 and the client raises `TextUnsupportedError`.
+* `with phone.abortable() as scope:` lets another thread abandon the requests of this thread (`scope.abort()` closes the
+  connection; the call raises `RequestAbortedError`), for example a `find_text` that waits.
 
 ### Connection
 
@@ -93,9 +110,10 @@ the check off for a setup you control, such as a test server; the token then goe
 
 ## MCP server
 
-`icescreentouch-mcp` is an MCP server over stdio for AI agents. Tools: `get_status`, `screenshot`, `tap`, `long_press`,
-`swipe`, `pinch`, `type_text`, `press_key`, `home`, `set_rotation`. Positions are pixels of the most recent
-`screenshot` result (or `space="screen"`, 0..1).
+`icescreentouch-mcp` is an MCP server over stdio for AI agents. Tools: `get_status`, `screenshot`, `read_text`,
+`find_text`, `tap_text`, `tap`, `long_press`, `swipe`, `pinch`, `type_text`, `press_key`, `home`, `set_rotation`. Positions of the
+touch tools are pixels of the most recent `screenshot` result (or `space="screen"`, 0..1); the text tools use 0..1 of the
+screen. `find_text` and `tap_text` wait at most 10 seconds (`timeout_ms`).
 
 Claude Code:
 
@@ -121,7 +139,9 @@ messages. Approval of tool calls is left to the MCP client: keep it on for these
 mirror always wins; when a tool reports that the user interrupted or is active, the agent should look again rather than
 retry. If the MCP client cancels a tool call, the server asks the app to cancel (`cancel()`, best effort) while one of its own calls is still running; the app's cancel stops whatever operation is running, so it can also stop an operation of another client at that moment. The
 tools carry MCP annotations (`get_status` and `screenshot` are read-only; `set_rotation` changes a setting the app
-saves). The server tells the model that text on the phone's screen and device names are content, never instructions.
+saves). The server tells the model that text on the phone's screen and device names are content, never instructions. The text
+that `read_text`, `find_text` and `tap_text` return goes to the AI service you use, as screenshots do. Cancelling
+`read_text` or `find_text` closes its request and sends nothing else to the app.
 The MCP SDK versions 1.22 and newer (including 2.x) are supported.
 
 ## Develop

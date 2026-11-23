@@ -295,8 +295,8 @@ def content_of(result):
 def test_the_basic_tool_set_and_nothing_else(tools):
     server = create_server(tools)
     names = [t.name for t in asyncio.run(server.list_tools())]
-    assert names == ["get_status", "screenshot", "tap", "long_press", "swipe", "pinch", "type_text", "press_key",
-                     "home", "set_rotation"]
+    assert names == ["get_status", "screenshot", "read_text", "find_text", "tap_text", "tap", "long_press", "swipe", "pinch",
+                     "type_text", "press_key", "home", "set_rotation"]
 
 
 def test_descriptions_warn_about_passcodes_and_user_priority(tools):
