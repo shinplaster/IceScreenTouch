@@ -198,6 +198,15 @@ def parse_source_size(value: Optional[str]) -> Optional[Tuple[int, int]]:
 Point = Tuple[float, float]
 
 
+def _num(value: Any) -> float:
+    """A JSON number as a float; anything else (null, a string) as 0, so a malformed answer does not raise."""
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
+
+
+def _int(value: Any) -> int:
+    return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
+
+
 @dataclass(frozen=True)
 class TextBox:
     """A rectangle in the space of the request (``screen`` 0..1 or ``pixel`` of ``ref``): top left and size."""
@@ -213,11 +222,11 @@ class TextBox:
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "TextBox":
-        return cls(float(data.get("x", 0)), float(data.get("y", 0)), float(data.get("width", 0)), float(data.get("height", 0)))
+        return cls(_num(data.get("x")), _num(data.get("y")), _num(data.get("width")), _num(data.get("height")))
 
 
 def _point(data: Any) -> Point:
-    return (float(data.get("x", 0)), float(data.get("y", 0))) if isinstance(data, Mapping) else (0.0, 0.0)
+    return (_num(data.get("x")), _num(data.get("y"))) if isinstance(data, Mapping) else (0.0, 0.0)
 
 
 def _confidence(data: Mapping[str, Any]) -> Optional[float]:
@@ -359,8 +368,8 @@ class TextPicture:
     @classmethod
     def from_json(cls, data: Any) -> "TextPicture":
         data = data if isinstance(data, Mapping) else {}
-        return cls(int(data.get("width", 0)), int(data.get("height", 0)), str(data.get("orientation", "portrait")),
-                   int(data.get("rotation", 0)))
+        return cls(_int(data.get("width")), _int(data.get("height")), str(data.get("orientation", "portrait")),
+                   _int(data.get("rotation")))
 
 
 @dataclass(frozen=True)
@@ -388,7 +397,7 @@ class TextResult:
             engine=OcrEngineInfo.from_json(data.get("engine")),
             picture=TextPicture.from_json(data.get("picture")),
             space=str(data.get("space", "screen")),
-            duration_ms=int(data.get("durationMs", 0)),
+            duration_ms=_int(data.get("durationMs")),
             lines=tuple(TextLine.from_json(line) for line in (data.get("lines") or []) if isinstance(line, Mapping)),
             raw=dict(data),
         )
@@ -424,10 +433,10 @@ class TapTextResult:
             engine=OcrEngineInfo.from_json(data.get("engine")),
             picture=TextPicture.from_json(data.get("picture")),
             space=str(data.get("space", "screen")),
-            duration_ms=int(data.get("durationMs", 0)),
-            attempts=int(data.get("attempts", 0)),
+            duration_ms=_int(data.get("durationMs")),
+            attempts=_int(data.get("attempts")),
             tapped=TextMatch.from_json(tapped),
             at=_point(tapped.get("at")),
-            match_count=int(data.get("matchCount", 0)),
+            match_count=_int(data.get("matchCount")),
             raw=dict(data),
         )

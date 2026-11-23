@@ -282,7 +282,7 @@ phone.tap_text("Bluetooth", offset=(0.4, 0.0))     # ラベルの右（スイッ
 
 ## エラー
 
-エラーは `application/problem+json`（RFC 9457）で、機械が読むメンバー `code` を持ちます。`detail` は人向けの 1 文で、あなたのデータ（位置、キー、文字、トークン）は入りません。文字のエラーには、スクリプトが使えるメンバーが付きます。`ocr_unavailable` には `reason`（`language` か `engine`）、`available`、`engines`、`text_not_found`、`ambiguous_text`、`tap_outside_screen` には `matches`（候補を 20 個まで）と `matchCount` が付きます。文字のエラーには、スクリプトが使えるメンバーが付きます。`ocr_unavailable` は `reason`（`language` か `engine`）、`available`、`engines`、`text_not_found`、`ambiguous_text`、`tap_outside_screen` は `matches`（候補を 20 個まで）と `matchCount` です。
+エラーは `application/problem+json`（RFC 9457）で、機械が読むメンバー `code` を持ちます。`detail` は人向けの 1 文で、あなたのデータ（位置、キー、文字、トークン）は入りません。文字のエラーには、スクリプトが使えるメンバーが付きます。`ocr_unavailable` には `reason`（`language` か `engine`）、`available`、`engines`、`text_not_found`、`ambiguous_text`、`tap_outside_screen` には `matches`（候補を 20 個まで）と `matchCount` が付きます。
 
 | HTTP ステータス | `code` | 意味 |
 |---|---|---|

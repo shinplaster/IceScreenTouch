@@ -224,3 +224,78 @@ def test_cancelling_tap_text_cancels_the_operation(phone):
 
     asyncio.run(go())
     assert ("cancel", (), {}) in phone.calls
+
+
+def test_picture_changed_from_a_text_tool_does_not_talk_about_pixels(tools, phone):
+    phone.fail = ist.PictureChangedError("x", code="picture_changed")
+    with pytest.raises(ToolError) as caught:
+        tools.tap_text("Wi-Fi")
+    assert "changed or rotated while the text was searched" in str(caught.value)
+    assert "pixel" not in str(caught.value)
+
+
+def test_an_abandoned_call_says_it_was_cancelled(tools, phone):
+    phone.fail = ist.RequestAbortedError("aborted")
+    with pytest.raises(ToolError, match="cancelled"):
+        tools.find_text("x")
+
+
+def test_read_text_puts_the_note_first_and_caps_the_lines(tools, phone):
+    phone.lines = tuple(TextLine(f"line {i}", TextBox(0, i / 1000, 0.1, 0.001), (0.05, i / 1000)) for i in range(250))
+    result = tools.read_text()
+    assert list(result)[0] == "note"
+    assert len(result["lines"]) == 200 and "first 200 of 250" in result["note"]
+
+
+def test_a_cancel_before_the_worker_started_still_aborts_its_request(phone):
+    # The scope is entered after the cancellation: the request must not start at all.
+    entered = []
+
+    class Scope:
+        def __init__(self):
+            self.aborted = False
+
+        def abort(self):
+            self.aborted = True
+
+        def __enter__(self):
+            entered.append(self)
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    gate = threading.Event()
+
+    def find(text, **kwargs):
+        if entered and entered[-1].aborted:
+            raise ist.RequestAbortedError("aborted before it was sent")
+        return []
+
+    phone.find_text = find
+    phone.abortable = Scope
+    tools = PhoneTools(lambda: phone)
+    original = tools.abortable
+
+    def slow_abortable():
+        gate.wait(5)  # the worker reaches its scope only after the cancellation
+        return original()
+
+    tools.abortable = slow_abortable
+    server = create_server(tools)
+
+    async def go():
+        task = asyncio.create_task(server.call_tool("find_text", {"text": "Done"}))
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(go())
+    gate.set()
+    deadline = threading.Event()
+    for _ in range(100):
+        if entered:
+            break
+        deadline.wait(0.02)
+    assert entered and entered[-1].aborted

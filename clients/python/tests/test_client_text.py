@@ -217,3 +217,22 @@ def test_the_status_has_the_ocr_part(api):
     assert (ocr.available, ocr.engine.id, ocr.engine.kind, ocr.engine.word_boxes) == (True, "windows", "builtin", True)
     assert (ocr.languages, ocr.default_language, ocr.engines) == (("en-US", "ja"), "ja", ("windows",))
     assert api.client().get_status().to_dict()["ocr"]["languages"] == ["en-US", "ja"]
+
+
+def test_poll_ms_reaches_the_app_from_find_and_wait(api):
+    api.route("POST", "/v1/text/find", find_answer([WIFI]))
+    api.client().wait_for_text("Wi-Fi", timeout_ms=2000, poll_ms=800)
+    assert api.requests[-1].json["pollMs"] == 800
+
+
+def test_the_text_length_is_counted_as_the_app_counts_it(api):
+    api.route("POST", "/v1/text/find", find_answer([]))
+    api.client().find_text("😀" * 100)  # 200 UTF-16 code units: allowed
+    with pytest.raises(ist.InvalidArgumentError):
+        api.client().find_text("😀" * 101)
+
+
+def test_a_malformed_number_in_an_answer_does_not_raise():
+    result = ist.TextResult.from_json({"language": "ja", "durationMs": None, "picture": {"width": "x"},
+                                       "lines": [{"text": "a", "box": {"x": None}, "center": {"x": "1"}}]})
+    assert (result.duration_ms, result.picture.width, result.lines[0].box.x, result.lines[0].center) == (0, 0, 0.0, (0.0, 0.0))

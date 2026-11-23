@@ -58,6 +58,7 @@ SpaceArg = Annotated[Space, Field(description="'pixel': pixels of the latest scr
 Modifier = Literal["cmd", "shift", "option", "ctrl"]
 
 MAX_TEXT_TIMEOUT_MS = 10000  # a find_text that waits holds one of the app's two wait slots: keep it short
+MAX_TEXT_LINES = 200  # read_text lists at most this many lines (a screen has far fewer), to keep the tool result small
 
 LangArg = Annotated[Optional[str], Field(max_length=35, description="OCR language tag such as 'ja' or 'en-US' (default: the PC's first OCR language). A Japanese screen needs 'ja'")]
 RegionArg = Annotated[Optional[List[float]], Field(min_length=4, max_length=4, description="Only this part of the screen: [x, y, width, height] in 0..1 of the screen")]
@@ -106,10 +107,14 @@ def _describe_text_error(exc: IceScreenTouchError) -> Optional[str]:
         return "The offset moves the tap outside the screen, so nothing was tapped. Use a smaller offset."
     if isinstance(exc, TextUnsupportedError):
         return "This version of IceScreen Touch cannot read text on the screen. Update the app, or use the screenshot tool."
+    if isinstance(exc, PictureChangedError):
+        return ("The screen changed or rotated while the text was searched, so nothing was tapped. Take a screenshot (or "
+                "read_text) to see the screen and call again.")
     if isinstance(exc, RateLimitedError):
         return ("IceScreen Touch reads the screen's text at most 5 times a second, one reading at a time (and together with "
-                "screenshots at most 10 a second, counted over everything that uses the API). Wait about a second and try "
-                "again; prefer one find_text with timeout_ms over many quick calls.")
+                "screenshots at most 10 a second, counted over everything that uses the API), and lets at most two calls "
+                "with timeout_ms wait at once. Wait about a second and try again; do not run several waiting find_text "
+                "or tap_text calls at once, and prefer one find_text with timeout_ms over many quick calls.")
     if isinstance(exc, RequestAbortedError):
         return "The call was cancelled."
     return None
@@ -350,11 +355,15 @@ class PhoneTools:
     def read_text(self, lang: LangArg = None, region: RegionArg = None) -> Dict[str, Any]:
         """The text on the screen: each line with its centre in 0..1 of the screen."""
         result = self._call(lambda phone: phone.read_text(lang, region=_region(region)), text=True)
-        lines = [{"text": line.text, "x": round(line.center[0], 3), "y": round(line.center[1], 3)} for line in result.lines]
+        lines = [{"text": line.text, "x": round(line.center[0], 3), "y": round(line.center[1], 3)}
+                 for line in result.lines[:MAX_TEXT_LINES]]
         note = _SCREEN_TEXT_NOTE
         if not lines:
             note = f"No text was read with language {result.language!r}. " + _EMPTY_NOTE + " " + note
-        return {"language": result.language, "lines": lines, "note": note}
+        elif len(result.lines) > MAX_TEXT_LINES:
+            note += f" Only the first {MAX_TEXT_LINES} of {len(result.lines)} lines are listed: pass region to read the rest."
+        # The note first: the model reads that the text is content before the text itself.
+        return {"note": note, "language": result.language, "lines": lines}
 
     def find_text(self, text: SearchText, match: MatchArg = "exact", loose: LooseArg = False,
                   timeout_ms: Annotated[int, Field(ge=0, le=MAX_TEXT_TIMEOUT_MS, description="Wait up to this long for the text to appear (0 reads once; at most 10000)")] = 0,
@@ -369,7 +378,7 @@ class PhoneTools:
             note = "Not found. " + _EMPTY_NOTE + " " + note
         elif any(m["boxLevel"] == "line" for m in found):
             note = _LINE_NOTE + " " + note
-        return {"matches": found, "note": note}
+        return {"note": note, "matches": found}
 
     def tap_text(self, text: SearchText, match: MatchArg = "exact", loose: LooseArg = False,
                  select: Annotated[Literal["unique", "first", "index"], Field(description="When the text is there more than once: 'unique' refuses and lists them, 'first' taps the first in reading order, 'index' the index-th")] = "unique",

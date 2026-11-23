@@ -158,7 +158,8 @@ def _text_scope(lang: Optional[str], engine: Optional[str], space: str, ref: Any
 
 def _search_fields(text: str, match: str, loose: bool, case_sensitive: bool, timeout_ms: int,
                    poll_ms: Optional[int]) -> Dict[str, Any]:
-    if not isinstance(text, str) or not 1 <= len(text) <= 200:
+    # The app counts UTF-16 code units (an emoji is two).
+    if not isinstance(text, str) or not 1 <= len(text.encode("utf-16-le")) // 2 <= 200:
         raise InvalidArgumentError("text must be a string of 1 to 200 characters")
     if match not in _TEXT_MATCHES:
         raise InvalidArgumentError(f"match must be one of {_TEXT_MATCHES}, not {match!r}")
