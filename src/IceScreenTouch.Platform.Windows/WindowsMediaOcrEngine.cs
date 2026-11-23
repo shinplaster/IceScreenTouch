@@ -162,9 +162,12 @@ public sealed class WindowsMediaOcrEngine : IOcrEngine
         };
     }
 
-    // The user's languages first (the first that has OCR), else the first installed OCR language.
-    private static string? DefaultTag(List<string> available) =>
-        WinOcrEngine.TryCreateFromUserProfileLanguages()?.RecognizerLanguage.LanguageTag ?? (available.Count > 0 ? available[0] : null);
+    // The user's languages first (the first that has OCR), else the first installed OCR language; always one of the installed ones.
+    private static string? DefaultTag(List<string> available)
+    {
+        var preferred = WinOcrEngine.TryCreateFromUserProfileLanguages()?.RecognizerLanguage.LanguageTag;
+        return available.Find(tag => string.Equals(tag, preferred, StringComparison.OrdinalIgnoreCase)) ?? (available.Count > 0 ? available[0] : null);
+    }
 
     // A well-formed tag that Windows does not take as a language (Language throws) is a language it does not have, never an error.
     private static Language? ToLanguage(string tag)

@@ -42,7 +42,13 @@ public static class TextMatcher
     /// </summary>
     public const double FragmentGapRatio = 0.8;
 
-    /// <summary>The matches of <paramref name="query"/> (raw text) in <paramref name="lines"/> (reading order), in reading order.</summary>
+    /// <summary>The most matches <see cref="Find"/> returns (a screen has far fewer; this bounds the work for any engine output).</summary>
+    public const int MaxMatches = 1000;
+
+    /// <summary>
+    /// The matches of <paramref name="query"/> (raw text) in <paramref name="lines"/> (reading order), in reading order, at most <see cref="MaxMatches"/>.
+    /// <see cref="TextMatchMode.Contains"/> finds every occurrence that does not overlap the one before (<c>aa</c> in <c>aaa</c> once).
+    /// </summary>
     /// <param name="lines">The lines.</param>
     /// <param name="query">The searched text, as the request gave it.</param>
     /// <param name="mode">Exact or contains.</param>
@@ -59,7 +65,7 @@ public static class TextMatcher
             return matches;
         }
 
-        for (var index = 0; index < lines.Count; index++)
+        for (var index = 0; index < lines.Count && matches.Count < MaxMatches; index++)
         {
             var line = lines[index];
             if (mode == TextMatchMode.Contains)
@@ -148,7 +154,7 @@ public static class TextMatcher
     {
         var normalized = TextNormalizer.NormalizeWords([.. line.Words.Select(w => w.Text)], options);
         var at = 0;
-        while (at <= normalized.Text.Length - target.Length)
+        while (at <= normalized.Text.Length - target.Length && matches.Count < MaxMatches)
         {
             var found = normalized.Text.IndexOf(target, at, StringComparison.Ordinal);
             if (found < 0)
@@ -163,10 +169,25 @@ public static class TextMatcher
 
     private static TextMatch Match(TextLine part, TextLine line, int index, int from, int to)
     {
-        var words = part.Words.Skip(from).Take(to - from).ToList();
-        var box = part.HasWordBoxes ? words.Skip(1).Aggregate(words[0].Box, (a, w) => a.Union(w.Box)) : line.Box;
-        var confidences = words.Where(w => w.Confidence is not null).Select(w => w.Confidence!.Value).ToList();
-        double? confidence = confidences.Count > 0 ? confidences.Min() : line.Confidence;
+        List<TextWord> words = new(to - from);
+        for (var i = from; i < to; i++)
+        {
+            words.Add(part.Words[i]);
+        }
+
+        var box = words[0].Box;
+        double? lowest = null;
+        foreach (var word in words)
+        {
+            box = box.Union(word.Box);
+            if (word.Confidence is { } c)
+            {
+                lowest = lowest is { } l ? Math.Min(l, c) : c;
+            }
+        }
+
+        box = part.HasWordBoxes ? box : line.Box;
+        var confidence = lowest ?? line.Confidence;
         var text = part.HasWordBoxes ? TextLayout.Join(words.Select(w => w.Text)) : line.Text;
         return new TextMatch(text, line.Text, box, confidence, part.HasWordBoxes, index);
     }

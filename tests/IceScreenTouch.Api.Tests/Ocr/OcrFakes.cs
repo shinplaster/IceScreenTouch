@@ -65,11 +65,30 @@ internal sealed class FakeOcrEngine : IOcrEngine
             return await until.WaitAsync(ct).ConfigureAwait(false);
         });
 
-    public ValueTask<OcrLanguageSet> GetLanguagesAsync(CancellationToken cancellationToken) =>
-        ValueTask.FromResult(new OcrLanguageSet(Languages, DefaultLanguage));
+    /// <summary>When set, the language questions wait for it (an engine that does not answer).</summary>
+    public Task? QueriesWaitFor { get; set; }
 
-    public ValueTask<string?> ResolveLanguageAsync(string? tag, CancellationToken cancellationToken) =>
-        ValueTask.FromResult(tag is null ? DefaultLanguage : Languages.FirstOrDefault(l => string.Equals(l, tag, StringComparison.OrdinalIgnoreCase)));
+    public async ValueTask<OcrLanguageSet> GetLanguagesAsync(CancellationToken cancellationToken)
+    {
+        if (QueriesWaitFor is { } wait)
+        {
+            await wait.ConfigureAwait(false);
+        }
+
+        return new OcrLanguageSet(Languages, DefaultLanguage);
+    }
+
+    public async ValueTask<string?> ResolveLanguageAsync(string? tag, CancellationToken cancellationToken)
+    {
+        if (QueriesWaitFor is { } wait)
+        {
+            await wait.ConfigureAwait(false);
+        }
+
+        return ResolveNow(tag);
+    }
+
+    private string? ResolveNow(string? tag) => (tag is null ? DefaultLanguage : Languages.FirstOrDefault(l => string.Equals(l, tag, StringComparison.OrdinalIgnoreCase)));
 
     public async Task<OcrRecognition> RecognizeAsync(OcrRequest request, CancellationToken cancellationToken)
     {

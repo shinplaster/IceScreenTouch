@@ -63,6 +63,12 @@ public sealed class OcrService
     /// <summary>Requests that may wait for the turn behind the running recognition; one more is refused (429).</summary>
     public const int MaxWaitingRecognitions = 2;
 
+    /// <summary>The longest an engine may take to list or resolve its languages; then it counts as unavailable for that request.</summary>
+    public static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(2);
+
+    /// <summary>Languages of an engine shown in the status and in an <c>ocr_unavailable</c> answer.</summary>
+    public const int MaxLanguages = 64;
+
     /// <summary>An engine call that has not returned after this long no longer holds the turn, and its engine is unavailable until it returns.</summary>
     public static readonly TimeSpan StuckAfter = TimeSpan.FromSeconds(30);
 
@@ -107,15 +113,46 @@ public sealed class OcrService
     public async ValueTask<OcrTarget> ResolveAsync(string? engineId, string? language, CancellationToken cancellationToken)
     {
         var (engine, info) = Find(engineId);
-        var tag = await engine.ResolveLanguageAsync(language, cancellationToken).ConfigureAwait(false);
-        if (tag is null || !OcrNames.IsWellFormedLanguageTag(tag))
+        try
         {
-            var languages = await engine.GetLanguagesAsync(cancellationToken).ConfigureAwait(false);
-            throw new OcrUnavailableException(new OcrUnavailable(
-                OcrUnavailable.LanguageReason, info.Id, [.. (languages?.Available ?? []).Where(OcrNames.IsWellFormedLanguageTag)], AvailableEngineIds));
+            var tag = await AskAsync(ct => engine.ResolveLanguageAsync(language, ct), cancellationToken).ConfigureAwait(false);
+            if (tag is null || !OcrNames.IsWellFormedLanguageTag(tag))
+            {
+                throw new OcrEngineException(OcrFailure.LanguageUnavailable);
+            }
+
+            return new OcrTarget(engine, info, tag);
+        }
+        catch (OcrEngineException ex) when (ex.Failure == OcrFailure.LanguageUnavailable)
+        {
+            throw new OcrUnavailableException(await LanguageUnavailableAsync(engine, info, cancellationToken).ConfigureAwait(false));
+        }
+        catch (OcrEngineException ex) when (ex.Failure == OcrFailure.EngineUnavailable)
+        {
+            throw new OcrUnavailableException(new OcrUnavailable(OcrUnavailable.EngineReason, info.Id, [], AvailableEngineIds));
+        }
+    }
+
+    /// <summary>The details of a missing language: the engine's languages (empty when it cannot list them).</summary>
+    public async ValueTask<OcrUnavailable> LanguageUnavailableAsync(OcrTarget target, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return await LanguageUnavailableAsync(target.Engine, target.Info, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<OcrUnavailable> LanguageUnavailableAsync(IOcrEngine engine, OcrEngineInfo info, CancellationToken cancellationToken)
+    {
+        OcrLanguageSet? languages = null;
+        try
+        {
+            languages = await AskAsync(engine.GetLanguagesAsync, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            // Listed as none.
         }
 
-        return new OcrTarget(engine, info, tag);
+        return new OcrUnavailable(OcrUnavailable.LanguageReason, info.Id, CleanLanguages(languages?.Available), AvailableEngineIds);
     }
 
     /// <summary>The OCR part of the status. Never throws for an engine's failure (the engine is then shown as without languages).</summary>
@@ -133,7 +170,7 @@ public sealed class OcrService
         {
             try
             {
-                languages = await engine.GetLanguagesAsync(cancellationToken).ConfigureAwait(false);
+                languages = await AskAsync(engine.GetLanguagesAsync, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
@@ -141,7 +178,7 @@ public sealed class OcrService
             }
         }
 
-        var available = (languages?.Available ?? []).Where(OcrNames.IsWellFormedLanguageTag).ToList();
+        var available = CleanLanguages(languages?.Available);
         var fallback = languages?.Default is { } d && OcrNames.IsWellFormedLanguageTag(d) ? d : null;
         return new OcrStatus(states[0].Available && available.Count > 0, info, states, available, fallback);
     }
@@ -187,6 +224,7 @@ public sealed class OcrService
         ArgumentNullException.ThrowIfNull(turn);
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(frame);
+        turn.Claim();
         if (IsStuck(target.Info.Id))
         {
             throw new OcrUnavailableException(new OcrUnavailable(OcrUnavailable.EngineReason, target.Info.Id, [], AvailableEngineIds));
@@ -256,6 +294,29 @@ public sealed class OcrService
         return found;
     }
 
+    // Asks an engine about its languages on the thread pool, for at most QueryTimeout: a slow or blocking engine makes the request (or the
+    // status) answer "unavailable" instead of hanging it.
+    private async ValueTask<T> AskAsync<T>(Func<CancellationToken, ValueTask<T>> question, CancellationToken cancellationToken)
+    {
+        using var timeout = new CancellationTokenSource(QueryTimeout, _time);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+        var token = linked.Token;
+        var call = Task.Run(() => question(token).AsTask(), CancellationToken.None);
+        try
+        {
+            return await call.WaitAsync(QueryTimeout, _time, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is TimeoutException || (ex is OperationCanceledException && timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested))
+        {
+            _ = call.ContinueWith(static t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+            throw new OcrEngineException(OcrFailure.EngineUnavailable, ex);
+        }
+    }
+
+    // Well-formed, distinct (ignoring case) and at most MaxLanguages tags.
+    private static List<string> CleanLanguages(IReadOnlyList<string>? languages) =>
+        [.. (languages ?? []).Where(OcrNames.IsWellFormedLanguageTag).Distinct(StringComparer.OrdinalIgnoreCase).Take(MaxLanguages)];
+
     private bool IsStuck(string id)
     {
         lock (_gate)
@@ -321,6 +382,7 @@ public sealed class OcrService
     {
         private readonly OcrService _owner;
         private int _released;
+        private int _claimed;
         private int _handedOver;
 
         internal RecognitionTurn(OcrService owner) => _owner = owner;
@@ -334,12 +396,18 @@ public sealed class OcrService
             }
         }
 
+        // Marks the turn as used before anything else of a recognition runs: a turn runs one recognition, and only while it is held.
+        internal void Claim()
+        {
+            if (Volatile.Read(ref _released) != 0 || Interlocked.Exchange(ref _claimed, 1) != 0)
+            {
+                throw new InvalidOperationException("a turn runs one recognition, while it is held");
+            }
+        }
+
         internal void HandOver(Task call, string engineId)
         {
-            if (Interlocked.Exchange(ref _handedOver, 1) != 0)
-            {
-                throw new InvalidOperationException("a turn runs one recognition");
-            }
+            _ = Interlocked.Exchange(ref _handedOver, 1);
 
             _ = _owner.ReleaseAfterAsync(this, call, engineId);
         }

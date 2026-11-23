@@ -22,6 +22,12 @@ public static class OcrOutputGuard
     /// <summary>Characters kept of one text (a line's or a word's).</summary>
     public const int MaxTextLength = 1000;
 
+    /// <summary>Characters kept over all texts of one recognition (the rest is dropped).</summary>
+    public const int MaxTotalTextLength = 200_000;
+
+    /// <summary>Lines and words an engine may return that are looked at; anything beyond is ignored unread.</summary>
+    public const int MaxExamined = 50_000;
+
     /// <summary>Characters of an engine's name or version.</summary>
     public const int MaxLabelLength = 64;
 
@@ -76,9 +82,11 @@ public static class OcrOutputGuard
         var language = OcrNames.IsWellFormedLanguageTag(recognition.Language) ? recognition.Language : OcrNames.Undetermined;
         List<OcrLine> kept = [];
         var words = 0;
+        var characters = 0;
+        var examined = 0;
         foreach (var line in lines)
         {
-            if (kept.Count >= MaxLines)
+            if (kept.Count >= MaxLines || ++examined > MaxExamined || characters >= MaxTotalTextLength)
             {
                 break;
             }
@@ -91,18 +99,19 @@ public static class OcrOutputGuard
             List<OcrWord> keptWords = [];
             foreach (var word in line.Words ?? [])
             {
-                if (words >= MaxWords)
+                if (words >= MaxWords || ++examined > MaxExamined)
                 {
                     break;
                 }
 
-                if (word is null || Clip(word.Box, width, height) is not { } box || Text(word.Text) is not { } text)
+                if (word is null || Clip(word.Box, width, height) is not { } box || Text(word.Text) is not { } text || characters + text.Length > MaxTotalTextLength)
                 {
                     continue;
                 }
 
                 keptWords.Add(new OcrWord(text, box, Confidence(word.Confidence)));
                 words++;
+                characters += text.Length;
             }
 
             var lineBox = Clip(line.Box, width, height);
@@ -117,6 +126,11 @@ public static class OcrOutputGuard
             {
                 // Every word was broken, or a line-only engine gave no usable box or text.
                 continue;
+            }
+
+            if (keptWords.Count == 0)
+            {
+                characters += lineText!.Length; // a line-only engine: the line is the text
             }
 
             kept.Add(new OcrLine(lineText ?? string.Empty, lineBox!.Value, keptWords, Confidence(line.Confidence)));

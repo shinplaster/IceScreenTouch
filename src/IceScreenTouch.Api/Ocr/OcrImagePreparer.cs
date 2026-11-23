@@ -107,18 +107,23 @@ public static class OcrImagePreparer
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentNullException.ThrowIfNull(capabilities);
 
+        if (region is { } given && !(double.IsFinite(given.X) && double.IsFinite(given.Y) && double.IsFinite(given.Width) && double.IsFinite(given.Height)
+            && given.Width > 0 && given.Height > 0 && given.X >= 0 && given.Y >= 0 && given.Right <= frame.Width + 1 && given.Bottom <= frame.Height + 1))
+        {
+            throw new ArgumentOutOfRangeException(nameof(region), "the region must be a rectangle inside the picture");
+        }
+
         // The rectangle of the picture the engine gets: the region with a margin when the engine does not crop itself, else the whole picture.
+        // Computed in doubles and clamped to the picture before anything becomes an int.
         var source = new SKRectI(0, 0, frame.Width, frame.Height);
         if (region is { } r && !capabilities.Region)
         {
-            source = SKRectI.Intersect(
-                source,
-                SKRectI.Create(
-                    (int)Math.Floor(r.X) - RegionMargin,
-                    (int)Math.Floor(r.Y) - RegionMargin,
-                    (int)Math.Ceiling(r.Width) + (2 * RegionMargin) + 1,
-                    (int)Math.Ceiling(r.Height) + (2 * RegionMargin) + 1));
-            if (source.IsEmpty)
+            var left = (int)Math.Clamp(Math.Floor(r.X) - RegionMargin, 0, frame.Width);
+            var top = (int)Math.Clamp(Math.Floor(r.Y) - RegionMargin, 0, frame.Height);
+            var right = (int)Math.Clamp(Math.Ceiling(r.Right) + RegionMargin + 1, 0, frame.Width);
+            var bottom = (int)Math.Clamp(Math.Ceiling(r.Bottom) + RegionMargin + 1, 0, frame.Height);
+            source = new SKRectI(left, top, right, bottom);
+            if (source.Width <= 0 || source.Height <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(region), "the region is outside the picture");
             }
@@ -159,8 +164,8 @@ public static class OcrImagePreparer
                 throw new InvalidOperationException("the picture could not be read");
             }
 
-            using var image = SKImage.FromPixels(bitmap.PeekPixels())?.Subset(source)
-                ?? throw new InvalidOperationException("the picture could not be read");
+            using var whole = SKImage.FromPixels(bitmap.PeekPixels()) ?? throw new InvalidOperationException("the picture could not be read");
+            using var image = whole.Subset(source) ?? throw new InvalidOperationException("the picture could not be read");
             var target = new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Opaque);
             using (var surface = SKSurface.Create(target, outputHandle.AddrOfPinnedObject(), width * 4)
                 ?? throw new InvalidOperationException("the picture could not be scaled"))
