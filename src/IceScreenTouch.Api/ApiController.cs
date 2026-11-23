@@ -25,7 +25,7 @@ namespace IceScreenTouch.Api;
 /// </para>
 /// <para>Logging is limited to the kind of operation, the result code and the time: never positions, keys or text.</para>
 /// </remarks>
-public sealed class ApiController : IDisposable
+public sealed partial class ApiController : IDisposable
 {
     /// <summary>A new operation is refused with <c>user_active</c> for this long after the user's last input.</summary>
     public static readonly TimeSpan UserActiveWindow = TimeSpan.FromSeconds(1);
@@ -111,6 +111,8 @@ public sealed class ApiController : IDisposable
         _log = log;
         _refusals = new RejectionLog(log, _time);
         _screenshotLimit = new ScreenshotRateLimiter(_time);
+        _textLimit = new ScreenshotRateLimiter(_time, TextReadsPerSecond);
+        _ocr = new Ocr.OcrService(host.OcrEngines, _time);
     }
 
     /// <summary>An operation or a session is running.</summary>
@@ -127,9 +129,17 @@ public sealed class ApiController : IDisposable
 
     // ---- Status and settings -------------------------------------------------------------------------------
 
-    /// <summary><c>GET /v1/status</c>. Not an operation: allowed while one runs.</summary>
-    public ApiResult<ApiStatus> GetStatus() =>
-        _isApiAllowed() ? ApiResult.Ok<ApiStatus>(_host.GetStatus() with { Operating = IsOperating }) : ApiResult.Fail<ApiStatus>(PurchaseRequired());
+    /// <summary><c>GET /v1/status</c> (with the OCR engines and languages, 16.3). Not an operation: allowed while one runs.</summary>
+    public async ValueTask<ApiResult<ApiStatus>> GetStatusAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_isApiAllowed())
+        {
+            return ApiResult.Fail<ApiStatus>(PurchaseRequired());
+        }
+
+        var ocr = await _ocr.GetStatusAsync(cancellationToken).ConfigureAwait(false);
+        return ApiResult.Ok<ApiStatus>(_host.GetStatus() with { Operating = IsOperating, Ocr = ToStatusInfo(ocr) });
+    }
 
     /// <summary><c>GET /v1/rotation</c>. Not an operation.</summary>
     public ApiResult<RotationInfo> GetRotation() =>
@@ -707,7 +717,7 @@ public sealed class ApiController : IDisposable
     /// logged one line each; every refusal (busy, user_active, invalid_request, ...) goes through a limiter (first line
     /// at once, then a count per 10 s), so a script in a loop cannot flood the log.
     /// </summary>
-    internal void LogResult(string kind, string code, long startedTimestamp)
+    internal void LogResult(string kind, string code, long startedTimestamp, string? engine = null)
     {
         if (_log is null)
         {
@@ -716,13 +726,17 @@ public sealed class ApiController : IDisposable
 
         if (code is "ok" or "closed" or ApiErrorCodes.UserInterrupted or ApiErrorCodes.Cancelled)
         {
-            _log($"[api] {kind} {code} {(long)_time.GetElapsedTime(startedTimestamp).TotalMilliseconds} ms");
+            var by = engine is null ? string.Empty : " " + engine;
+            _log($"[api] {kind} {code}{by} {(long)_time.GetElapsedTime(startedTimestamp).TotalMilliseconds} ms");
         }
         else
         {
             _refusals.Record($"{kind} {code}");
         }
     }
+
+    /// <summary>The OCR pipeline (the tests make its engine calls inline).</summary>
+    internal Ocr.OcrService Ocr => _ocr;
 
     /// <summary>The application (the sinks a WebSocket session sends to).</summary>
     internal IApiHost Host => _host;

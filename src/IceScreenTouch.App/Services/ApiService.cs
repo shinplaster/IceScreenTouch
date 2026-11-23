@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using IceScreenTouch.Api;
+using IceScreenTouch.Api.Ocr;
 using IceScreenTouch.App.Settings;
 using IceScreenTouch.Core;
 
@@ -86,7 +87,8 @@ public sealed class ApiService : IDisposable
     /// <param name="log">The app log (lines start with <c>[api]</c>).</param>
     /// <param name="time">The clock of the controller and of the session's input arbitration (pass the same one to the session).</param>
     /// <param name="anyPort">Port 0 ("any free port") is accepted: for tests and the self-check, never for a user's setting.</param>
-    public ApiService(IMirrorService mirror, LicenseService license, string dataDirectory, Func<AppSettings> settings, Action<string>? log = null, TimeProvider? time = null, bool anyPort = false)
+    /// <param name="ocrEngines">The OCR engines of the text endpoints, the default first (none: they answer <c>ocr_unavailable</c>).</param>
+    public ApiService(IMirrorService mirror, LicenseService license, string dataDirectory, Func<AppSettings> settings, Action<string>? log = null, TimeProvider? time = null, bool anyPort = false, IReadOnlyList<IOcrEngine>? ocrEngines = null)
     {
         ArgumentNullException.ThrowIfNull(mirror);
         ArgumentNullException.ThrowIfNull(license);
@@ -96,7 +98,7 @@ public sealed class ApiService : IDisposable
         _time = time ?? TimeProvider.System;
         _tokens = new ApiTokenStore(dataDirectory, log);
         _connectionFile = new ApiConnectionFile(dataDirectory, log: log);
-        _host = new ApiHost(mirror, settings, _time, log);
+        _host = new ApiHost(mirror, settings, _time, log, ocrEngines: ocrEngines);
         _host.LandscapeRotationSetWhileStopped += r => LandscapeRotationSetWhileStopped?.Invoke(r);
         _host.TargetChosen += id => TargetChosen?.Invoke(id);
         _anyPort = anyPort;

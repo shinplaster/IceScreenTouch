@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Shin-plaster
 // SPDX-License-Identifier: MIT
 
+using System.Buffers;
 using System.Text;
 
 namespace IceScreenTouch.Api.Ocr;
@@ -145,37 +146,44 @@ public static class TextNormalizer
         'ヘ', 'ホ', 'ム', 'ラ', 'リ', 'ル', 'レ', 'ロ', // ヘ ホ ム ラ リ ル レ ロ
     ];
 
-    // Normalize throws on a lone surrogate; an engine could return one.
+    // Normalize throws on a lone surrogate and on some noncharacters (U+FFFE); an engine's text or a request may hold them. They become U+FFFD.
     private static string ReplaceBrokenSurrogates(string text)
     {
-        for (var i = 0; i < text.Length; i++)
+        if (!NeedsReplacing(text))
         {
-            var c = text[i];
-            if (char.IsHighSurrogate(c) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]))
-            {
-                i++;
-                continue;
-            }
-
-            if (char.IsSurrogate(c))
-            {
-                var chars = text.ToCharArray();
-                for (var k = i; k < chars.Length; k++)
-                {
-                    if (char.IsHighSurrogate(chars[k]) && k + 1 < chars.Length && char.IsLowSurrogate(chars[k + 1]))
-                    {
-                        k++;
-                    }
-                    else if (char.IsSurrogate(chars[k]))
-                    {
-                        chars[k] = '�';
-                    }
-                }
-
-                return new string(chars);
-            }
+            return text;
         }
 
-        return text;
+        var builder = new StringBuilder(text.Length);
+        Span<char> buffer = stackalloc char[2];
+        var rest = text.AsSpan();
+        while (!rest.IsEmpty)
+        {
+            var status = Rune.DecodeFromUtf16(rest, out var rune, out var consumed);
+            var kept = status == OperationStatus.Done && !IsNoncharacter(rune) ? rune : Rune.ReplacementChar;
+            _ = builder.Append(buffer[..kept.EncodeToUtf16(buffer)]);
+            rest = rest[consumed..];
+        }
+
+        return builder.ToString();
     }
+
+    private static bool NeedsReplacing(string text)
+    {
+        var rest = text.AsSpan();
+        while (!rest.IsEmpty)
+        {
+            if (Rune.DecodeFromUtf16(rest, out var rune, out var consumed) != OperationStatus.Done || IsNoncharacter(rune))
+            {
+                return true;
+            }
+
+            rest = rest[consumed..];
+        }
+
+        return false;
+    }
+
+    // U+FDD0..U+FDEF and the last two code points of every plane.
+    private static bool IsNoncharacter(Rune rune) => rune.Value is >= 0xFDD0 and <= 0xFDEF || (rune.Value & 0xFFFE) == 0xFFFE;
 }

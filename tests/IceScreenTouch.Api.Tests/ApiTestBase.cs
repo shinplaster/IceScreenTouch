@@ -15,6 +15,9 @@ public abstract class ApiTestBase : IDisposable
         Host = new FakeHost(Time);
         Log = [];
         Controller = new ApiController(Host, () => Allowed, Time, Log.Add);
+
+        // The fake engine answers synchronously: inline, the OCR pipeline runs on the fake clock like the touch operations.
+        Controller.Ocr.CallInline = true;
     }
 
     internal FakeTimeProvider Time { get; }

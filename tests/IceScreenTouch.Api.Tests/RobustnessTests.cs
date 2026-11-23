@@ -119,7 +119,7 @@ public class RobustnessTests : ApiTestBase
     {
         Host.UserInputActive = true;
 
-        Assert.True(Controller.GetStatus().IsSuccess);
+        Assert.True((await Controller.GetStatusAsync()).IsSuccess);
         Assert.True((await Controller.SetRotationAsync(new RotationRequest { Landscape = 270 })).IsSuccess);
     }
 

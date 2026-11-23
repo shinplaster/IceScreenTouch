@@ -117,7 +117,16 @@ public abstract class ServerTestBase : ApiTestBase, IAsyncLifetime
         Assert.Equal((int)response.StatusCode, root.GetProperty("status").GetInt32());
         Assert.False(string.IsNullOrEmpty(root.GetProperty("detail").GetString()));
         Assert.Equal(code, root.GetProperty("code").GetString());
-        Assert.Equal(5, root.EnumerateObject().Count());
+
+        // The five members; only the OCR errors add their documented extension members.
+        var extensions = root.EnumerateObject().Select(p => p.Name).Except(["type", "title", "status", "detail", "code"]).ToList();
+        string[] allowed = code switch
+        {
+            ApiErrorCodes.OcrUnavailable => ["reason", "engine", "available", "engines"],
+            ApiErrorCodes.TextNotFound or ApiErrorCodes.AmbiguousText or ApiErrorCodes.TapOutsideScreen => ["matches", "matchCount"],
+            _ => [],
+        };
+        Assert.All(extensions, name => Assert.Contains(name, allowed));
         return root;
     }
 

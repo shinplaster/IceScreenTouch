@@ -68,7 +68,12 @@ internal static class Program
             // (Developer, Enterprise, None, System), have no source and are always fully usable.
             log.Write($"[lic ] package signature: {(PackageIdentity.IsPackaged ? PackageIdentity.SignatureKind?.ToString() ?? "unreadable" : "not packaged")}; license check {(PackageIdentity.UsesStoreLicense ? "on" : "off")}");
             using var license = new LicenseService(PackageIdentity.UsesStoreLicense ? new StoreLicenseSource(log) : null, TimeProvider.System, log);
-            return BuildAvaloniaApp(new AppServices(mirror, new SettingsStore(), log, probe, new WindowsReceiverFinder(log, () => mirror.OwnUxPlayProcessId), license)).StartWithClassicDesktopLifetime(args);
+
+            // Text recognition for the automation API: Windows.Media.Ocr, part of Windows (none where Windows cannot run it).
+            var ocr = WindowsMediaOcrEngine.TryCreate();
+            log.Write($"[api] OCR engine: {(ocr is null ? "none (Windows.Media.Ocr is not available)" : ocr.Info.Id)}");
+            var services = new AppServices(mirror, new SettingsStore(), log, probe, new WindowsReceiverFinder(log, () => mirror.OwnUxPlayProcessId), license, ocr is null ? null : [ocr]);
+            return BuildAvaloniaApp(services).StartWithClassicDesktopLifetime(args);
         }
         finally
         {

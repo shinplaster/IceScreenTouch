@@ -159,9 +159,9 @@ public class SessionAndSettingsTests : ApiTestBase
     }
 
     [Fact]
-    public void StatusComesFromTheHostWithTheOperatingFlagFromTheController()
+    public async Task StatusComesFromTheHostWithTheOperatingFlagFromTheController()
     {
-        var status = Controller.GetStatus();
+        var status = (await Controller.GetStatusAsync());
 
         Assert.True(status.IsSuccess);
         Assert.Equal(1, status.Value!.ApiVersion);

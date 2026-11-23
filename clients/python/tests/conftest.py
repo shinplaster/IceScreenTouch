@@ -35,6 +35,14 @@ STATUS = {
     "picture": {"width": 390, "height": 844, "isLandscape": False, "orientation": "portrait", "aspect": 0.462},
     "rotation": {"landscape": 90, "portrait": 0},
     "operating": False,
+    "ocr": {
+        "available": True,
+        "engine": {"id": "windows", "name": "Windows.Media.Ocr", "version": "10.0.26100", "kind": "builtin",
+                   "capabilities": {"wordBoxes": True, "confidence": False}},
+        "engines": [{"id": "windows", "name": "Windows.Media.Ocr", "kind": "builtin", "available": True}],
+        "languages": ["en-US", "ja"],
+        "defaultLanguage": "ja",
+    },
 }
 
 

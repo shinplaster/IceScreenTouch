@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Net;
 using System.Text.Json;
 using IceScreenTouch.Api;
+using IceScreenTouch.Api.Ocr;
 using IceScreenTouch.App;
 using IceScreenTouch.App.Logging;
 using IceScreenTouch.App.Resources;
@@ -15,6 +16,7 @@ using IceScreenTouch.Ble;
 using IceScreenTouch.Core;
 using IceScreenTouch.Platform.Windows;
 using IceScreenTouch.Probe;
+using SkiaSharp;
 
 namespace IceScreenTouch.Windows;
 
@@ -295,6 +297,35 @@ internal static class SelfCheck
             return Task.FromResult($"taskbar {shot.Value.width}x{shot.Value.height} through Windows.Graphics.Capture");
         }).ConfigureAwait(false);
 
+        await Check("text recognition", async () =>
+        {
+            // Windows.Media.Ocr through the WinRT projection and the OCR pipeline of the API (what a trimmed build can break): read
+            // text drawn here. Without Windows.Media.Ocr, or without an OCR language, there is nothing to read with.
+            if (WindowsMediaOcrEngine.TryCreate() is not { } engine)
+            {
+                return WarningPrefix + "Windows.Media.Ocr is not available on this system: text recognition was not tested";
+            }
+
+            var languages = await engine.GetLanguagesAsync(CancellationToken.None).ConfigureAwait(false);
+            var tag = languages.Available.FirstOrDefault(l => l.StartsWith("en", StringComparison.OrdinalIgnoreCase)) ?? languages.Default;
+            if (tag is null)
+            {
+                return WarningPrefix + "Windows has no OCR language: text recognition was not tested";
+            }
+
+            var service = new OcrService([engine]);
+            var target = await service.ResolveAsync(null, tag, CancellationToken.None).ConfigureAwait(false);
+            OcrReading reading;
+            using (var turn = (await service.EnterTurnAsync(CancellationToken.None).ConfigureAwait(false))!)
+            {
+                reading = await service.RecognizeAsync(turn, target, DrawText(["IceScreen Touch", "Text recognition", "Settings and General"]), null, CancellationToken.None).ConfigureAwait(false);
+            }
+
+            var found = TextMatcher.Find(reading.Lines, "Text recognition", TextMatchMode.Exact, new TextCompareOptions(Loose: true, CaseSensitive: false));
+            Expect(found.Count == 1, $"the drawn text was not read ({reading.Lines.Count} lines)");
+            return $"read drawn text with {target.Language} ({languages.Available.Count} OCR languages, Windows {engine.Info.Version})";
+        }).ConfigureAwait(false);
+
         await Check("borderless capture", () =>
         {
             // The capture that finds the picture of a covered receiver window starts its sessions without the capture border (no consent,
@@ -342,6 +373,28 @@ internal static class SelfCheck
 
         output.WriteLine(failures == 0 ? "SELF-CHECK PASSED" : $"SELF-CHECK FAILED ({failures})");
         return failures == 0 ? 0 : 1;
+    }
+
+    // Black text on white, one line each, at about the size a receiver shows a phone label.
+    private static ApiPictureFrame DrawText(IReadOnlyList<string> lines)
+    {
+        const int width = 400, height = 240;
+        using var surface = SKSurface.Create(new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul));
+        surface.Canvas.Clear(SKColors.White);
+        using var font = new SKFont(SKTypeface.Default, 16);
+        using var paint = new SKPaint { Color = SKColors.Black, IsAntialias = true };
+        for (var i = 0; i < lines.Count; i++)
+        {
+            surface.Canvas.DrawText(lines[i], 20, 40 + (i * 40), font, paint);
+        }
+
+        var pixels = new byte[width * height * 4];
+        using (var pixmap = surface.PeekPixels())
+        {
+            pixmap.GetPixelSpan().CopyTo(pixels);
+        }
+
+        return new ApiPictureFrame(pixels, width, height, width * 4, false, Rotation.R0);
     }
 
     private static void Expect(bool condition, string message)

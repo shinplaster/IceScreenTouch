@@ -91,3 +91,20 @@ public class WindowsOcrUnskewTests
         Assert.InRange(back.Bottom, 83, 87);
     }
 }
+
+public class WindowsOcrLanguageTests
+{
+    [OcrLanguageFact("en-US")]
+    public async Task VariantsOfALanguageResolveToTheInstalledOne()
+    {
+        // Each variant would otherwise be a recognizer of its own (one per tag a client sends).
+        var engine = new WindowsMediaOcrEngine();
+        var installed = (await engine.GetLanguagesAsync(default)).Available;
+        foreach (var tag in new[] { "en-US", "en-GB", "en-x-abc123", "en-US-x-q1w2" })
+        {
+            var resolved = await engine.ResolveLanguageAsync(tag, default);
+            Assert.NotNull(resolved);
+            Assert.Contains(resolved, installed, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+}

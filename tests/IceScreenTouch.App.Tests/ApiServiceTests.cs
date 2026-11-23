@@ -712,6 +712,21 @@ public sealed class ApiServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TheOcrEnginesReachTheHostAndTheStatus()
+    {
+        using var license = new LicenseService(null, _time);
+        var engine = new StubOcrEngine();
+        using var api = new ApiService(_mirror, license, _dir.Path, () => new AppSettings(), _log.Enqueue, anyPort: true, ocrEngines: [engine]);
+        Assert.Same(engine, Assert.Single(api.Host.OcrEngines));
+        using var controller = new ApiController(api.Host, () => true);
+        var ocr = (await controller.GetStatusAsync()).Value!.Ocr!;
+        Assert.Equal(("stub", "ja"), (ocr.Engine!.Id, ocr.DefaultLanguage));
+
+        using var none = new ApiService(_mirror, license, _dir.Path, () => new AppSettings(), _log.Enqueue, anyPort: true);
+        Assert.Empty(none.Host.OcrEngines);
+    }
+
+    [Fact]
     public async Task AControllerAnswersPurchaseRequiredWhileTheLicenseIsUnknown()
     {
         var source = new FakeLicenseSource { Next = LicenseState.Unknown };
@@ -720,8 +735,8 @@ public sealed class ApiServiceTests : IAsyncLifetime
         using var api = new ApiService(_mirror, license, _dir.Path, () => new AppSettings(), _log.Enqueue, anyPort: true);
         var controller = new ApiController(api.Host, () => api.IsAllowed);
 
-        Assert.False(controller.GetStatus().IsSuccess);
-        Assert.Equal(ApiErrorCodes.PurchaseRequired, controller.GetStatus().Error!.Code);
+        Assert.False((await controller.GetStatusAsync()).IsSuccess);
+        Assert.Equal(ApiErrorCodes.PurchaseRequired, (await controller.GetStatusAsync()).Error!.Code);
         controller.Dispose();
     }
 
@@ -760,13 +775,13 @@ public sealed class ApiServiceTests : IAsyncLifetime
         // The controller asks the license itself too (a request between the change and the stop).
         await Api.ConfigureAsync(enabled: true, port: 0);
         var controller = new ApiController(Api.Host, () => Api.IsAllowed);
-        Assert.True(controller.GetStatus().IsSuccess);
+        Assert.True((await controller.GetStatusAsync()).IsSuccess);
 
         _source.Next = LicenseState.Trial(Start.AddHours(1));
         await _license!.RefreshAsync();
 
-        Assert.False(controller.GetStatus().IsSuccess);
-        Assert.Equal(ApiErrorCodes.PurchaseRequired, controller.GetStatus().Error!.Code);
+        Assert.False((await controller.GetStatusAsync()).IsSuccess);
+        Assert.Equal(ApiErrorCodes.PurchaseRequired, (await controller.GetStatusAsync()).Error!.Code);
         controller.Dispose();
     }
 
@@ -927,4 +942,20 @@ public sealed class ApiServiceTests : IAsyncLifetime
             Assert.DoesNotContain(second, l, StringComparison.Ordinal);
         });
     }
+}
+
+/// <summary>An OCR engine that reads nothing (the wiring tests only need its description).</summary>
+internal sealed class StubOcrEngine : IceScreenTouch.Api.Ocr.IOcrEngine
+{
+    public IceScreenTouch.Api.Ocr.OcrEngineInfo Info { get; } = new(
+        "stub", "Stub", "1", IceScreenTouch.Api.Ocr.OcrEngineKind.BuiltIn,
+        new IceScreenTouch.Api.Ocr.OcrCapabilities(true, false, false, new IceScreenTouch.Api.Ocr.OcrImageHints(null, 1, null, 4096, 1)));
+
+    public ValueTask<IceScreenTouch.Api.Ocr.OcrLanguageSet> GetLanguagesAsync(CancellationToken cancellationToken) =>
+        ValueTask.FromResult(new IceScreenTouch.Api.Ocr.OcrLanguageSet(["ja"], "ja"));
+
+    public ValueTask<string?> ResolveLanguageAsync(string? tag, CancellationToken cancellationToken) => ValueTask.FromResult<string?>("ja");
+
+    public Task<IceScreenTouch.Api.Ocr.OcrRecognition> RecognizeAsync(IceScreenTouch.Api.Ocr.OcrRequest request, CancellationToken cancellationToken) =>
+        Task.FromResult(new IceScreenTouch.Api.Ocr.OcrRecognition("ja", []));
 }
