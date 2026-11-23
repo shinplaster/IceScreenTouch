@@ -898,6 +898,8 @@ paths:
           $ref: "#/components/responses/ConflictText"
         "429":
           $ref: "#/components/responses/RateLimited"
+        "499":
+          $ref: "#/components/responses/Cancelled"
         "500":
           $ref: "#/components/responses/InternalError"
 

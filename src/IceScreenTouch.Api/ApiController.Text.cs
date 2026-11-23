@@ -364,6 +364,8 @@ public sealed partial class ApiController
         IInputLease? lease = null;
         var countedWait = false;
         var phase = new StrongBox<TextPhase>(TextPhase.Waiting);
+        var seen = new StrongBox<SearchSeen>(default);
+        var searching = true;
         using var searchTimer = new CancellationTokenSource(TimeSpan.FromMilliseconds(query.TimeoutMs + settle + TextReadAllowanceMs), _time);
         using var search = CancellationTokenSource.CreateLinkedTokenSource(handle.Token, searchTimer.Token);
         try
@@ -383,20 +385,25 @@ public sealed partial class ApiController
             }
 
             countedWait = query.TimeoutMs > 0;
-            var found = await SearchToTapAsync(target, scope, query, select, index, settle, admitted, phase, search.Token).ConfigureAwait(false);
+            var found = await SearchToTapAsync(target, scope, query, select, index, settle, admitted, phase, seen, search.Token).ConfigureAwait(false);
             if (found.Error is { } searchError)
             {
                 return ApiResult.Fail<TapTextResponse>(searchError);
             }
 
+            // The search is over: its hard time no longer applies (the taps end only through the handle).
+            searching = false;
             var (shot, match, matches, attempts) = found.Value;
 
-            // The point on the confirming picture, in screen units of that picture.
+            // The point on the confirming picture, in screen units of that picture (a sum a rounding error past an edge is the edge).
             var unit = new PointD((match.Box.CenterX / shot.Frame.Width) + offset.X, (match.Box.CenterY / shot.Frame.Height) + offset.Y);
-            if (unit.X is < 0 or > 1 || unit.Y is < 0 or > 1)
+            const double edge = 1e-9;
+            if (unit.X < -edge || unit.X > 1 + edge || unit.Y < -edge || unit.Y > 1 + edge)
             {
                 return ApiResult.Fail<TapTextResponse>(CandidatesError(ApiErrorCodes.TapOutsideScreen, "the offset puts the tap outside the screen; nothing was tapped", shot, scope, matches));
             }
+
+            unit = new PointD(Math.Clamp(unit.X, 0, 1), Math.Clamp(unit.Y, 0, 1));
 
             // The lease only now: the user's mouse worked while the text was searched.
             phase.Value = TextPhase.Waiting;
@@ -430,6 +437,12 @@ public sealed partial class ApiController
                 return ApiResult.Fail<TapTextResponse>(ApiError.Create(ApiErrorCodes.PictureChanged, "the screen rotated (or the assumed rotation changed) while the text was searched; nothing was tapped"));
             }
 
+            // The caller or POST /v1/cancel may have asked to stop while the lease was taken (that cancellation is queued): not one touch then.
+            if (cancellationToken.IsCancellationRequested || handle.Token.IsCancellationRequested)
+            {
+                return ApiResult.Fail<TapTextResponse>(InterruptionError(lease));
+            }
+
             var at = ScreenSpace.Bind(now).OrThrow().ToAxis(unit);
             var player = new TouchPlayer(guard.Touch, _time);
             var token = handle.Token;
@@ -454,12 +467,13 @@ public sealed partial class ApiController
                 new TextTapped(tapped.Text, tapped.LineText, tapped.Box, tapped.Center, tapped.BoxLevel, PointOf(unit.X * shot.Frame.Width, unit.Y * shot.Frame.Height, shot.Frame, scope.Space), tapped.Confidence),
                 matches.Count));
         }
-        catch (OperationCanceledException) when (searchTimer.IsCancellationRequested && !handle.Token.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (searching && searchTimer.IsCancellationRequested && !handle.Token.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
-            // The search ran out of its hard time: a capture that did not come back is no picture, anything else found nothing.
+            // The search ran out of its hard time: a capture that did not come back is no picture, anything else found nothing (with the
+            // candidates of the last reading, if any).
             return ApiResult.Fail<TapTextResponse>(phase.Value == TextPhase.Capture
                 ? ApiError.Create(ApiErrorCodes.NoPicture, "the picture of the device could not be captured in time")
-                : ApiError.Create(ApiErrorCodes.TextNotFound, "the text was not found in time; nothing was tapped"));
+                : SearchFailure(seen.Value, scope, "the text was not found in time; nothing was tapped"));
         }
         catch (OperationCanceledException) when (handle.Token.IsCancellationRequested || cancellationToken.IsCancellationRequested || lease?.UserInput.IsCancellationRequested == true)
         {
@@ -491,13 +505,19 @@ public sealed partial class ApiController
 
     // Reads until a match is chosen and confirmed (16.7.2), or the time is up. Every reading first checks the state (as Admit did) and the user.
     private async Task<SearchOutcome> SearchToTapAsync(
-        OcrTarget target, TextScope scope, TextQuery query, TextSelect select, int index, int settle, ApiHostSnapshot admitted, StrongBox<TextPhase> phase, CancellationToken cancellationToken)
+        OcrTarget target,
+        TextScope scope,
+        TextQuery query,
+        TextSelect select,
+        int index,
+        int settle,
+        ApiHostSnapshot admitted,
+        StrongBox<TextPhase> phase,
+        StrongBox<SearchSeen> seen,
+        CancellationToken cancellationToken)
     {
         var searchStart = _time.GetTimestamp();
         var attempts = 0;
-        TextShot? last = null;
-        IReadOnlyList<TextMatch> lastMatches = [];
-        var lastAmbiguous = false;
         (TextShot Shot, TextMatch Match)? candidate = null;
         while (true)
         {
@@ -512,29 +532,32 @@ public sealed partial class ApiController
                 return SearchOutcome.Fail(stateError);
             }
 
-            var outcome = await ShootAsync(target, scope, waiting: attempts > 0, phase, cancellationToken).ConfigureAwait(false);
+            // A reading may be skipped (turn, rate window, busy engine) only while there is time left: the first reading, a confirmation past
+            // the deadline and the last poll answer the refusal instead of ending in a misleading text_not_found.
+            var pastDeadline = _time.GetElapsedTime(searchStart).TotalMilliseconds >= query.TimeoutMs;
+            var outcome = await ShootAsync(target, scope, waiting: attempts > 0 && !pastDeadline, phase, cancellationToken).ConfigureAwait(false);
             phase.Value = TextPhase.Waiting;
             if (outcome.Error is { } error)
             {
                 return SearchOutcome.Fail(error);
             }
 
-            var pastDeadline = _time.GetElapsedTime(searchStart).TotalMilliseconds >= query.TimeoutMs;
+            pastDeadline = _time.GetElapsedTime(searchStart).TotalMilliseconds >= query.TimeoutMs;
             if (outcome.Shot is { } shot)
             {
                 attempts++;
-                last = shot;
-                lastMatches = TextMatcher.Find(shot.Reading.Lines, query.Text, query.Mode, query.Options);
-                var pick = Pick(lastMatches, select, index, out lastAmbiguous);
+                var matches = TextMatcher.Find(shot.Reading.Lines, query.Text, query.Mode, query.Options);
+                var pick = Pick(matches, select, index, out var ambiguous);
+                seen.Value = new SearchSeen(shot, matches, ambiguous);
                 if (pick is not null)
                 {
                     if (settle == 0 || (candidate is { } c && SameMatch(c.Shot, c.Match, shot, pick)))
                     {
-                        return new SearchOutcome(null, (shot, pick, lastMatches, attempts));
+                        return new SearchOutcome(null, (shot, pick, matches, attempts));
                     }
 
-                    // A first sighting is confirmed after settleMs, even past the deadline (that reading only); a confirmation that found
-                    // another match at the deadline ends the search.
+                    // A first sighting is confirmed after settleMs, even past the deadline (that reading only; a sighting by the last poll, at
+                    // the deadline, is confirmed too); a confirmation that found another match at the deadline ends the search.
                     if (candidate is not null && pastDeadline)
                     {
                         break;
@@ -557,12 +580,16 @@ public sealed partial class ApiController
             await Task.Delay(TimeSpan.FromMilliseconds(Math.Clamp(remaining, 1, query.PollMs)), _time, cancellationToken).ConfigureAwait(false);
         }
 
-        return last is null
-            ? SearchOutcome.Fail(ApiError.Create(ApiErrorCodes.TextNotFound, "the text was not found; nothing was tapped"))
-            : SearchOutcome.Fail(lastAmbiguous
-                ? CandidatesError(ApiErrorCodes.AmbiguousText, "the text was found more than once; narrow it with region, or choose with select", last, scope, lastMatches)
-                : CandidatesError(ApiErrorCodes.TextNotFound, "the text was not found; nothing was tapped", last, scope, lastMatches));
+        return SearchOutcome.Fail(SearchFailure(seen.Value, scope, "the text was not found; nothing was tapped"));
     }
+
+    // text_not_found (ambiguous_text when the last reading had several matches for select unique), with the candidates of the last reading.
+    private static ApiError SearchFailure(SearchSeen seen, TextScope scope, string notFound) =>
+        seen.Shot is not { } shot
+            ? ApiError.Create(ApiErrorCodes.TextNotFound, notFound) with { Extras = new ApiErrorExtras { Matches = [], MatchCount = 0 } }
+            : seen.Ambiguous
+                ? CandidatesError(ApiErrorCodes.AmbiguousText, "the text was found more than once; narrow it with region, or choose with select", shot, scope, seen.Matches)
+                : CandidatesError(ApiErrorCodes.TextNotFound, notFound, shot, scope, seen.Matches);
 
     private static TextMatch? Pick(IReadOnlyList<TextMatch> matches, TextSelect select, int index, out bool ambiguous)
     {
@@ -633,9 +660,12 @@ public sealed partial class ApiController
         }
         catch (OperationCanceledException) when (timer.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
-            return ShotOutcome.Fail(phase.Value == TextPhase.Capture
-                ? ApiError.Create(ApiErrorCodes.NoPicture, "the picture of the device could not be captured in time")
-                : ApiError.Create(ApiErrorCodes.InternalError, "the text could not be recognized in time"));
+            return ShotOutcome.Fail(phase.Value switch
+            {
+                TextPhase.Capture => ApiError.Create(ApiErrorCodes.NoPicture, "the picture of the device could not be captured in time"),
+                TextPhase.Recognize => ApiError.Create(ApiErrorCodes.InternalError, "the text could not be recognized in time"),
+                _ => ApiError.Create(ApiErrorCodes.RateLimited, "the reading waited too long for its turn behind other readings"),
+            });
         }
     }
 
@@ -942,6 +972,9 @@ public sealed partial class ApiController
     {
         public static ShotOutcome Fail(ApiError error) => new(null, error);
     }
+
+    /// <summary>What the last reading of a tap-text search saw (for the candidates of its error).</summary>
+    private readonly record struct SearchSeen(TextShot? Shot, IReadOnlyList<TextMatch> Matches, bool Ambiguous);
 
     /// <summary>The match to tap, or why there is none.</summary>
     private readonly record struct SearchOutcome(ApiError? Error, (TextShot Shot, TextMatch Match, IReadOnlyList<TextMatch> Matches, int Attempts) Value)

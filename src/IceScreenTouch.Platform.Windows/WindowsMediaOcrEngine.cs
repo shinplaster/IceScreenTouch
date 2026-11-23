@@ -38,8 +38,13 @@ public sealed class WindowsMediaOcrEngine : IOcrEngine
     /// </summary>
     public const int MinDimension = 64;
 
+    // How long the user's preferred OCR language is kept (see PreferredTag).
+    private static readonly TimeSpan PreferredLifetime = TimeSpan.FromSeconds(2);
+
     private readonly Lock _gate = new();
-    private readonly Dictionary<string, WinOcrEngine> _recognizers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, WinOcrEngine> _recognizers = new(StringComparer.OrdinalIgnoreCase); // per installed language
+    private string? _preferred;
+    private long? _preferredAt;
 
     /// <summary>
     /// The engine, or null when Windows.Media.Ocr cannot be used on this system (for example an edition without the media features): OCR is then
@@ -95,7 +100,20 @@ public sealed class WindowsMediaOcrEngine : IOcrEngine
             return ValueTask.FromResult(DefaultTag(WinOcrEngine.AvailableRecognizerLanguages.Select(l => l.LanguageTag).ToList()));
         }
 
-        return ValueTask.FromResult(ToLanguage(tag) is { } language && WinOcrEngine.IsLanguageSupported(language) ? language.LanguageTag : null);
+        if (ToLanguage(tag) is not { } language || !WinOcrEngine.IsLanguageSupported(language) || WinOcrEngine.TryCreateFromLanguage(language) is not { } recognizer)
+        {
+            return ValueTask.FromResult<string?>(null);
+        }
+
+        // The installed language that reads it (en-GB, en-x-abc... are all read by en-US): recognizers are kept per installed language, so a
+        // client that names many variants of a tag cannot make the application keep many of them.
+        var installed = recognizer.RecognizerLanguage.LanguageTag;
+        lock (_gate)
+        {
+            _ = _recognizers.TryAdd(installed, recognizer);
+        }
+
+        return ValueTask.FromResult<string?>(installed);
     }
 
     /// <inheritdoc/>
@@ -163,10 +181,32 @@ public sealed class WindowsMediaOcrEngine : IOcrEngine
     }
 
     // The user's languages first (the first that has OCR), else the first installed OCR language; always one of the installed ones.
-    private static string? DefaultTag(List<string> available)
+    private string? DefaultTag(List<string> available)
     {
-        var preferred = WinOcrEngine.TryCreateFromUserProfileLanguages()?.RecognizerLanguage.LanguageTag;
+        var preferred = PreferredTag();
         return available.Find(tag => string.Equals(tag, preferred, StringComparison.OrdinalIgnoreCase)) ?? (available.Count > 0 ? available[0] : null);
+    }
+
+    // The first of the user's languages that has OCR. Asking Windows creates a recognizer, so the answer is kept for a moment: a status poll or
+    // requests without a language do not create one each time, and a language the user adds still shows within PreferredLifetime.
+    private string? PreferredTag()
+    {
+        var now = Environment.TickCount64;
+        lock (_gate)
+        {
+            if (_preferredAt is { } at && now - at < (long)PreferredLifetime.TotalMilliseconds)
+            {
+                return _preferred;
+            }
+        }
+
+        var preferred = WinOcrEngine.TryCreateFromUserProfileLanguages()?.RecognizerLanguage.LanguageTag;
+        lock (_gate)
+        {
+            (_preferred, _preferredAt) = (preferred, now);
+        }
+
+        return preferred;
     }
 
     // A well-formed tag that Windows does not take as a language (Language throws) is a language it does not have, never an error.

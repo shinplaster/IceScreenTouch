@@ -101,3 +101,14 @@ public class TextNormalizerTests
     public void ABrokenSurrogateDoesNotThrow() =>
         Assert.Equal("A�B", TextNormalizer.Normalize("a\uD800b", Plain));
 }
+
+public class TextNormalizerCharacterTests
+{
+    [Theory]
+    [InlineData("a￾b")]
+    [InlineData("a￿b")]
+    [InlineData("a﷐b")]
+    [InlineData("􏿿")] // U+10FFFF
+    public void NoncharactersBecomeTheReplacementCharacter(string text) =>
+        Assert.Contains('�', TextNormalizer.Normalize(text, new TextCompareOptions(Loose: true, CaseSensitive: false)));
+}
