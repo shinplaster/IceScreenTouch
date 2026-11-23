@@ -19,8 +19,8 @@ info:
   description: |
     IceScreen Touch mirrors an iPhone or iPad to a Windows PC and sends mouse input to the device as Bluetooth LE
     HID touches. This automation API lets a script or an AI agent do the same with programmatic input: touch gestures
-    (tap, long press, swipe, path, pinch), keys and text, the home button, and low-level multi-touch over a
-    WebSocket. The version of this document is the version of the API (`apiVersion` in `GET /v1/status` is its
+    (tap, long press, swipe, path, pinch), keys and text, the home button, reading and tapping the text on the
+    screen (OCR), and low-level multi-touch over a WebSocket. The version of this document is the version of the API (`apiVersion` in `GET /v1/status` is its
     major number, `1`).
 
     ## Availability
@@ -87,7 +87,8 @@ info:
 
     * Only **one operation at a time**. A touch, key, home, `PUT /v1/rotation`, `PUT /v1/target` or a WebSocket
       session that is running makes every other operation answer `409` `busy`; the API never queues. `GET
-      /v1/status`, `GET /v1/rotation`, `GET /v1/screenshot` and `GET /v1/openapi.json` are not operations and always work. While the
+      /v1/status`, `GET /v1/rotation`, `GET /v1/screenshot`, `POST /v1/text/read`, `POST /v1/text/find` and `GET
+      /v1/openapi.json` are not operations and always work. `POST /v1/touch/tap-text` is an operation. While the
       probe (measurement) page of the app is running, operations are `409` `busy` too.
     * No operation takes longer than **60 seconds** (the sum of holds, durations, intervals and the last `t` of a
       path), else `400` `invalid_request`.
@@ -132,6 +133,28 @@ info:
     * Typing sends keys of a **US keyboard**. Characters without a key (Japanese, emoji) cannot be typed directly;
       they are skipped and reported.
     * The API cannot know whether the device is locked and does not stop input to a passcode screen.
+
+    ## Text on the screen (OCR)
+
+    `POST /v1/text/read`, `POST /v1/text/find` and `POST /v1/touch/tap-text` read the text of the picture with an OCR
+    engine. The engine is Windows.Media.Ocr, part of Windows; it recognizes on this PC. The text is never written to a
+    file or kept after the request.
+
+    * **Languages**: the OCR languages Windows has installed (`GET /v1/status`, `ocr.languages`). Without `lang` the first
+      of the Windows user's languages that has OCR is used. A language that is not installed is `409`
+      `ocr_unavailable` with the installed ones in `available`; the app never switches to another language by itself.
+      A screen in Japanese needs `ja` (`en-US` cannot read Japanese; `ja` also reads Latin letters). **When nothing is
+      found, check that the language matches the screen.**
+    * **Boxes** are in `screen` space (0..1, default) or `pixel` space (of `ref`); `device` is not accepted. A box can go
+      straight to `POST /v1/touch/tap` with the same space.
+    * **Matching** (`find`, `tap-text`): both sides are normalized (NFKC, white space removed, case folded unless
+      `caseSensitive`). `match: exact` (default) compares whole lines and may leave out a single isolated non-kanji
+      character at either end of a line (an icon read as a letter, such as `Q` for a magnifier); `contains` matches
+      part of a line. `loose` also treats look-alike characters, voiced marks and the kinds of kana as the same (for
+      misreads such as `キーポード` or `lceScreen`).
+    * **Limits**: at most 5 readings a second over all clients, which also count as screenshots (10 a second in
+      all); one recognition at a time, with two waiting; at most two `find` or `tap-text` calls with `timeoutMs`
+      waiting at once. While waiting, the receiver window shows the capture border (as for screenshots).
   license:
     name: MIT
     identifier: MIT
@@ -157,6 +180,8 @@ tags:
     description: Change what the app assumes (target device, rotation).
   - name: touch
     description: Touch gestures of one or two fingers.
+  - name: text
+    description: Read, find and tap text on the screen (OCR, on this PC).
   - name: keys
     description: Keyboard input and the home button.
   - name: control
@@ -474,6 +499,93 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /v1/touch/tap-text:
+    post:
+      operationId: tapText
+      tags: [touch, text]
+      summary: Find text on the screen and tap it
+      description: |
+        Reads the screen (OCR), finds `text`, and taps the centre of the match (moved by `offset`) like `POST /v1/touch/tap`.
+        An operation: it is `busy` while another operation or a stream runs, and it needs what a tap needs.
+
+        * **Waiting**: with `timeoutMs` above 0 the screen is read again every `pollMs` until the text is found. Not found
+          in time is `409` `text_not_found`.
+        * **Confirming**: once found, the screen is read again after `settleMs` (default 250, also with `timeoutMs: 0`),
+          and the tap only happens when the same match is there (its centre moved at most 2 % of the short side). This
+          keeps a tap off a screen that is still moving (a transition, scrolling). `settleMs: 0` skips the confirmation.
+        * **Several matches**: `select: unique` (default) answers `409` `ambiguous_text` with the candidates in `matches`.
+          Narrow the search with `region` (preferred) or choose with `select: first` or `select: index`. The order of
+          the matches is the reading order; it can change from one reading to the next, so `index` is for screens that
+          do not move.
+        * **The user has priority**: while it searches it does not hold back the user's mouse and keys. When the user uses the mirror
+          meanwhile, it ends with `409` `user_interrupted` and taps nothing. It holds back the user's input only for the tap.
+        * The point is decided again just before the tap: if the screen rotated, or the assumed rotation changed, since
+          the picture the match was found on, it is `409` `picture_changed` (also with `space: "screen"`) and nothing is
+          tapped.
+        * `offset` that puts the tap outside the screen is `409` `tap_outside_screen`.
+        * `timeoutMs` + `settleMs` + 2000 + the time of the taps must be at most 60 seconds, else `400`.
+        * Checks in this order, after the common ones: the license, the body (`400`), `not_running`, `busy`,
+          `user_active`, `not_connected`, `no_picture`, the engine and the language (`ocr_unavailable`), the limits
+          (`429`), the capture, `picture_changed` (`ref`), the recognition.
+        * `text_not_found`, `ambiguous_text` and `tap_outside_screen` carry `matches` (at most 20 candidates) and
+          `matchCount`. `POST /v1/cancel` stops it (`499`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TapTextRequest"
+            examples:
+              simple:
+                summary: Tap "Wi-Fi"
+                value: { "text": "Wi-Fi" }
+              wait:
+                summary: Wait up to 3 seconds for "完了" and tap it
+                value: { "text": "完了", "lang": "ja", "timeoutMs": 3000 }
+              switch:
+                summary: Tap to the right of a label (a switch in a settings row)
+                value: { "text": "Bluetooth", "offset": { "x": 0.4, "y": 0 }, "select": "first" }
+      responses:
+        "200":
+          description: The text was found, confirmed and tapped.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TapTextResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: |
+            The preconditions of `POST /v1/touch/tap` (`busy`, `not_running`, `user_active`, `not_connected`, `no_picture`,
+            `picture_changed`, `user_interrupted`), or `ocr_unavailable`, `text_not_found`, `ambiguous_text`,
+            `tap_outside_screen`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+              examples:
+                ambiguous:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    detail: "the text was found more than once; narrow it with region, or choose with select"
+                    code: ambiguous_text
+                    matches:
+                      - { text: OK, lineText: OK, box: { x: 0.25, y: 0.125, width: 0.125, height: 0.05 }, center: { x: 0.3125, y: 0.15 }, boxLevel: word }
+                      - { text: OK, lineText: OK, box: { x: 0.25, y: 0.75, width: 0.125, height: 0.05 }, center: { x: 0.3125, y: 0.775 }, boxLevel: word }
+                    matchCount: 2
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "499":
+          $ref: "#/components/responses/Cancelled"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /v1/keys/press:
     post:
       operationId: pressKey
@@ -738,6 +850,105 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /v1/text/read:
+    post:
+      operationId: readText
+      tags: [text]
+      summary: Read the text of the screen
+      description: |
+        Reads the screen with OCR: the lines in reading order (top to bottom, then left to right), with their boxes, and
+        their words when `words` is true. No text is not an error (`lines: []`).
+
+        * Not an operation (like `GET /v1/screenshot`): it works while an operation or a stream runs and never answers
+          `busy`. It sends nothing to the device.
+        * Without `lang`, the first of the Windows user's languages that has OCR. When nothing is found, check that the
+          language matches the screen (`language` in the answer).
+        * `region` reads only part of the screen (lines whose centre is inside it); smaller pictures are read faster.
+        * Checks in this order, after the common ones: the license, the body (`400`), the engine and the language
+          (`409` `ocr_unavailable`), the limits (`429`), `not_running`, `no_picture`, the capture, `picture_changed` (a
+          `pixel` `ref` of the other orientation), the recognition.
+        * The text is sent to the client only (as the screenshot is); the app logs neither the text nor the boxes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TextReadRequest"
+            examples:
+              all:
+                summary: Read the whole screen in the default language
+                value: {}
+              japanese:
+                summary: Read the top half in Japanese, with the words
+                value: { "lang": "ja", "region": { "x": 0, "y": 0, "width": 1, "height": 0.5 }, "words": true }
+      responses:
+        "200":
+          description: The text.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TextReadResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ConflictText"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/text/find:
+    post:
+      operationId: findText
+      tags: [text]
+      summary: Find text on the screen, or wait for it
+      description: |
+        The places where `text` is on the screen (see the matching rules in the introduction). With `timeoutMs` above 0
+        the screen is read again every `pollMs` until it is found. Not found is an empty `matches`, not an error.
+
+        * Not an operation, like `POST /v1/text/read`. `POST /v1/cancel` does not stop it; the client closing the
+          connection does.
+        * While it waits, a stopped session or a missing picture ends it at once (`not_running`, `no_picture`).
+        * Checks in the order of `POST /v1/text/read`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TextFindRequest"
+            examples:
+              exact:
+                summary: Find the label "設定"
+                value: { "text": "設定" }
+              wait:
+                summary: Wait up to 5 seconds for a line that contains "Done", ignoring look-alike characters
+                value: { "text": "Done", "match": "contains", "loose": true, "timeoutMs": 5000 }
+      responses:
+        "200":
+          description: The matches (empty when the text was not found).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TextFindResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ConflictText"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "499":
+          $ref: "#/components/responses/Cancelled"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /v1/stream:
     get:
       operationId: stream
@@ -938,7 +1149,8 @@ components:
         (the mirroring session is not running), `user_active` (the user used the mirror within the last second),
         `not_connected` (the target device has not subscribed to the touch reports), `no_picture` (`screen` and `pixel`
         need the picture), `picture_changed` (a `pixel` request whose `ref` has the opposite orientation of the
-        picture) or `user_interrupted` (the user took over while it ran; everything was lifted).
+        picture; for `tap-text` also a rotation while it searched, in any space) or `user_interrupted` (the user took
+        over while it ran; everything was lifted).
       content:
         application/problem+json:
           schema:
@@ -951,6 +1163,27 @@ components:
                 status: 409
                 detail: "another operation or session is running"
                 code: busy
+    ConflictText:
+      description: |
+        The text cannot be read now: `ocr_unavailable` (no OCR for the language on this PC, or no such engine; the
+        extension members `reason`, `engine`, `available` and `engines` say what there is), `not_running`, `no_picture`,
+        or `picture_changed` (a `pixel` request whose `ref` has the opposite orientation of the picture).
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          examples:
+            noLanguage:
+              value:
+                type: about:blank
+                title: Conflict
+                status: 409
+                detail: "this PC has no OCR for that language; see available"
+                code: ocr_unavailable
+                reason: language
+                engine: windows
+                available: [en-US, ja]
+                engines: [windows]
     ConflictKey:
       description: |
         The operation cannot run now: `busy`, `not_running`, `user_active`, `not_connected`, `no_keyboard` (the
@@ -969,8 +1202,9 @@ components:
             $ref: "#/components/schemas/Problem"
     RateLimited:
       description: |
-        `rate_limited`: more than 10 screenshots in one second (over all clients), or too many screenshots in progress at once. Try again after the time in
-        `Retry-After`.
+        `rate_limited`: more than 10 screenshots and text readings in one second, or more than 5 text readings (over
+        all clients); too many screenshots or text readings in progress at once; more than two `find` or `tap-text`
+        calls with `timeoutMs` at once; or the OCR engine is busy. Try again after the time in `Retry-After`.
       headers:
         Retry-After:
           description: Seconds to wait before the next try. Always `1`.
@@ -1017,13 +1251,17 @@ components:
         | `not_running` | 409 | The mirroring session is not running. |
         | `not_connected` | 409 | The target device has not subscribed to the HID reports. |
         | `no_picture` | 409 | There is no picture (the receiver window is closed or minimized, or it could not be read) and the request needs one. |
-        | `picture_changed` | 409 | A `pixel` request refers to a screenshot of the opposite orientation: the device rotated since. |
+        | `picture_changed` | 409 | A `pixel` request refers to a screenshot of the opposite orientation: the device rotated since. For `tap-text`, also the screen (or the assumed rotation) changed while it searched, in any space. |
         | `busy` | 409 | Another operation, a WebSocket stream or the probe page is running. |
         | `user_interrupted` | 409 | The user used the mirror; everything was lifted. |
         | `user_active` | 409 | The user used the mirror within the last second, or holds the mouse or a key. |
         | `no_keyboard` | 409 | The published HID map has no keyboard. |
         | `no_home_button` | 409 | The published HID map has no home button. |
-        | `rate_limited` | 429 | More than 10 screenshots in one second, or too many screenshots in progress at once (`Retry-After: 1` for both), or too many messages per second on a WebSocket stream (it is closed). |
+        | `ocr_unavailable` | 409 | No OCR for the language on this PC, no such OCR engine, or the engine stopped answering. See `reason`, `available`, `engines`. |
+        | `text_not_found` | 409 | `tap-text` did not find the text (the `index`-th match) in time. |
+        | `ambiguous_text` | 409 | `tap-text` with `select: unique` found the text more than once. See `matches`. |
+        | `tap_outside_screen` | 409 | The `offset` of `tap-text` puts the tap outside the screen. |
+        | `rate_limited` | 429 | More than 10 screenshots and text readings in one second (or 5 text readings), or too many in progress at once (`Retry-After: 1`), or too many messages per second on a WebSocket stream (it is closed). |
         | `cancelled` | 499 | `POST /v1/cancel` (or the client going away) ended the operation. |
         | `internal_error` | 500 | An unexpected failure inside the app. |
       required: [type, title, status, detail, code]
@@ -1059,9 +1297,40 @@ components:
             - user_active
             - no_keyboard
             - no_home_button
+            - ocr_unavailable
+            - text_not_found
+            - ambiguous_text
+            - tap_outside_screen
             - rate_limited
             - cancelled
             - internal_error
+        reason:
+          type: string
+          enum: [language, engine]
+          description: "`ocr_unavailable` only: the language or the engine is missing."
+        engine:
+          type: string
+          description: "`ocr_unavailable` only: the engine asked for (left out when the app has no engine at all)."
+        available:
+          type: array
+          items:
+            type: string
+          description: "`ocr_unavailable` only: the languages that engine can read on this PC (may be empty)."
+        engines:
+          type: array
+          items:
+            type: string
+          description: "`ocr_unavailable` only: the engines that can be used."
+        matches:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/TextMatch"
+          description: "`text_not_found`, `ambiguous_text`, `tap_outside_screen`: the candidates on the last picture (at most 20)."
+        matchCount:
+          type: integer
+          minimum: 0
+          description: "With `matches`: the number of matches (also those beyond the 20 listed)."
       examples:
         - type: about:blank
           title: Conflict
@@ -1078,7 +1347,7 @@ components:
     Status:
       type: object
       description: The state of the app.
-      required: [version, apiVersion, running, bleState, devices, targetDeviceId, receiver, picture, rotation, operating]
+      required: [version, apiVersion, running, bleState, devices, targetDeviceId, receiver, picture, rotation, operating, ocr]
       properties:
         version:
           type: string
@@ -1113,6 +1382,8 @@ components:
         operating:
           type: boolean
           description: An API operation or stream is running.
+        ocr:
+          $ref: "#/components/schemas/OcrStatus"
       examples:
         - version: 0.3.0
           apiVersion: 1
@@ -1125,6 +1396,12 @@ components:
           picture: { width: 390, height: 844, isLandscape: false, orientation: portrait, aspect: 0.462 }
           rotation: { landscape: 90, portrait: 0 }
           operating: false
+          ocr:
+            available: true
+            engine: { id: windows, name: Windows.Media.Ocr, version: "10.0.26100", kind: builtin, capabilities: { wordBoxes: true, confidence: false } }
+            engines: [{ id: windows, name: Windows.Media.Ocr, kind: builtin, available: true }]
+            languages: [en-US, ja]
+            defaultLanguage: ja
 
     Device:
       type: object
@@ -1193,6 +1470,279 @@ components:
         cancelled:
           type: boolean
           description: True when an operation or stream was running and was told to stop; false when nothing ran.
+
+    OcrStatus:
+      type: object
+      description: Text recognition (OCR). The languages are read again on every request.
+      required: [available, engine, engines, languages, defaultLanguage]
+      properties:
+        available:
+          type: boolean
+          description: Text can be read now (the default engine works and Windows has at least one OCR language).
+        engine:
+          description: The default engine (`null` when the app has none).
+          oneOf:
+            - $ref: "#/components/schemas/OcrEngineDetail"
+            - type: "null"
+        engines:
+          type: array
+          description: Every engine. The app has one, `windows`.
+          items:
+            $ref: "#/components/schemas/OcrEngineSummary"
+        languages:
+          type: array
+          description: The OCR languages of the default engine (the ones Windows has installed), as BCP 47 tags.
+          items:
+            type: string
+        defaultLanguage:
+          type: [string, "null"]
+          description: The language used when a request has no `lang`.
+
+    OcrEngineDetail:
+      type: object
+      required: [id, name, version, kind, capabilities]
+      properties:
+        id:
+          type: string
+          description: The id a request can name in `engine` (`windows`).
+        name:
+          type: string
+          description: The engine's name (`Windows.Media.Ocr`).
+        version:
+          type: string
+          description: A version hint (for Windows.Media.Ocr, the Windows build; the language data is updated by Windows Update).
+        kind:
+          type: string
+          enum: [builtin, external]
+        capabilities:
+          type: object
+          required: [wordBoxes, confidence]
+          properties:
+            wordBoxes:
+              type: boolean
+              description: "Words have their own boxes. When false, matches are located by whole lines (`boxLevel: line`)."
+            confidence:
+              type: boolean
+              description: Results carry `confidence` (Windows.Media.Ocr gives none).
+
+    OcrEngineSummary:
+      type: object
+      required: [id, name, kind, available]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [builtin, external]
+        available:
+          type: boolean
+          description: The engine can be used now.
+
+    TextBox:
+      type: object
+      description: A rectangle (top left and size) in the request's space.
+      required: [x, y, width, height]
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+        width:
+          type: number
+        height:
+          type: number
+
+    TextPoint:
+      type: object
+      description: A point in the request's space.
+      required: [x, y]
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+
+    TextPicture:
+      type: object
+      description: The picture the text was read from; the same meaning as the headers of `GET /v1/screenshot`.
+      required: [width, height, orientation, rotation]
+      properties:
+        width:
+          type: integer
+        height:
+          type: integer
+        orientation:
+          type: string
+          enum: [portrait, landscape]
+        rotation:
+          type: integer
+          enum: [0, 90, 180, 270]
+
+    TextEngine:
+      type: object
+      description: The engine that read the text.
+      required: [id, name, version]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+
+    TextWord:
+      type: object
+      required: [text, box]
+      properties:
+        text:
+          type: string
+        box:
+          $ref: "#/components/schemas/TextBox"
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Only when the engine gives one.
+
+    TextLine:
+      type: object
+      required: [text, box, center]
+      properties:
+        text:
+          type: string
+          description: The line. Words are joined by a space, except between kana, kanji and full-width characters.
+        box:
+          $ref: "#/components/schemas/TextBox"
+        center:
+          $ref: "#/components/schemas/TextPoint"
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Only when the engine gives one.
+        words:
+          type: array
+          description: Only when the request asked for `words`.
+          items:
+            $ref: "#/components/schemas/TextWord"
+
+    TextMatch:
+      type: object
+      required: [text, lineText, box, center, boxLevel]
+      properties:
+        text:
+          type: string
+          description: The words that matched.
+        lineText:
+          type: string
+          description: The whole line.
+        box:
+          $ref: "#/components/schemas/TextBox"
+        center:
+          $ref: "#/components/schemas/TextPoint"
+        boxLevel:
+          type: string
+          enum: [word, line]
+          description: |
+            `word`: the box is the matched words'. `line`: the engine has no word boxes and the box is the whole line's (a
+            tap at its centre may miss part of a line; narrow with `region` or move with `offset`).
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Only when the engine gives one.
+
+    TextReadResponse:
+      type: object
+      required: [language, engine, picture, space, durationMs, lines]
+      properties:
+        language:
+          type: string
+          description: The language the recognizer used.
+        engine:
+          $ref: "#/components/schemas/TextEngine"
+        picture:
+          $ref: "#/components/schemas/TextPicture"
+        space:
+          type: string
+          enum: [screen, pixel]
+        durationMs:
+          type: integer
+          description: Capture and recognition.
+        lines:
+          type: array
+          description: In reading order (top to bottom, then left to right).
+          items:
+            $ref: "#/components/schemas/TextLine"
+      examples:
+        - language: ja
+          engine: { id: windows, name: Windows.Media.Ocr, version: "10.0.26100" }
+          picture: { width: 498, height: 1080, orientation: portrait, rotation: 0 }
+          space: screen
+          durationMs: 92
+          lines:
+            - { text: メモ, box: { x: 0.1235, y: 0.2047, width: 0.0531, height: 0.0233 }, center: { x: 0.1501, y: 0.2164 } }
+
+    TextFindResponse:
+      type: object
+      required: [language, engine, picture, space, durationMs, attempts, matches]
+      properties:
+        language:
+          type: string
+        engine:
+          $ref: "#/components/schemas/TextEngine"
+        picture:
+          $ref: "#/components/schemas/TextPicture"
+          description: The last picture that was read.
+        space:
+          type: string
+          enum: [screen, pixel]
+        durationMs:
+          type: integer
+          description: From the request to the answer.
+        attempts:
+          type: integer
+          description: The readings made.
+        matches:
+          type: array
+          description: In reading order; empty when the text was not found.
+          items:
+            $ref: "#/components/schemas/TextMatch"
+
+    TapTextResponse:
+      type: object
+      required: [language, engine, picture, space, durationMs, attempts, tapped, matchCount]
+      properties:
+        language:
+          type: string
+        engine:
+          $ref: "#/components/schemas/TextEngine"
+        picture:
+          $ref: "#/components/schemas/TextPicture"
+          description: The picture the tap was decided on.
+        space:
+          type: string
+          enum: [screen, pixel]
+        durationMs:
+          type: integer
+          description: From the request to the lift.
+        attempts:
+          type: integer
+          description: The readings made (with the confirming one).
+        tapped:
+          allOf:
+            - $ref: "#/components/schemas/TextMatch"
+          type: object
+          required: [at]
+          properties:
+            at:
+              $ref: "#/components/schemas/TextPoint"
+              description: Where the finger went down (the centre plus `offset`).
+        matchCount:
+          type: integer
+          description: The matches on that picture.
 
     # ---- Requests -----------------------------------------------------------------------------------------
     Space:
@@ -1450,6 +2000,192 @@ components:
           description: The pause after each typed character.
 
     # ---- WebSocket messages (GET /v1/stream) ---------------------------------------------------------------
+    TextSpace:
+      type: string
+      enum: [screen, pixel]
+      default: screen
+      description: The space of `region`, `offset` and the boxes of the answer (not case sensitive). `device` is not accepted.
+
+    TextRegion:
+      type: object
+      description: |
+        Only this part of the screen is read (lines whose centre is inside it). In `screen` space within 0..1, in `pixel`
+        space within the `ref` size; the width and height are above 0.
+      required: [x, y, width, height]
+      additionalProperties: false
+      properties:
+        x:
+          type: number
+          minimum: 0
+        y:
+          type: number
+          minimum: 0
+        width:
+          type: number
+          exclusiveMinimum: 0
+        height:
+          type: number
+          exclusiveMinimum: 0
+
+    TextLang:
+      type: string
+      minLength: 1
+      maxLength: 35
+      pattern: "^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$"
+      description: |
+        A BCP 47 language tag such as `ja` or `en-US`. Without it, the first of the Windows user's languages that has OCR.
+        A language whose OCR is not installed is `409` `ocr_unavailable`.
+
+    TextEngineId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      pattern: "^[a-z0-9-]+$"
+      description: The engine to use (`windows`, the only one; the default). An unknown one is `409` `ocr_unavailable`.
+
+    TextReadRequest:
+      type: object
+      additionalProperties: false
+      allOf:
+        - $ref: "#/components/schemas/PixelNeedsRef"
+      properties:
+        lang:
+          $ref: "#/components/schemas/TextLang"
+        engine:
+          $ref: "#/components/schemas/TextEngineId"
+        space:
+          $ref: "#/components/schemas/TextSpace"
+        ref:
+          $ref: "#/components/schemas/PixelRef"
+        region:
+          $ref: "#/components/schemas/TextRegion"
+        words:
+          type: boolean
+          default: false
+          description: Add the words of every line.
+
+    TextFindRequest:
+      type: object
+      required: [text]
+      additionalProperties: false
+      allOf:
+        - $ref: "#/components/schemas/PixelNeedsRef"
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: The text to find. Only white space is `400`.
+        match:
+          type: string
+          enum: [exact, contains]
+          default: exact
+          description: "`exact`: the whole line (an isolated character at either end may be left out). `contains`: part of a line."
+        loose:
+          type: boolean
+          default: false
+          description: Treat look-alike characters, voiced marks and the kinds of kana as the same.
+        caseSensitive:
+          type: boolean
+          default: false
+        timeoutMs:
+          type: integer
+          minimum: 0
+          maximum: 30000
+          default: 0
+          description: How long to wait for the text (0 reads once).
+        pollMs:
+          type: integer
+          minimum: 300
+          maximum: 5000
+          default: 500
+          description: The pause between readings while waiting (from the end of one reading).
+        lang:
+          $ref: "#/components/schemas/TextLang"
+        engine:
+          $ref: "#/components/schemas/TextEngineId"
+        space:
+          $ref: "#/components/schemas/TextSpace"
+        ref:
+          $ref: "#/components/schemas/PixelRef"
+        region:
+          $ref: "#/components/schemas/TextRegion"
+
+    TapTextRequest:
+      type: object
+      required: [text]
+      additionalProperties: false
+      allOf:
+        - $ref: "#/components/schemas/PixelNeedsRef"
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: The text to find. Only white space is `400`.
+        match:
+          type: string
+          enum: [exact, contains]
+          default: exact
+        loose:
+          type: boolean
+          default: false
+        caseSensitive:
+          type: boolean
+          default: false
+        timeoutMs:
+          type: integer
+          minimum: 0
+          maximum: 30000
+          default: 0
+        pollMs:
+          type: integer
+          minimum: 300
+          maximum: 5000
+          default: 500
+        select:
+          type: string
+          enum: [unique, first, index]
+          default: unique
+          description: "When there are several matches: `unique` refuses (`ambiguous_text`), `first` taps the first in reading order, `index` the `index`-th."
+        index:
+          type: integer
+          minimum: 0
+          description: "Only with `select: index` (required there)."
+        offset:
+          $ref: "#/components/schemas/Point"
+          description: "Tap this far from the centre of the match: `screen` -1..1, `pixel` within the `ref` size. Default (0, 0)."
+        settleMs:
+          type: integer
+          minimum: 0
+          maximum: 2000
+          default: 250
+          description: The pause before the reading that confirms the match. 0 taps without confirming.
+        holdMs:
+          type: integer
+          minimum: 0
+          default: 80
+          description: As in `POST /v1/touch/tap`.
+        count:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 1
+        intervalMs:
+          type: integer
+          minimum: 0
+          default: 120
+        lang:
+          $ref: "#/components/schemas/TextLang"
+        engine:
+          $ref: "#/components/schemas/TextEngineId"
+        space:
+          $ref: "#/components/schemas/TextSpace"
+        ref:
+          $ref: "#/components/schemas/PixelRef"
+        region:
+          $ref: "#/components/schemas/TextRegion"
+
     StreamContact:
       type: object
       description: One finger of a `down` or `move` message.

@@ -98,6 +98,12 @@ public sealed class OcrService
         _time = time ?? TimeProvider.System;
     }
 
+    /// <summary>
+    /// Calls the engine on the calling thread instead of the thread pool. Only for tests: with a synchronous fake engine the whole pipeline then
+    /// runs inline, so a fake clock drives it deterministically.
+    /// </summary>
+    internal bool CallInline { get; set; }
+
     /// <summary>The engines (checked descriptions), the default first.</summary>
     public IReadOnlyList<OcrEngineInfo> Engines => [.. _engines.Select(e => e.Info)];
 
@@ -235,7 +241,7 @@ public sealed class OcrService
 
         // Started on the thread pool: an engine that blocks before it returns its task must not block the request.
         var engine = target.Engine;
-        var call = Task.Run(() => engine.RecognizeAsync(request, cancellationToken), CancellationToken.None);
+        var call = Offload(() => engine.RecognizeAsync(request, cancellationToken));
         turn.HandOver(call, target.Info.Id);
         var recognition = await call.WaitAsync(cancellationToken).ConfigureAwait(false);
         return ToReading(OcrOutputGuard.Sanitize(recognition, prepared.Width, prepared.Height), prepared, target.Info, region);
@@ -301,7 +307,7 @@ public sealed class OcrService
         using var timeout = new CancellationTokenSource(QueryTimeout, _time);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         var token = linked.Token;
-        var call = Task.Run(() => question(token).AsTask(), CancellationToken.None);
+        var call = Offload(() => question(token).AsTask());
         try
         {
             return await call.WaitAsync(QueryTimeout, _time, cancellationToken).ConfigureAwait(false);
@@ -310,6 +316,24 @@ public sealed class OcrService
         {
             _ = call.ContinueWith(static t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
             throw new OcrEngineException(OcrFailure.EngineUnavailable, ex);
+        }
+    }
+
+    // Starts an engine call on the thread pool (inline for tests, see CallInline); an exception thrown before the task exists becomes its result.
+    private Task<T> Offload<T>(Func<Task<T>> work)
+    {
+        if (!CallInline)
+        {
+            return Task.Run(work, CancellationToken.None);
+        }
+
+        try
+        {
+            return work();
+        }
+        catch (Exception ex)
+        {
+            return Task.FromException<T>(ex);
         }
     }
 

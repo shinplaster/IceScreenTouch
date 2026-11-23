@@ -16,7 +16,7 @@ public class ServerRouteTests : ServerTestBase
         string[] expected =
         [
             "GET /v1/status", "GET /v1/rotation", "PUT /v1/target", "PUT /v1/rotation",
-            "POST /v1/touch/tap", "POST /v1/touch/long-press", "POST /v1/touch/swipe", "POST /v1/touch/path", "POST /v1/touch/pinch",
+            "POST /v1/touch/tap", "POST /v1/touch/long-press", "POST /v1/touch/swipe", "POST /v1/touch/path", "POST /v1/touch/pinch", "POST /v1/text/read", "POST /v1/text/find", "POST /v1/touch/tap-text",
             "POST /v1/keys/press", "POST /v1/keys/type", "POST /v1/home", "POST /v1/cancel", "GET /v1/screenshot", "GET /v1/stream", "GET /v1/openapi.json",
         ];
 

@@ -19,7 +19,7 @@ public class PreconditionTests : ApiTestBase
 
         AssertError(await Controller.TapAsync(Tap), ApiErrorCodes.PurchaseRequired);
         AssertError(await Controller.TapAsync(null), ApiErrorCodes.PurchaseRequired);
-        AssertError(Controller.GetStatus(), ApiErrorCodes.PurchaseRequired);
+        AssertError((await Controller.GetStatusAsync()), ApiErrorCodes.PurchaseRequired);
         AssertError(Controller.GetRotation(), ApiErrorCodes.PurchaseRequired);
         AssertError(await Controller.HomeAsync(), ApiErrorCodes.PurchaseRequired);
         AssertError(await Controller.TryOpenSessionAsync(), ApiErrorCodes.PurchaseRequired);
@@ -178,13 +178,13 @@ public class PreconditionTests : ApiTestBase
         AssertError(await Controller.TryOpenSessionAsync(), ApiErrorCodes.Busy);
 
         // Status and rotation are not operations; status says one is running.
-        Assert.True(Controller.GetStatus().Value!.Operating);
+        Assert.True((await Controller.GetStatusAsync()).Value!.Operating);
         Assert.True(Controller.GetRotation().IsSuccess);
 
         Time.Wait(800);
         Assert.True((await running).IsSuccess);
         Assert.False(Controller.IsOperating);
-        Assert.False(Controller.GetStatus().Value!.Operating);
+        Assert.False((await Controller.GetStatusAsync()).Value!.Operating);
         Assert.True((await Time.Drive(Controller.TapAsync(Tap))).IsSuccess);
 
         // The refusals did not send anything: one long press and one tap only.
@@ -202,7 +202,7 @@ public class PreconditionTests : ApiTestBase
         AssertError(await Controller.PressKeyAsync(new KeyPressRequest { Key = "a" }), ApiErrorCodes.Busy);
         AssertError(await Controller.TryOpenSessionAsync(), ApiErrorCodes.Busy);
         AssertError(await Controller.SetTargetAsync(new TargetRequest { DeviceId = null }), ApiErrorCodes.Busy);
-        Assert.True(Controller.GetStatus().Value!.Operating);
+        Assert.True((await Controller.GetStatusAsync()).Value!.Operating);
         Assert.True(Controller.GetRotation().IsSuccess);
         Assert.Empty(Touch.Frames);
 

@@ -162,6 +162,11 @@ internal sealed class FakeHost : IApiHost
 
     public SyncList<string> Journal { get; } = [];
 
+    /// <summary>The OCR engine the controller gets (read when the controller is created).</summary>
+    public Ocr.FakeOcrEngine OcrEngine { get; } = new("fake");
+
+    public IReadOnlyList<IceScreenTouch.Api.Ocr.IOcrEngine> OcrEngines => [OcrEngine];
+
     public FakeTouchSink TouchSink { get; }
 
     public FakeKeyboardSink KeyboardSink { get; }

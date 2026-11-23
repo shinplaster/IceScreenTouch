@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Shin-plaster
 // SPDX-License-Identifier: MIT
 
+using IceScreenTouch.Api.Ocr;
 using IceScreenTouch.Core;
 
 namespace IceScreenTouch.Api;
@@ -87,6 +88,7 @@ public sealed record ApiDevice(string Id, string Name, string? Model, bool Subsc
 /// <param name="Picture">The picture, or null.</param>
 /// <param name="Rotation">The assumed rotations.</param>
 /// <param name="Operating">An API operation or session is running (filled by the controller).</param>
+/// <param name="Ocr">Text recognition: engines and languages (filled by the controller).</param>
 public sealed record ApiStatus(
     string Version,
     int ApiVersion,
@@ -97,7 +99,8 @@ public sealed record ApiStatus(
     string? Receiver,
     PictureInfo? Picture,
     RotationInfo Rotation,
-    bool Operating);
+    bool Operating,
+    OcrStatusInfo? Ocr = null);
 
 /// <summary>The assumed rotations (degrees): landscape 90 or 270, portrait 0 or 180.</summary>
 /// <param name="Landscape">90 or 270.</param>
@@ -155,4 +158,10 @@ public interface IApiHost
     /// a host that has no pixels to give keeps this default (always null, which is <c>no_picture</c>).
     /// </summary>
     ValueTask<ApiPictureFrame?> CapturePictureAsync(CancellationToken cancellationToken) => new((ApiPictureFrame?)null);
+
+    /// <summary>
+    /// The OCR engines of <c>/v1/text/*</c> (docs/API-DESIGN.md 16.10), the default first. Read once, when the controller is created. A host
+    /// without OCR keeps this default (none: every text request is <c>ocr_unavailable</c>).
+    /// </summary>
+    IReadOnlyList<IOcrEngine> OcrEngines => [];
 }

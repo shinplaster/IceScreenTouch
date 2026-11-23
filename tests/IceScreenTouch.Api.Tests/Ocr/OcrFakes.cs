@@ -50,6 +50,13 @@ internal sealed class FakeOcrEngine : IOcrEngine
 
     public void Returns(OcrRecognition result) => _script.Enqueue((_, _) => Task.FromResult(result));
 
+    /// <summary>The next call does <paramref name="sideEffect"/> (changes the host, as if the screen changed meanwhile), then returns the result.</summary>
+    public void Returns(OcrRecognition result, Action sideEffect) => _script.Enqueue((_, _) =>
+    {
+        sideEffect();
+        return Task.FromResult(result);
+    });
+
     public void Fails(Exception exception) => _script.Enqueue((_, _) => Task.FromException<OcrRecognition>(exception));
 
     /// <summary>The next call waits on the given task (honouring the token unless <paramref name="ignoreCancellation"/>).</summary>

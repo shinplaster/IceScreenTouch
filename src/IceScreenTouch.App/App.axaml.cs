@@ -7,6 +7,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using IceScreenTouch.Api.Ocr;
 using IceScreenTouch.App.Logging;
 using IceScreenTouch.App.Resources;
 using IceScreenTouch.App.Services;
@@ -23,7 +24,8 @@ namespace IceScreenTouch.App;
 /// <param name="Probe">The probe tab's service, if the platform has one.</param>
 /// <param name="Receivers">Finds the AirPlay receivers on this PC, if the platform can.</param>
 /// <param name="License">The Store license check, if this build has one (null = a build of your own, nothing is checked).</param>
-public sealed record AppServices(IMirrorService Mirror, SettingsStore Store, AppLog Log, IProbeService? Probe = null, IReceiverFinder? Receivers = null, LicenseService? License = null);
+/// <param name="OcrEngines">The OCR engines of the automation API's text endpoints, the default first (null or empty: OCR is unavailable).</param>
+public sealed record AppServices(IMirrorService Mirror, SettingsStore Store, AppLog Log, IProbeService? Probe = null, IReceiverFinder? Receivers = null, LicenseService? License = null, IReadOnlyList<IOcrEngine>? OcrEngines = null);
 
 /// <summary>
 /// Avalonia application shared by every platform head. Lives in the notification area: closing the window
@@ -96,7 +98,7 @@ public partial class App : Application
         // your own has none: nothing is checked) and the system clock, as the session does (the session's input arbitration
         // and the API's controller must share one clock).
         var license = services.License ?? new LicenseService(null, log: services.Log);
-        _api = new ApiService(services.Mirror, license, AppPaths.Root, () => _vm?.Settings ?? settings, services.Log.Write);
+        _api = new ApiService(services.Mirror, license, AppPaths.Root, () => _vm?.Settings ?? settings, services.Log.Write, ocrEngines: services.OcrEngines);
         _vm = new MainViewModel(services.Mirror, services.Store, services.Log, settings, a => Dispatcher.UIThread.Post(a), services.Probe, services.Receivers, license, _api);
         services.Log.LineAdded += (_, line) => Dispatcher.UIThread.Post(() => _vm.AppendLog(line));
         _vm.SettingsApplied += (_, _) => RequestedThemeVariant = AppTheme.ToVariant(_vm.Settings.Theme);

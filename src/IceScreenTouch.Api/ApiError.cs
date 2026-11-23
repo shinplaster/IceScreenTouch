@@ -57,6 +57,18 @@ public static class ApiErrorCodes
     /// <summary>499: <c>POST /v1/cancel</c> (or the client going away) ended the operation.</summary>
     public const string Cancelled = "cancelled";
 
+    /// <summary>409: OCR cannot serve the request: no OCR for the language, no such engine, or the engine stopped (docs/API-DESIGN.md 16.5.6).</summary>
+    public const string OcrUnavailable = "ocr_unavailable";
+
+    /// <summary>409: <c>tap-text</c> found no (such) match before its time ran out.</summary>
+    public const string TextNotFound = "text_not_found";
+
+    /// <summary>409: <c>tap-text</c> with <c>select: unique</c> found more than one match.</summary>
+    public const string AmbiguousText = "ambiguous_text";
+
+    /// <summary>409: the <c>offset</c> of <c>tap-text</c> puts the tap outside the screen.</summary>
+    public const string TapOutsideScreen = "tap_outside_screen";
+
     /// <summary>404: no such route.</summary>
     public const string NotFound = "not_found";
 
@@ -74,7 +86,8 @@ public static class ApiErrorCodes
         RateLimited => 429,
         InternalError => 500,
         Cancelled => 499,
-        NotRunning or NotConnected or NoPicture or Busy or UserInterrupted or UserActive or NoKeyboard or NoHomeButton or PictureChanged => 409,
+        NotRunning or NotConnected or NoPicture or Busy or UserInterrupted or UserActive or NoKeyboard or NoHomeButton or PictureChanged
+            or OcrUnavailable or TextNotFound or AmbiguousText or TapOutsideScreen => 409,
         _ => throw new ArgumentOutOfRangeException(nameof(code), code, "unknown API error code"),
     };
 }
@@ -85,6 +98,9 @@ public static class ApiErrorCodes
 /// <param name="Detail">A sentence for the person reading the response.</param>
 public sealed record ApiError(string Code, int Status, string Detail)
 {
+    /// <summary>The extension members of the problem response (OCR errors only); null for the others, whose shape does not change.</summary>
+    public ApiErrorExtras? Extras { get; init; }
+
     /// <summary>An error with the status that belongs to <paramref name="code"/>.</summary>
     public static ApiError Create(string code, string detail) => new(code, ApiErrorCodes.StatusOf(code), detail);
 
@@ -154,4 +170,30 @@ public sealed class ApiResult<T>
 internal sealed class ApiRequestException(ApiError error) : Exception(error.Detail)
 {
     public ApiError Error { get; } = error;
+}
+
+/// <summary>
+/// The extension members some errors carry in their problem response (docs/API-DESIGN.md 16.5.6). A member that is null is left out. They hold
+/// what a script needs to act (the languages and engines there are, the candidates of a match); the <see cref="ApiError.Detail"/> never holds
+/// screen text or the searched text.
+/// </summary>
+public sealed record ApiErrorExtras
+{
+    /// <summary><c>ocr_unavailable</c>: <c>language</c> or <c>engine</c>.</summary>
+    public string? Reason { get; init; }
+
+    /// <summary><c>ocr_unavailable</c>: the engine's id (left out when there is no engine at all).</summary>
+    public string? Engine { get; init; }
+
+    /// <summary><c>ocr_unavailable</c>: the languages of that engine.</summary>
+    public IReadOnlyList<string>? Available { get; init; }
+
+    /// <summary><c>ocr_unavailable</c>: the ids of the engines that can be used.</summary>
+    public IReadOnlyList<string>? Engines { get; init; }
+
+    /// <summary><c>text_not_found</c>, <c>ambiguous_text</c>, <c>tap_outside_screen</c>: the candidates (at most 20).</summary>
+    public IReadOnlyList<TextMatchResult>? Matches { get; init; }
+
+    /// <summary>The number of matches (all of them, also beyond the 20 listed).</summary>
+    public int? MatchCount { get; init; }
 }

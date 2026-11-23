@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using IceScreenTouch.Api;
+using IceScreenTouch.Api.Ocr;
 using IceScreenTouch.App.Settings;
 using IceScreenTouch.Core;
 
@@ -34,8 +35,9 @@ internal sealed class ApiHost : IApiHost
     /// <summary>How long a requested rotation is shown while the bridge has not applied it (a bridge that never does, such as a dead loop, is believed again after this).</summary>
     internal static readonly TimeSpan WantedRotationLifetime = TimeSpan.FromSeconds(2);
 
-    internal ApiHost(IMirrorService mirror, Func<AppSettings> settings, TimeProvider time, Action<string>? log, TimeSpan? acquireTimeout = null)
+    internal ApiHost(IMirrorService mirror, Func<AppSettings> settings, TimeProvider time, Action<string>? log, TimeSpan? acquireTimeout = null, IReadOnlyList<IOcrEngine>? ocrEngines = null)
     {
+        OcrEngines = ocrEngines ?? [];
         _mirror = mirror;
         _settings = settings;
         _time = time;
@@ -57,6 +59,9 @@ internal sealed class ApiHost : IApiHost
     public IKeyboardSink Keyboard { get; }
 
     public IHomeButtonSink HomeButton { get; }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<IOcrEngine> OcrEngines { get; }
 
     private IApiSession? Session => _mirror.ApiSession;
 

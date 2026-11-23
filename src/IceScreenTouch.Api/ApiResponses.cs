@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.AspNetCore.Http;
 
@@ -24,7 +25,32 @@ public sealed record CancelResponse(bool Cancelled);
 /// <param name="Status">The HTTP status.</param>
 /// <param name="Detail">What went wrong.</param>
 /// <param name="Code">One of <see cref="ApiErrorCodes"/>.</param>
-public sealed record ApiProblem(string Type, string Title, int Status, string Detail, string Code);
+public sealed record ApiProblem(string Type, string Title, int Status, string Detail, string Code)
+{
+    /// <summary>See <see cref="ApiErrorExtras.Reason"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; init; }
+
+    /// <summary>See <see cref="ApiErrorExtras.Engine"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Engine { get; init; }
+
+    /// <summary>See <see cref="ApiErrorExtras.Available"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? Available { get; init; }
+
+    /// <summary>See <see cref="ApiErrorExtras.Engines"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? Engines { get; init; }
+
+    /// <summary>See <see cref="ApiErrorExtras.Matches"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<TextMatchResult>? Matches { get; init; }
+
+    /// <summary>See <see cref="ApiErrorExtras.MatchCount"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MatchCount { get; init; }
+}
 
 /// <summary>The content of <c>api.json</c> (see <see cref="ApiConnectionFile"/>).</summary>
 /// <param name="Port">The port of the API on 127.0.0.1.</param>
@@ -45,11 +71,20 @@ internal static class ApiResponses
 
     public static Task WriteProblemAsync(HttpContext context, ApiError error)
     {
-        var problem = new ApiProblem("about:blank", TitleOf(error.Status), error.Status, error.Detail, error.Code);
+        var extras = error.Extras;
+        var problem = new ApiProblem("about:blank", TitleOf(error.Status), error.Status, error.Detail, error.Code)
+        {
+            Reason = extras?.Reason,
+            Engine = extras?.Engine,
+            Available = extras?.Available,
+            Engines = extras?.Engines,
+            Matches = extras?.Matches,
+            MatchCount = extras?.MatchCount,
+        };
         var bytes = JsonSerializer.SerializeToUtf8Bytes(problem, ApiJson.Default.ApiProblem);
         if (error.Code == ApiErrorCodes.RateLimited)
         {
-            // The screenshot window is one second.
+            // The rate windows (screenshots, text readings) are one second.
             context.Response.Headers.RetryAfter = "1";
         }
 

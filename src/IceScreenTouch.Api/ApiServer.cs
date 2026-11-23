@@ -384,7 +384,7 @@ public sealed class ApiServer : IAsyncDisposable
         var c = _controller;
 
         // GET: the status objects (ApiStatus, RotationInfo).
-        Add("GET", "/v1/status", ctx => ApiResponses.WriteResultAsync(ctx, c.GetStatus(), ApiJson.Default.ApiStatus));
+        Add("GET", "/v1/status", async ctx => await ApiResponses.WriteResultAsync(ctx, await c.GetStatusAsync(ctx.RequestAborted).ConfigureAwait(false), ApiJson.Default.ApiStatus).ConfigureAwait(false));
         Add("GET", "/v1/rotation", ctx => ApiResponses.WriteResultAsync(ctx, c.GetRotation(), ApiJson.Default.RotationInfo));
 
         // PUT /v1/target: { "deviceId": "..." | null } -> {}. PUT /v1/rotation: { "landscape", "portrait" } -> RotationInfo.
@@ -397,6 +397,11 @@ public sealed class ApiServer : IAsyncDisposable
         Add("POST", "/v1/touch/swipe", ctx => WithBodyAsync(ctx, ApiJson.Default.SwipeRequest, c.SwipeAsync));
         Add("POST", "/v1/touch/path", ctx => WithBodyAsync(ctx, ApiJson.Default.PathRequest, c.PathAsync));
         Add("POST", "/v1/touch/pinch", ctx => WithBodyAsync(ctx, ApiJson.Default.PinchRequest, c.PinchAsync));
+
+        // Text (OCR): read and find only read pixels (no gate); tap-text is an operation. Bodies and answers in ApiText.cs.
+        Add("POST", "/v1/text/read", ctx => WithBodyAsync(ctx, ApiJson.Default.TextReadRequest, c.ReadTextAsync, ApiJson.Default.TextReadResponse));
+        Add("POST", "/v1/text/find", ctx => WithBodyAsync(ctx, ApiJson.Default.TextFindRequest, c.FindTextAsync, ApiJson.Default.TextFindResponse));
+        Add("POST", "/v1/touch/tap-text", ctx => WithBodyAsync(ctx, ApiJson.Default.TapTextRequest, c.TapTextAsync, ApiJson.Default.TapTextResponse));
 
         // Keys: press -> {}; type -> { "skipped": "..." } (the characters that have no key on a US keyboard).
         Add("POST", "/v1/keys/press", ctx => WithBodyAsync(ctx, ApiJson.Default.KeyPressRequest, c.PressKeyAsync));

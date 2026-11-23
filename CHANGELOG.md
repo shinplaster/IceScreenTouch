@@ -22,6 +22,18 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Text on the screen (OCR)** in the Automation API: `POST /v1/text/read` reads the text of the screen (lines in
+  reading order with their boxes), `POST /v1/text/find` finds a text or waits for it to appear, and
+  `POST /v1/touch/tap-text` finds a text and taps it (it confirms the match with a second reading so that a screen still
+  moving is not tapped, and stops without tapping when you use the mirror meanwhile). Recognition is done by
+  Windows.Media.Ocr, part of Windows, with the OCR languages Windows has installed; the text is neither written to a file
+  nor kept. Matching is exact by default (a whole line), `contains` matches part of a line, and `loose` tolerates
+  look-alike characters and voiced marks. `GET /v1/status` shows the OCR engine and languages (`ocr`). New error codes:
+  `ocr_unavailable`, `text_not_found`, `ambiguous_text` and `tap_outside_screen`. Like screenshots, text readings are
+  limited (5 a second, counted with the screenshots), and they show the capture border on the receiver window.
+
 ### Fixed
 
 - While AirServer (Microsoft Store edition, in its trial) still showed its activation screen, an iPhone that started

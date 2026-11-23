@@ -78,11 +78,17 @@ internal static class ScreenshotEncoder
     }
 }
 
-/// <summary>At most <see cref="Limit"/> admissions in any rolling <see cref="Window"/>, counted on the given clock.</summary>
-internal sealed class ScreenshotRateLimiter(TimeProvider time)
+/// <summary>
+/// At most <see cref="Capacity"/> admissions (<see cref="Limit"/> for screenshots) in any rolling <see cref="Window"/>, counted on the given
+/// clock. A text reading counts in two windows at once (the screenshots and its own, see <see cref="TryAcquire(ScreenshotRateLimiter)"/>).
+/// </summary>
+internal sealed class ScreenshotRateLimiter(TimeProvider time, int capacity = ScreenshotRateLimiter.Limit)
 {
     /// <summary>Screenshots per window.</summary>
     public const int Limit = 10;
+
+    /// <summary>Admissions per window.</summary>
+    public int Capacity { get; } = capacity;
 
     /// <summary>The rolling window.</summary>
     public static readonly TimeSpan Window = TimeSpan.FromSeconds(1);
@@ -96,12 +102,7 @@ internal sealed class ScreenshotRateLimiter(TimeProvider time)
         lock (_gate)
         {
             var now = time.GetTimestamp();
-            while (_admitted.Count > 0 && time.GetElapsedTime(_admitted.Peek(), now) >= Window)
-            {
-                _admitted.Dequeue();
-            }
-
-            if (_admitted.Count >= Limit)
+            if (!HasRoom(now))
             {
                 return false;
             }
@@ -109,5 +110,42 @@ internal sealed class ScreenshotRateLimiter(TimeProvider time)
             _admitted.Enqueue(now);
             return true;
         }
+    }
+
+    /// <summary>
+    /// Counts one request in this window and in <paramref name="other"/> when both have room, else counts nothing in either: a request refused by
+    /// one never uses up the other. Both windows are checked and counted under both locks (taken in a fixed order: this one, then
+    /// <paramref name="other"/>; call it always with the same two in the same order).
+    /// </summary>
+    public bool TryAcquire(ScreenshotRateLimiter other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        lock (_gate)
+        {
+            lock (other._gate)
+            {
+                // Both windows are on the controller's clock.
+                var now = time.GetTimestamp();
+                if (!HasRoom(now) || !other.HasRoom(now))
+                {
+                    return false;
+                }
+
+                _admitted.Enqueue(now);
+                other._admitted.Enqueue(now);
+                return true;
+            }
+        }
+    }
+
+    // Drops the admissions older than the window; true when another fits. Called under the lock.
+    private bool HasRoom(long now)
+    {
+        while (_admitted.Count > 0 && time.GetElapsedTime(_admitted.Peek(), now) >= Window)
+        {
+            _admitted.Dequeue();
+        }
+
+        return _admitted.Count < Capacity;
     }
 }
