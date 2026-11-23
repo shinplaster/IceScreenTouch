@@ -45,7 +45,9 @@ public sealed record WindowVideoSourceOptions
     /// <summary>
     /// The window counts as the mirror window only while another machine is connected to the receiver
     /// (<see cref="ReceiverQuirks.ShowsStandbyScreen"/>): without a device it shows a standby screen, and clicks on
-    /// it must not become touches.
+    /// it must not become touches. With <see cref="DetectPicture"/>, a connected device is not enough either: the
+    /// window must also show a picture (<see cref="PictureTracker.ShowsPicture"/>), since a receiver may keep its
+    /// own screen up for a while after the device connects (AirServer's activation screen during its trial, #34).
     /// </summary>
     public bool OnlyWhileConnected { get; init; }
 
@@ -87,6 +89,9 @@ public sealed class WindowVideoSource : IVideoSource, IDisposable
     private readonly Lock _connectionLock = new();
     private HashSet<IPAddress>? _ownAddresses;
     private long _ownAddressesAt;
+    private volatile bool _windowWithoutPicture;
+    private bool _withheldLogged;
+    private (int Width, int Height)? _withheldSize;
 
     /// <summary>Watches processes named <paramref name="processName"/> (without .exe).</summary>
     public WindowVideoSource(string processName, WindowVideoSourceOptions? options = null, Action<string>? log = null, TimeProvider? time = null)
@@ -142,6 +147,16 @@ public sealed class WindowVideoSource : IVideoSource, IDisposable
     /// <summary>Captures done and the time of the last one (for the log).</summary>
     public (int Count, TimeSpan Last) CaptureStats { get; private set; }
 
+    /// <summary>
+    /// True when the last <see cref="FindWindow"/> found the receiver's window with a device connected but returned
+    /// 0, because the window shows no picture yet (<see cref="WindowVideoSourceOptions.OnlyWhileConnected"/>). The
+    /// window is not missing then: it shows a screen of the receiver's own.
+    /// </summary>
+    public bool WindowWithoutPicture => _windowWithoutPicture;
+
+    /// <summary>The remote addresses connected to a process (tests replace it; by default the TCP table).</summary>
+    internal Func<int, IReadOnlyList<IPAddress>> IncomingAddresses { get; init; } = TcpPeers.IncomingAddresses;
+
     /// <inheritdoc/>
     public nint FindWindow()
     {
@@ -170,8 +185,51 @@ public sealed class WindowVideoSource : IVideoSource, IDisposable
             Wake();
         }
 
+        // The capture thread keeps looking at the window either way: the picture is followed from the first capture
+        // that finds it.
         _window = window;
-        return window;
+        if (window == 0)
+        {
+            _withheldLogged = false; // the next device or window starts over
+            _withheldSize = null;
+        }
+
+        var withheld = window != 0 && _options.OnlyWhileConnected && _options.DetectPicture && ShowsNoPicture(window);
+        _windowWithoutPicture = withheld;
+        return withheld ? 0 : window;
+    }
+
+    // A device is connected, but the window may still show the receiver's own screen (AirServer keeps its activation
+    // screen until "Continue Trial" is pressed, and the connections look the same before and after, #34). Without a
+    // picture found in it, only a window with the phone's shape (fitted to the picture, no bars to measure) is
+    // trusted to show one.
+    private bool ShowsNoPicture(nint window)
+    {
+        if (Win32Windows.ClientRectOnScreen(window) is not { } client)
+        {
+            return false; // the bridge finds no client area either: nothing to click on
+        }
+
+        var shows = _picture.ShowsPicture(window, new SizeD(client.Width, client.Height));
+        var size = (client.Width, client.Height);
+        if (!shows && _withheldSize != size)
+        {
+            // Withheld at a new size (just connected, or resized): look now rather than at the next interval. Not at
+            // every tick, which would capture without pause while the receiver's own screen stays up.
+            Wake();
+        }
+
+        _withheldSize = shows ? null : size;
+        if (shows == _withheldLogged)
+        {
+            // Logged once each way: a window being resized must not log at every tick.
+            _withheldLogged = !shows;
+            _log(shows
+                ? $"[video] {_processName} shows a picture in {client.Width}x{client.Height}: following its window"
+                : $"[video] {_processName} has a device but shows no picture in {client.Width}x{client.Height} (a screen of its own): clicks and keys stay with Windows");
+        }
+
+        return !shows;
     }
 
     /// <inheritdoc/>
@@ -373,7 +431,7 @@ public sealed class WindowVideoSource : IVideoSource, IDisposable
         }
 
         var own = _ownAddresses;
-        var peers = TcpPeers.IncomingAddresses(_processId).Where(a => !own.Contains(a)).ToList();
+        var peers = IncomingAddresses(_processId).Where(a => !own.Contains(a)).ToList();
         var connected = peers.Count > 0;
         if (_options.OnlyWhileConnected && (connected != _connected || !_connectionLogged))
         {

@@ -3,6 +3,7 @@
 
 using System.Diagnostics;
 using System.Drawing;
+using System.Net;
 using IceScreenTouch.Core;
 using IceScreenTouch.Platform.Windows;
 using IceScreenTouch.Video;
@@ -335,6 +336,96 @@ public sealed class WindowCaptureTests(ITestOutputHelper output) : IDisposable
         _window.SetMaximized(false);
         _window.CoverMonitor();
         Assert.True(Win32Windows.IsMaximizedOrFullScreen(_window.Handle));
+    }
+
+    // A receiver with a standby screen (AirServer, LonelyScreen) that a device is connected to (from an address that is not this PC's).
+    private static WindowVideoSource ConnectedStandbyReceiver(bool detectPicture = true, bool connected = true)
+    {
+        using var self = Process.GetCurrentProcess();
+        return new WindowVideoSource(self.ProcessName, new WindowVideoSourceOptions
+        {
+            CaptureInterval = TimeSpan.FromMilliseconds(50),
+            ConnectionCheckInterval = TimeSpan.Zero,
+            OnlyWhileConnected = true,
+            DetectPicture = detectPicture,
+        })
+        {
+            IncomingAddresses = _ => connected ? [IPAddress.Parse("192.0.2.10")] : [],
+        };
+    }
+
+    // #34: AirServer keeps its activation screen (1200x900, no picture found in it) after the device connects, until "Continue Trial".
+    [Fact]
+    public void AStandbyReceiversWindowWithADeviceButNoPictureIsNotFollowedUntilThePictureShows()
+    {
+        using var source = ConnectedStandbyReceiver();
+        var watch = Stopwatch.StartNew();
+        while (source.CaptureStats.Count < 3 && watch.Elapsed < TimeSpan.FromSeconds(5))
+        {
+            Assert.Equal(0, source.FindWindow()); // captured, but not the mirror window
+            Assert.True(source.WindowWithoutPicture);
+            Thread.Sleep(20);
+        }
+
+        Assert.True(source.CaptureStats.Count >= 3, "the window was not captured");
+        Assert.Equal(0, source.FindWindow());
+        Assert.Null(source.Picture.LastPicture);
+
+        // The picture appears: followed from the capture that finds it.
+        var expected = Geometry.VideoRect(860, 360, new SizeD(Aspect, 1));
+        _window.ShowBlock(Round(expected), Picture);
+        watch.Restart();
+        while (source.FindWindow() == 0 && watch.Elapsed < TimeSpan.FromSeconds(5))
+        {
+            Thread.Sleep(20);
+        }
+
+        Assert.Equal(_window.Handle, source.FindWindow());
+        Assert.False(source.WindowWithoutPicture);
+        var picture = Assert.NotNull(source.LocatePicture(_window.Handle, new SizeD(860, 360)));
+        Assert.InRange(picture.Left, expected.Left - 1.5, expected.Left + 1.5);
+    }
+
+    // AirServer fits its window to the picture (after a rotation): no bars, and maybe no picture found, but the window has the phone's shape.
+    [Fact]
+    public void AStandbyReceiversWindowWithThePhonesShapeIsFollowedBeforeAnyPictureIsFound()
+    {
+        _window.SetClientSize(new Size((int)Math.Round(700 * Aspect), 700));
+        using var source = ConnectedStandbyReceiver();
+
+        Assert.Equal(_window.Handle, source.FindWindow());
+        Assert.False(source.WindowWithoutPicture);
+        Assert.Equal(new RectD(0, 0, (int)Math.Round(700 * Aspect), 700), source.LocatePicture(_window.Handle, new SizeD((int)Math.Round(700 * Aspect), 700)));
+    }
+
+    [Fact]
+    public void AStandbyReceiversWindowWithoutADeviceIsNotFollowedAndIsNotAWindowWithoutPicture()
+    {
+        using var source = ConnectedStandbyReceiver(connected: false);
+
+        Assert.Equal(0, source.FindWindow());
+        Assert.False(source.WindowWithoutPicture);
+    }
+
+    // Receivers without a standby screen (UxPlay, ...) and a standby receiver without picture detection keep the centered guess.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OtherwiseAWindowWithNoPictureFoundIsFollowedWithTheGuess(bool standbyWithoutDetection)
+    {
+        using var self = Process.GetCurrentProcess();
+        using var source = standbyWithoutDetection
+            ? ConnectedStandbyReceiver(detectPicture: false)
+            : new WindowVideoSource(self.ProcessName, new WindowVideoSourceOptions { CaptureInterval = TimeSpan.FromMilliseconds(50) });
+        var watch = Stopwatch.StartNew();
+        while (watch.Elapsed < TimeSpan.FromMilliseconds(300))
+        {
+            Assert.Equal(_window.Handle, source.FindWindow());
+            Thread.Sleep(20);
+        }
+
+        Assert.False(source.WindowWithoutPicture);
+        Assert.Equal(Geometry.VideoRect(860, 360, new SizeD(Aspect, 1)), source.LocatePicture(_window.Handle, new SizeD(860, 360)));
     }
 
     [Fact]

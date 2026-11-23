@@ -564,7 +564,10 @@ internal sealed class WindowsMirrorService(AppLog log, TimeProvider? time = null
                 ReceiverName = settings.Receiver == ReceiverMode.StartUxPlay ? "UxPlay" : KnownReceivers.DisplayName(settings.AttachProcessName),
                 ReceiverDetail = detail,
                 Device = device,
-                DeviceWithoutWindow = receiver == ReceiverState.Waiting && _attached is { ProcessId: > 0 } followed && followed.HasConnectedDevice,
+                // A window that shows the receiver's own screen while a device connects (AirServer's activation screen,
+                // #34) is not missing: the status stays "waiting for Screen Mirroring" (for the video window), not "the
+                // window was not found, check that it is not minimized".
+                DeviceWithoutWindow = receiver == ReceiverState.Waiting && _attached is { ProcessId: > 0, WindowWithoutPicture: false } followed && followed.HasConnectedDevice,
                 SizeSource = uxplay?.SizeSource,
                 Bridge = bridgeStatus,
                 Devices = _devices,
