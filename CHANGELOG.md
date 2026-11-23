@@ -22,6 +22,8 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-23
+
 ### Added
 
 - **Text on the screen (OCR)** in the Automation API: `POST /v1/text/read` reads the text of the screen (lines in

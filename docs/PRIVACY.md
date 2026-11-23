@@ -2,7 +2,7 @@
 
 [日本語](PRIVACY.ja.md)
 
-Effective date: 2026-11-17
+Effective date: 2026-11-23
 
 This policy covers IceScreen Touch ("the app"), both the Microsoft Store version and a build you make yourself from the source code on GitHub. Both are built from the same source code and behave the same way with respect to data.
 
