@@ -22,6 +22,15 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- While AirServer (Microsoft Store edition, in its trial) still showed its activation screen, an iPhone that started
+  mirroring made IceScreen Touch take that screen for the device's picture ("Ready to operate" in the Status tab, and the
+  Automation API's screenshot showed part of the activation screen), so a click on it became a touch on the iPhone. For
+  AirServer and LonelyScreen, a window in which no picture is found now counts as the mirror window only when it has the
+  shape of the device's screen (as AirServer's window has once fitted to the picture); the picture is followed from the
+  first look at the window that finds it, for example right after **Continue Trial** is pressed.
+
 ## [0.3.2] - 2026-11-23
 
 ### Added

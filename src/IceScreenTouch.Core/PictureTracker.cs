@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Shin-plaster
 // SPDX-License-Identifier: MIT
 
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 namespace IceScreenTouch.Core;
@@ -105,7 +106,7 @@ public sealed class PictureTracker
     public RectD Locate(nint window, SizeD client, out bool fresh)
     {
         var last = _last;
-        if (last is not null && last.Window == window && last.Width == (int)client.Width && last.Height == (int)client.Height)
+        if (IsFor(last, window, client))
         {
             fresh = true;
             return last.Picture;
@@ -115,8 +116,32 @@ public sealed class PictureTracker
         return Guess(PictureArea(client));
     }
 
+    /// <summary>
+    /// Whether <paramref name="window"/> with a client area of size <paramref name="client"/> is known to show a
+    /// picture: a capture of it at this size found one, or the client area (without <see cref="BottomInset"/>) has
+    /// the phone's shape, so that the guess of <see cref="Locate"/> is the whole area (a receiver that fitted its
+    /// window to the picture, with no bars to measure). A window of another shape where no picture was found may
+    /// show a screen of the receiver's own (AirServer's activation screen, #34), and the centered guess would take
+    /// it for the picture.
+    /// </summary>
+    public bool ShowsPicture(nint window, SizeD client) => IsFor(_last, window, client) || IsPictureShaped(PictureArea(client), PortraitAspect);
+
     /// <summary>Forgets the captures (another window).</summary>
     public void Reset() => _last = null;
+
+    private static bool IsFor([NotNullWhen(true)] Detection? detection, nint window, SizeD client) =>
+        detection is not null && detection.Window == window && detection.Width == (int)client.Width && detection.Height == (int)client.Height;
+
+    private bool IsPictureShaped(SizeD client, double aspect)
+    {
+        if (client.Width <= 0 || client.Height <= 0)
+        {
+            return false;
+        }
+
+        var shape = Math.Min(client.Width, client.Height) / Math.Max(client.Width, client.Height);
+        return Math.Abs(shape - aspect) <= _options.AspectTolerance * aspect;
+    }
 
     private RectD Guess(SizeD client)
     {
@@ -126,11 +151,11 @@ public sealed class PictureTracker
         }
 
         var aspect = PortraitAspect;
-        var shape = Math.Min(client.Width, client.Height) / Math.Max(client.Width, client.Height);
-        if (Math.Abs(shape - aspect) <= _options.AspectTolerance * aspect)
+        if (IsPictureShaped(client, aspect))
         {
             return new RectD(0, 0, client.Width, client.Height); // a window shaped like the picture
         }
+
 
         var picture = Fit == PictureFit.Landscape ? new SizeD(1, aspect) : new SizeD(aspect, 1);
         return Geometry.VideoRect(client.Width, client.Height, picture);

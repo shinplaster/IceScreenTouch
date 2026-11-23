@@ -138,6 +138,54 @@ public class PictureTrackerTests
         Assert.Equal(2, _log.Count(l => l.Contains("[video] picture", StringComparison.Ordinal)));
     }
 
+    // AirServer's activation screen (#34): a 1200x900 window in which no picture is found. The guess is a centered
+    // portrait picture, but the window is not known to show one.
+    [Fact]
+    public void AWindowOfAnotherShapeWithNoPictureFoundShowsNone()
+    {
+        Assert.Null(Feed(new TestImage(1200, 900)));
+
+        Assert.False(_tracker.ShowsPicture(Window, new SizeD(1200, 900)));
+        Assert.Equal(Geometry.VideoRect(1200, 900, new SizeD(Aspect, 1)), _tracker.Locate(Window, new SizeD(1200, 900), out var fresh));
+        Assert.False(fresh); // the guess itself is unchanged: receivers without a standby screen still use it
+    }
+
+    // AirServer fits its window to the picture after a rotation: no bars to measure, the whole window is picture.
+    [Theory]
+    [InlineData(415, 900)]
+    [InlineData(900, 415)]
+    [InlineData(615, 1333)]
+    public void AWindowWithThePhonesShapeShowsAPictureBeforeAnyCapture(int width, int height)
+    {
+        Assert.True(_tracker.ShowsPicture(Window, new SizeD(width, height)));
+        Assert.Equal(new RectD(0, 0, width, height), _tracker.Locate(Window, new SizeD(width, height), out _));
+    }
+
+    [Fact]
+    public void APictureFoundInTheWindowShowsAtOnceForThatWindowAndSizeOnly()
+    {
+        Assert.False(_tracker.ShowsPicture(Window, new SizeD(1200, 900)));
+
+        // "Continue Trial" pressed: the next capture finds the portrait picture between bars.
+        Assert.NotNull(Feed(Letterboxed(1200, 900, new SizeD(Aspect, 1))));
+
+        Assert.True(_tracker.ShowsPicture(Window, new SizeD(1200, 900)));
+        Assert.False(_tracker.ShowsPicture(Window, new SizeD(1200, 800))); // resized: not until a capture of that size
+        Assert.False(_tracker.ShowsPicture(0x99, new SizeD(1200, 900))); // another window
+        _tracker.Reset();
+        Assert.False(_tracker.ShowsPicture(Window, new SizeD(1200, 900)));
+    }
+
+    [Fact]
+    public void TheBottomToolbarIsLeftOutOfTheWindowsShape()
+    {
+        // 415x900 is the phone's shape; a 116 px bar below it makes the client area 415x1016, which is not.
+        Assert.False(_tracker.ShowsPicture(Window, new SizeD(415, 1016)));
+        _tracker.BottomInset = 116;
+        Assert.True(_tracker.ShowsPicture(Window, new SizeD(415, 1016)));
+        Assert.False(_tracker.ShowsPicture(Window, new SizeD(0, 0)));
+    }
+
     [Fact]
     public void ResetForgetsTheCaptures()
     {

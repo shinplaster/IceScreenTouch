@@ -30,7 +30,9 @@ public static class ReceiverQuirks
     /// edition keeps a window with its activation screen open, found as a 415x900 portrait picture in 1200x900, and
     /// the installer edition opens its activation dialog at start during the trial, found as a 524x242 landscape
     /// picture in 524x333. Its window is the mirror window only while a device is connected
-    /// (<see cref="WindowVideoSourceOptions.OnlyWhileConnected"/>).
+    /// (<see cref="WindowVideoSourceOptions.OnlyWhileConnected"/>), and the Store edition in its trial keeps the
+    /// activation screen after a device connects (until "Continue Trial"), so the window must also show a picture
+    /// (#34).
     /// </summary>
     public static bool ShowsStandbyScreen(string processName) => Is(processName, "LonelyScreen") || Is(processName, "AirServer");
 
