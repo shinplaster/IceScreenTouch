@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Recognitions recorded by the OCR spike (words and boxes only; docs/API-DESIGN.md 16.10.5). -->
+    <EmbeddedResource Include="Ocr\Fixtures\*.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\IceScreenTouch.Core\IceScreenTouch.Core.csproj" />
     <ProjectReference Include="..\..\src\IceScreenTouch.Api\IceScreenTouch.Api.csproj" />
   </ItemGroup>

@@ -21,6 +21,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The checks every OCR engine must pass (docs/API-DESIGN.md 16.10.5), run here against Windows.Media.Ocr. -->
+    <Compile Include="..\IceScreenTouch.Api.Tests\Ocr\OcrEngineConformanceTests.cs" Link="Ocr\OcrEngineConformanceTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\IceScreenTouch.Core\IceScreenTouch.Core.csproj" />
     <ProjectReference Include="..\..\src\IceScreenTouch.Platform.Windows\IceScreenTouch.Platform.Windows.csproj" />
     <ProjectReference Include="..\..\src\IceScreenTouch.Video\IceScreenTouch.Video.csproj" />

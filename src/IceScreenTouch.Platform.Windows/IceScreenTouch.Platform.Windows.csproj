@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Win32 interop: DPI, timer resolution, low-level mouse hook, window queries. -->
+  <!-- Win32 interop: DPI, timer resolution, low-level mouse hook, window queries; the Windows.Media.Ocr engine. -->
   <PropertyGroup>
     <TargetFramework>$(WindowsTfm)</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -12,6 +12,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IceScreenTouch.Core\IceScreenTouch.Core.csproj" />
+    <!-- The OCR engine interface (IceScreenTouch.Api.Ocr) that WindowsMediaOcrEngine implements. -->
+    <ProjectReference Include="..\IceScreenTouch.Api\IceScreenTouch.Api.csproj" />
   </ItemGroup>
 
 </Project>
