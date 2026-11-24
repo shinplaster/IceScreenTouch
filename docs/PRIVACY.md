@@ -2,7 +2,7 @@
 
 [日本語](PRIVACY.ja.md)
 
-Effective date: 2026-11-23
+Effective date: 2026-11-25
 
 This policy covers IceScreen Touch ("the app"), both the Microsoft Store version and a build you make yourself from the source code on GitHub. Both are built from the same source code and behave the same way with respect to data.
 
@@ -53,7 +53,7 @@ If you attach a log to a bug report, please look through it first. The detailed 
 
 ### How long data is kept
 
-Settings stay until you delete them. Logs are limited to the latest 10 files of each kind (see above). Nothing else is kept: touches, key presses and screen pictures are processed in memory and are not saved.
+Settings stay until you delete them, and so do the trial's usage counts (`trial-usage.json`). Logs are limited to the latest 10 files of each kind (see above). Nothing else is kept: touches, key presses and screen pictures are processed in memory and are not saved.
 
 ## Keyboard and mouse input
 
