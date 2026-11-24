@@ -33,7 +33,7 @@ iPhone 用に売られている「ミラーリング + タッチ操作のワイ�
 - 自動操作 API: 同じ PC のスクリプトや AI エージェントが、タップ、スワイプ、文字入力、スクリーンショット、画面の文字の読み取り（文字を読む、探す、文字を指定してタップする）などを、ローカルの API（REST と WebSocket）から行えます。初期状態ではオフで、届くのはこの PC からだけです。文字の認識は、Windows に内蔵の OCR で、この PC の中で行います（言語は Windows に入っている OCR の言語）。Python のクライアントと、AI エージェント用の MCP サーバーもあります。購入した Store のバージョンと、自分でビルドしたもので使えます（試用中や、Store のライセンスを確認できないあいだは使えません）。詳しくは [docs/API.ja.md](docs/API.ja.md) にあります
 - セットアップの手順の表示と、iPhone の Safari に開いたページで、タッチの精度・スクロール・遅延を測る検証の機能
 - 画面は英語と日本語
-- [Microsoft Store](https://apps.microsoft.com/detail/9PBTCZ9BFFK5) から入手できます（有料。7 日間の無料試用があります。Microsoft の署名つきで、自動で更新されます）。このリポジトリから自分でビルドすれば無料です。できるのは `IceScreenTouch.exe` 1 つ（約 23 MB）で、.NET の導入は要りません
+- [Microsoft Store](https://apps.microsoft.com/detail/9PBTCZ9BFFK5?cid=github-readme-ja) から入手できます（有料。7 日間の無料試用があります。Microsoft の署名つきで、自動で更新されます）。このリポジトリから自分でビルドすれば無料です。できるのは `IceScreenTouch.exe` 1 つ（約 23 MB）で、.NET の導入は要りません
 
 ## 必要なもの
 
@@ -44,7 +44,7 @@ iPhone 用に売られている「ミラーリング + タッチ操作のワイ�
 
 ## 使い始める
 
-1. [Microsoft Store](https://apps.microsoft.com/detail/9PBTCZ9BFFK5) から入れるか、自分でビルドします（[ソースからビルドする](#ソースからビルドする)）。GitHub では公式のビルドを配っていません。
+1. [Microsoft Store](https://apps.microsoft.com/detail/9PBTCZ9BFFK5?cid=github-readme-ja) から入れるか、自分でビルドします（[ソースからビルドする](#ソースからビルドする)）。GitHub では公式のビルドを配っていません。
 2. AirPlay 受信ソフトを入れて起動し（[受信ソフトを入れる](docs/USER-GUIDE.ja.md#受信ソフトを入れる)を見てください）、IceScreen Touch を起動して、「状態」タブの「準備」の手順に従います。
 
 操作の一覧と、困ったときの対処は [docs/USER-GUIDE.ja.md](docs/USER-GUIDE.ja.md) にあります。
