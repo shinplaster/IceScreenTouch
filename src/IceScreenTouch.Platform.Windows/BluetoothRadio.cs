@@ -73,16 +73,20 @@ public static partial class BluetoothRadio
     }
 
     [LibraryImport("BluetoothApis.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static partial nint BluetoothFindFirstRadio(ref FindRadioParams parameters, out nint radio);
 
     [LibraryImport("BluetoothApis.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool BluetoothFindRadioClose(nint find);
 
     [LibraryImport("BluetoothApis.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static partial uint BluetoothGetRadioInfo(nint radio, ref RadioInfo info);
 
     [LibraryImport("kernel32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool CloseHandle(nint handle);
 }

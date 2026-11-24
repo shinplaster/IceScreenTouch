@@ -164,7 +164,7 @@ public sealed class SetupViewModelTests : IDisposable
         Assert.Equal(StatusLevel.Waiting, pairing.Level);
         Assert.Contains("「MYPC」", pairing.Detail, StringComparison.Ordinal);
 
-        // The PC may be listed twice (classic Bluetooth and the HID): both must be paired (the user guide's wording).
+        // The PC may be listed twice, and both must be paired (the user guide's wording).
         Assert.Contains("一覧に「MYPC」が 2 つ出ることがあります", pairing.Detail, StringComparison.Ordinal);
         Assert.Contains("両方を選んでペアリング", pairing.Detail, StringComparison.Ordinal);
     }

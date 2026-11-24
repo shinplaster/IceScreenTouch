@@ -367,7 +367,7 @@
   <data name="ApiUnknownNote" xml:space="preserve"><value>Microsoft Store のライセンスを確認できないため、自動操作 API は止まっています。ライセンスを確認できると自動で始まります。</value></data>
   <data name="ApiLicenseUnknown" xml:space="preserve"><value>自動操作 API: Microsoft Store のライセンスを確認できるまで止まっています</value></data>
   <data name="HeadlineNeedsReceiver" xml:space="preserve"><value>AirPlay の受信ソフトを入れてください</value></data>
-  <data name="HintNeedsReceiver" xml:space="preserve"><value>IceScreen Touch は、この PC で動く AirPlay の受信ソフト（別のソフト）のウィンドウに iPhone の画面を映します。受信ソフトを入れて起動してください（入れ方は、下の一覧の「受信ソフトの入れ方」で開くユーザーガイドにあります）。この PC で見つかった受信ソフトは自動で使います。</value></data>
+  <data name="HintNeedsReceiver" xml:space="preserve"><value>IceScreen Touch は、この PC で動く AirPlay の受信ソフト（別のソフト）のウィンドウに iPhone の画面を映します。受信ソフトを入れて起動してください（入れ方は、下の一覧の「受信ソフトの入れ方」で開くユーザーガイドにあります）。</value></data>
   <data name="StepReceiverInstall" xml:space="preserve"><value>AirPlay の受信ソフトがまだありません。入れて起動してください（下の一覧の「受信ソフトの入れ方」）。</value></data>
   <data name="StepZoomUnchecked" xml:space="preserve"><value>アプリからは確かめられません。ズームがオンのときだけタッチが届くので、ミラー画面のクリックが効いていればオンです。タッチの検証で確かめられます。</value></data>
   <data name="SetupAllDone" xml:space="preserve"><value>すべて済み</value></data>
