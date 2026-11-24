@@ -19,11 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
---------------------------------------------------------------------------------
-
-Exception: poc/poc1-uxplay/patches/ contains changes to UxPlay
-(https://github.com/FDH2/UxPlay), which is licensed under the GNU General
-Public License version 3. Those patch files are a derivative of UxPlay and are
-distributed under GPLv3, not under the MIT License above. See
-poc/poc1-uxplay/patches/README.md.

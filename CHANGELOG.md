@@ -38,6 +38,9 @@ All notable changes to IceScreen Touch are recorded here. The format follows
   optional check and the checklist says "All done".
 - **Trial**: the trial line on the Status tab says that the Automation API is available after purchase, and once the
   iPhone could be controlled it adds one line: "It works. Buy to keep using it after the trial."
+- **License file**: `LICENSE` (in the zip and the Store package `LICENSE.txt`) is now the plain MIT text. The note that
+  the UxPlay patches in `poc/poc1-uxplay/patches/` are under GPLv3 moved to that folder's README; their license is
+  unchanged, and the app contains neither UxPlay nor the patches.
 
 ## [0.4.0] - 2026-11-23
 
