@@ -729,6 +729,46 @@ public sealed class LicenseViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task OnceTheIPhoneCanBeControlledTheTrialLineOffersThePurchase()
+    {
+        var vm = await CreateAsync(LicenseState.Trial(Start.AddDays(7)));
+        Assert.True(vm.IsTrial);
+        Assert.False(vm.ShowsWorkedOffer);
+
+        _mirror.Status = Ready with { Receiver = ReceiverState.Waiting };
+        vm.Refresh();
+        Assert.False(vm.ShowsWorkedOffer); // not working yet
+
+        _mirror.Status = Ready;
+        vm.Refresh();
+        Assert.True(vm.ShowsWorkedOffer);
+
+        // Mirroring stops: the line stays (it does not come and go with the picture).
+        _mirror.Status = Ready with { Receiver = ReceiverState.Waiting };
+        vm.Refresh();
+        Assert.True(vm.ShowsWorkedOffer);
+
+        // Bought: no trial line, no offer.
+        _source.Next = LicenseState.Purchased;
+        await _license!.RefreshAsync();
+        await RunPostedAsync(vm);
+        Assert.False(vm.IsTrial);
+        Assert.False(vm.ShowsWorkedOffer);
+    }
+
+    [Fact]
+    public async Task APurchasedAppNeverOffersThePurchase()
+    {
+        var vm = await CreateAsync(LicenseState.Purchased);
+        _mirror.Status = Ready;
+
+        vm.Refresh();
+
+        Assert.True(vm.Worked);
+        Assert.False(vm.ShowsWorkedOffer);
+    }
+
+    [Fact]
     public async Task TheTrialEndingWhileTheSessionIsStartingStopsItWhenTheStartIsDone()
     {
         var mirror = new GatedMirror { StartGate = new TaskCompletionSource() };

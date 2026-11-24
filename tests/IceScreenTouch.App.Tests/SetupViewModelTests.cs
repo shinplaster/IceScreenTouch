@@ -5,6 +5,7 @@ using IceScreenTouch.App.Logging;
 using IceScreenTouch.App.Services;
 using IceScreenTouch.App.Settings;
 using IceScreenTouch.App.ViewModels;
+using IceScreenTouch.Core;
 
 namespace IceScreenTouch.App.Tests;
 
@@ -71,15 +72,55 @@ public sealed class SetupViewModelTests : IDisposable
     {
         var vm = new SetupViewModel(null, Post, _ => Task.CompletedTask, "MYPC");
 
-        vm.Refresh(Working, new AppSettings(), touchVerified: false);
+        vm.Refresh(Working with { Receiver = ReceiverState.Waiting }, new AppSettings(), touchVerified: false);
 
-        Assert.Equal("5 項目中 4 項目 済み", vm.ProgressText);
+        Assert.Equal("5 項目中 3 項目 済み", vm.ProgressText);
+        Assert.False(vm.AllDone);
         Assert.True(vm.Steps[2].IsOpen);
         Assert.True(vm.Steps[2].OffersProbe);
+        Assert.False(vm.Steps[2].Optional);
+    }
 
+    [Fact]
+    public void OnceTheIPhoneCanBeControlledZoomIsOptionalAndTheSetupIsDone()
+    {
+        var vm = new SetupViewModel(null, Post, _ => Task.CompletedTask, "MYPC");
+
+        // "Ready" without a touch test: Zoom cannot be checked, but it no longer keeps the setup from being done.
+        vm.Refresh(Working, new AppSettings(), touchVerified: false);
+
+        Assert.Equal("すべて済み", vm.ProgressText);
+        Assert.True(vm.AllDone);
+        var zoom = vm.Steps[2];
+        Assert.True(zoom.Optional);
+        Assert.Equal(StatusLevel.Idle, zoom.Level);
+        Assert.True(zoom.OffersProbe);
+        Assert.Contains("ミラー画面のクリックが効いていればオン", zoom.Detail, StringComparison.Ordinal);
+
+        // A passed touch test makes it done for real.
         vm.Refresh(Working, new AppSettings(), touchVerified: true);
-        Assert.Equal("5 項目中 5 項目 済み", vm.ProgressText);
-        Assert.DoesNotContain(vm.Steps, s => s.OffersProbe);
+        Assert.Equal("すべて済み", vm.ProgressText);
+        Assert.Equal(StatusLevel.Ok, vm.Steps[2].Level);
+        Assert.DoesNotContain(vm.Steps, s => s.OffersProbe || s.Optional);
+
+        // Mirroring stops without a touch test: Zoom is a to-do again.
+        vm.Refresh(Working with { Receiver = ReceiverState.Waiting }, new AppSettings(), touchVerified: false);
+        Assert.False(vm.Steps[2].Optional);
+        Assert.False(vm.AllDone);
+    }
+
+    [Theory]
+    [InlineData(BleState.DryRun, ReceiverState.Showing, false, false)]
+    [InlineData(BleState.Advertising, ReceiverState.Showing, false, false)]
+    [InlineData(BleState.Connected, ReceiverState.Waiting, false, false)]
+    [InlineData(BleState.Connected, ReceiverState.Showing, true, false)]
+    [InlineData(BleState.Connected, ReceiverState.Showing, false, true)]
+    public void ControlWorksOnlyWhenConnectedAndShowing(BleState ble, ReceiverState receiver, bool suspended, bool expected)
+    {
+        var status = Working with { Ble = ble, Receiver = receiver, Bridge = BridgeStatus.Initial with { Suspended = suspended } };
+
+        Assert.Equal(expected, SetupViewModel.ControlWorks(status));
+        Assert.False(SetupViewModel.ControlWorks(status with { Running = false }));
     }
 
     [Fact]
@@ -109,7 +150,7 @@ public sealed class SetupViewModelTests : IDisposable
     [Fact]
     public void ZoomCannotBeCheckedUntilATouchProbePasses()
     {
-        var zoom = Steps(Working)[2];
+        var zoom = Steps(Working with { Receiver = ReceiverState.Waiting })[2];
 
         Assert.Equal(StatusLevel.Idle, zoom.Level);
         Assert.Contains("アクセシビリティ > ズーム", zoom.Detail, StringComparison.Ordinal);
@@ -122,6 +163,20 @@ public sealed class SetupViewModelTests : IDisposable
 
         Assert.Equal(StatusLevel.Waiting, pairing.Level);
         Assert.Contains("「MYPC」", pairing.Detail, StringComparison.Ordinal);
+
+        // The PC may be listed twice, and both must be paired (the user guide's wording).
+        Assert.Contains("一覧に「MYPC」が 2 つ出ることがあります", pairing.Detail, StringComparison.Ordinal);
+        Assert.Contains("両方を選んでペアリング", pairing.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WithoutANameTheHostNameIsUsedWithItsCase()
+    {
+        var vm = new SetupViewModel(null, Post, _ => Task.CompletedTask);
+
+        vm.Refresh(Working with { Ble = BleState.Advertising }, new AppSettings(), false);
+
+        Assert.Contains($"「{System.Net.Dns.GetHostName()}」", vm.Steps[1].Detail, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -134,16 +189,48 @@ public sealed class SetupViewModelTests : IDisposable
     }
 
     [Theory]
-    [InlineData(ReceiverMode.StartUxPlay, "uxplay.exe が見つかりません")]
-    [InlineData(ReceiverMode.AttachToProcess, "AirServer が動いていません")]
-    public void AMissingReceiverPointsAtTheList(ReceiverMode mode, string expected)
+    [InlineData(ReceiverMode.StartUxPlay, "uxplay.exe が見つかりません", StatusLevel.Error)]
+    [InlineData(ReceiverMode.AttachToProcess, "AirServer が動いていません", StatusLevel.Waiting)]
+    public void AMissingReceiverPointsAtTheList(ReceiverMode mode, string expected, StatusLevel level)
     {
-        var settings = new AppSettings { Receiver = mode, AttachProcessName = "AirServer" };
+        // A uxplay.exe path that was entered and is not there is an error (unlike the defaults on a PC without UxPlay); a followed
+        // receiver that is not running is a step to take ("Start" in the list), not an error.
+        var settings = new AppSettings { Receiver = mode, AttachProcessName = "AirServer", UxPlayPath = @"C:\gone\uxplay.exe" };
         var steps = Steps(Working with { Receiver = ReceiverState.NotFound }, settings);
 
-        Assert.Equal(StatusLevel.Error, steps[3].Level);
+        Assert.Equal(level, steps[3].Level);
         Assert.Contains(expected, steps[3].Detail, StringComparison.Ordinal);
         Assert.Equal(StatusLevel.Idle, steps[4].Level);
+    }
+
+    [Fact]
+    public void WithoutAReceiverSetUpTheStepAsksToInstallOneInsteadOfAnError()
+    {
+        // The defaults (start UxPlay, found by itself) on a PC without a local UxPlay build: every new Store install.
+        var status = Working with { Receiver = ReceiverState.NotFound, ReceiverName = "UxPlay" };
+        var step = Steps(status)[3];
+
+        Assert.True(SetupViewModel.NeedsReceiver(status, new AppSettings()));
+        Assert.Equal(StatusLevel.Waiting, step.Level);
+        Assert.Contains("受信ソフトがまだありません", step.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("uxplay", step.Detail, StringComparison.OrdinalIgnoreCase);
+
+        Assert.False(SetupViewModel.NeedsReceiver(status, new AppSettings { UxPlayPath = @"C:\gone\uxplay.exe" }));
+        Assert.False(SetupViewModel.NeedsReceiver(status, new AppSettings { Receiver = ReceiverMode.AttachToProcess }));
+        Assert.False(SetupViewModel.NeedsReceiver(Working, new AppSettings()));
+    }
+
+    [Fact]
+    public void OnlyAFollowedReceiverThatIsNotRunningCountsAsNotStarted()
+    {
+        var notFound = Working with { Receiver = ReceiverState.NotFound, ReceiverName = "AirServer" };
+        var attach = new AppSettings { Receiver = ReceiverMode.AttachToProcess, AttachProcessName = "AirServer" };
+
+        Assert.True(SetupViewModel.ReceiverNotStarted(notFound, attach));
+        Assert.False(SetupViewModel.ReceiverNotStarted(notFound, new AppSettings())); // the defaults: NeedsReceiver instead
+        Assert.False(SetupViewModel.ReceiverNotStarted(notFound, new AppSettings { UxPlayPath = @"C:\gone\uxplay.exe" }));
+        Assert.False(SetupViewModel.ReceiverNotStarted(notFound with { Receiver = ReceiverState.Exited }, attach));
+        Assert.False(SetupViewModel.ReceiverNotStarted(notFound with { Receiver = ReceiverState.Waiting }, attach));
     }
 
     [Fact]

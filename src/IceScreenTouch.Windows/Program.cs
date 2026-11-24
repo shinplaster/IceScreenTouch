@@ -72,7 +72,7 @@ internal static class Program
             // Text recognition for the automation API: Windows.Media.Ocr, part of Windows (none where Windows cannot run it).
             var ocr = WindowsMediaOcrEngine.TryCreate();
             log.Write($"[api] OCR engine: {(ocr is null ? "none (Windows.Media.Ocr is not available)" : ocr.Info.Id)}");
-            var services = new AppServices(mirror, new SettingsStore(), log, probe, new WindowsReceiverFinder(log, () => mirror.OwnUxPlayProcessId), license, ocr is null ? null : [ocr]);
+            var services = new AppServices(mirror, new SettingsStore(), log, probe, new WindowsReceiverFinder(log, () => mirror.OwnUxPlayProcessId), license, ocr is null ? null : [ocr], BluetoothRadio.ReadName());
             return BuildAvaloniaApp(services).StartWithClassicDesktopLifetime(args);
         }
         finally

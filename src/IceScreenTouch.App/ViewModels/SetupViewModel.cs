@@ -15,7 +15,11 @@ namespace IceScreenTouch.App.ViewModels;
 /// <param name="Detail">What to do, or what was found.</param>
 /// <param name="Number">Place in the list, from 1.</param>
 /// <param name="OffersProbe">The step is checked with the touch probe (it shows a way to the probe tab).</param>
-public sealed record SetupStep(string Title, StatusLevel Level, string Detail, int Number = 0, bool OffersProbe = false)
+/// <param name="Optional">
+/// The step is not needed any more although the app could not check it (Zoom once the iPhone can be controlled): it does not
+/// count against "all done".
+/// </param>
+public sealed record SetupStep(string Title, StatusLevel Level, string Detail, int Number = 0, bool OffersProbe = false, bool Optional = false)
 {
     /// <summary>The number as shown.</summary>
     public string NumberText => Number.ToString(System.Globalization.CultureInfo.CurrentCulture) + ".";
@@ -96,7 +100,11 @@ public sealed class SetupViewModel : ObservableObject
     private bool? _receiverOk;
     private long _searchedAt;
 
-    /// <summary>Creates the steps and the list. <paramref name="use"/> switches the settings to a receiver and restarts.</summary>
+    /// <summary>
+    /// Creates the steps and the list. <paramref name="use"/> switches the settings to a receiver and restarts.
+    /// <paramref name="pcName"/> is the name the iPhone lists for this PC (the Bluetooth radio's name); without it, the host
+    /// name, which keeps its case (the NetBIOS name of <see cref="Environment.MachineName"/> is upper case).
+    /// </summary>
     public SetupViewModel(IReceiverFinder? finder, Action<Action> post, Func<ReceiverCandidate, Task> use, string? pcName = null)
     {
         ArgumentNullException.ThrowIfNull(post);
@@ -104,7 +112,7 @@ public sealed class SetupViewModel : ObservableObject
         _finder = finder;
         _post = post;
         _use = use;
-        _pcName = string.IsNullOrWhiteSpace(pcName) ? Environment.MachineName : pcName;
+        _pcName = string.IsNullOrWhiteSpace(pcName) ? HostName() : pcName.Trim();
         SearchCommand = new RelayCommand(Search, () => _finder is not null && !_searching);
         Search();
     }
@@ -121,8 +129,14 @@ public sealed class SetupViewModel : ObservableObject
     /// <summary>Nothing was found.</summary>
     public bool NoReceivers => _finder is not null && !_searching && Receivers.Count == 0;
 
-    /// <summary>Every step that can be checked is done.</summary>
+    /// <summary>Every step that is still needed is done (an optional step, see <see cref="SetupStep.Optional"/>, does not count).</summary>
     public bool AllDone { get => _allDone; private set => Set(ref _allDone, value); }
+
+    /// <summary>
+    /// The receiver that would be picked by itself now (<see cref="ChooseFirst"/> over the last search), or null when none
+    /// was found.
+    /// </summary>
+    public ReceiverCandidate? FirstChoice => ChooseFirst(_candidates);
 
     /// <summary>How many steps are done, as shown next to the heading.</summary>
     public string ProgressText { get => _progressText; private set => Set(ref _progressText, value); }
@@ -153,8 +167,10 @@ public sealed class SetupViewModel : ObservableObject
             }
         }
 
-        AllDone = steps.All(s => s.Level == StatusLevel.Ok);
-        ProgressText = Loc.Format(Strings.FormatSetupProgress, steps.Count(s => s.Level == StatusLevel.Ok), steps.Count);
+        AllDone = steps.All(s => s.Optional || s.Level == StatusLevel.Ok);
+        ProgressText = AllDone
+            ? Strings.SetupAllDone
+            : Loc.Format(Strings.FormatSetupProgress, steps.Count(s => s.Level == StatusLevel.Ok), steps.Count);
 
         // Open the list when the receiver needs the user; a session that is not running says nothing about it.
         if (status.Running && status.Ble != BleState.Starting)
@@ -179,7 +195,46 @@ public sealed class SetupViewModel : ObservableObject
         }
     }
 
-    /// <summary>The steps for a session state, in order. Zoom cannot be checked; a passed touch probe proves it.</summary>
+    /// <summary>
+    /// The iPhone can be controlled: connected over Bluetooth and its picture is shown (the status tab says "Ready"). Not in a
+    /// dry run (no Bluetooth) and not while the bridge is suspended.
+    /// </summary>
+    public static bool ControlWorks(MirrorStatus s)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        return s is { Running: true, Ble: BleState.Connected, Receiver: ReceiverState.Showing } && !s.Bridge.Suspended;
+    }
+
+    /// <summary>
+    /// No receiver has been set up yet: the settings still have the default (start UxPlay, found by itself) and no local UxPlay
+    /// build exists, which is every new PC with the Microsoft Store build. This is not a fault: the status tab asks to install a
+    /// receiver instead of showing an error, and a receiver found on this PC is picked by itself. A uxplay.exe path entered in
+    /// the settings that does not exist stays an error.
+    /// </summary>
+    public static bool NeedsReceiver(MirrorStatus s, AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        ArgumentNullException.ThrowIfNull(settings);
+        return s.Receiver == ReceiverState.NotFound && settings is { Receiver: ReceiverMode.StartUxPlay, UxPlayPath: null };
+    }
+
+    /// <summary>
+    /// The receiver that the app follows (chosen in the list, picked by itself, or a process name entered in the settings) is not
+    /// running: a step for the user (start it, "Start" in the receiver list), not a fault. The app cannot tell a receiver that was
+    /// never started from one that stopped or crashed, so both get this guidance. Errors stay errors: a uxplay.exe that is not there
+    /// or that exited, and Bluetooth problems.
+    /// </summary>
+    public static bool ReceiverNotStarted(MirrorStatus s, AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        ArgumentNullException.ThrowIfNull(settings);
+        return s.Receiver == ReceiverState.NotFound && settings.Receiver == ReceiverMode.AttachToProcess;
+    }
+
+    /// <summary>
+    /// The steps for a session state, in order. Zoom cannot be checked; a passed touch probe proves it, and once the iPhone can
+    /// be controlled it is shown as an optional check (clicks that reach the iPhone mean Zoom is on).
+    /// </summary>
     public static IReadOnlyList<SetupStep> BuildSteps(MirrorStatus s, AppSettings settings, bool touchVerified, string pcName)
     {
         ArgumentNullException.ThrowIfNull(s);
@@ -201,18 +256,20 @@ public sealed class SetupViewModel : ObservableObject
             BleState.Advertising => new SetupStep(pairingTitle, StatusLevel.Waiting, Loc.Format(Strings.FormatStepPairingWaiting, pcName)),
             _ => new SetupStep(pairingTitle, StatusLevel.Idle, Strings.StepPairingIdle),
         };
-        var zoom = touchVerified
-            ? new SetupStep(Strings.StepZoom, StatusLevel.Ok, Strings.StepZoomOk)
+        var zoom = touchVerified ? new SetupStep(Strings.StepZoom, StatusLevel.Ok, Strings.StepZoomOk)
+            : ControlWorks(s) ? new SetupStep(Strings.StepZoom, StatusLevel.Idle, Strings.StepZoomUnchecked, OffersProbe: true, Optional: true)
             : new SetupStep(Strings.StepZoom, StatusLevel.Idle, Strings.StepZoomTodo, OffersProbe: true);
         var name = s.ReceiverName;
         var receiverTitle = Strings.StepReceiver;
         var receiver = s.Receiver switch
         {
             ReceiverState.Waiting or ReceiverState.Showing => new SetupStep(receiverTitle, StatusLevel.Ok, Loc.Format(Strings.FormatStepReceiverOk, name)),
+            ReceiverState.NotFound when NeedsReceiver(s, settings) => new SetupStep(receiverTitle, StatusLevel.Waiting, Strings.StepReceiverInstall),
             ReceiverState.NotFound when settings.Receiver == ReceiverMode.StartUxPlay =>
                 new SetupStep(receiverTitle, StatusLevel.Error, Strings.StepReceiverUxPlayNotFound),
+            // The rest is a followed receiver that is not running (ReceiverNotStarted): a step to take, not an error.
             ReceiverState.NotFound =>
-                new SetupStep(receiverTitle, StatusLevel.Error, Loc.Format(Strings.FormatStepReceiverNotRunning, name)),
+                new SetupStep(receiverTitle, StatusLevel.Waiting, Loc.Format(Strings.FormatStepReceiverNotRunning, name)),
             ReceiverState.Exited or ReceiverState.Error =>
                 new SetupStep(receiverTitle, StatusLevel.Error, Loc.Format(Strings.FormatStepReceiverStopped, name, s.ReceiverDetail)),
             _ => new SetupStep(receiverTitle, StatusLevel.Idle, Strings.StepStopped),
@@ -264,6 +321,19 @@ public sealed class SetupViewModel : ObservableObject
                 && (settings.UxPlayPath is null || string.Equals(settings.UxPlayPath, candidate.ExePath, StringComparison.OrdinalIgnoreCase))
             : settings.Receiver == ReceiverMode.AttachToProcess
                 && string.Equals(settings.AttachProcessName, candidate.ProcessName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string HostName()
+    {
+        try
+        {
+            var name = System.Net.Dns.GetHostName();
+            return string.IsNullOrWhiteSpace(name) ? Environment.MachineName : name;
+        }
+        catch (System.Net.Sockets.SocketException)
+        {
+            return Environment.MachineName;
+        }
     }
 
     private void Search()
