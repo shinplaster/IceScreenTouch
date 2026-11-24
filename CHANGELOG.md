@@ -22,6 +22,8 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-25
+
 ### Added
 
 - **Automation API in the trial**: the Microsoft Store trial can now use the Automation API with a limit for the whole
