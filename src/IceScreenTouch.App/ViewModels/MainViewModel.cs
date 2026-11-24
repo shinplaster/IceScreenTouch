@@ -761,7 +761,7 @@ public sealed class MainViewModel : ObservableObject
         var s = _mirror.GetStatus();
         _status = s;
         (BleText, BleLevel) = DescribeBle(s);
-        (ReceiverText, ReceiverLevel) = DescribeReceiver(s);
+        (ReceiverText, ReceiverLevel) = DescribeReceiver(s, _settings);
         var b = s.Bridge;
         IsLandscape = b.IsLandscape;
         PictureText = (b.VideoSize, b.Picture) switch
@@ -939,12 +939,14 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>
     /// The whole session in a few words, most blocking problem first (like <see cref="DescribeNextStep"/>). With
     /// <paramref name="settings"/>, a PC without a receiver yet (<see cref="SetupViewModel.NeedsReceiver"/>) is asked to install
-    /// one instead of being told that something is wrong.
+    /// one, and a followed receiver that is not running (<see cref="SetupViewModel.ReceiverNotStarted"/>) to be started, instead of
+    /// being told that something is wrong.
     /// </summary>
     public static (string Text, StatusLevel Level) DescribeHeadline(MirrorStatus s, AppSettings? settings = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         var needsReceiver = settings is not null && SetupViewModel.NeedsReceiver(s, settings);
+        var receiverNotStarted = settings is not null && SetupViewModel.ReceiverNotStarted(s, settings);
         if (!s.Running)
         {
             return s.Ble == BleState.Starting ? (Strings.HeadlineStarting, StatusLevel.Waiting) : (Strings.Stopped, StatusLevel.Idle);
@@ -960,6 +962,7 @@ public sealed class MainViewModel : ObservableObject
             (BleState.Starting, _) => (Strings.HeadlineStarting, StatusLevel.Waiting),
             (BleState.Unsupported or BleState.Error, _) => (Strings.HeadlineProblem, StatusLevel.Error),
             (_, ReceiverState.NotFound) when needsReceiver => (Strings.HeadlineNeedsReceiver, StatusLevel.Waiting),
+            (_, ReceiverState.NotFound) when receiverNotStarted => (Strings.HeadlineStartReceiver, StatusLevel.Waiting),
             (_, ReceiverState.NotFound or ReceiverState.Exited or ReceiverState.Error) => (Strings.HeadlineProblem, StatusLevel.Error),
             (BleState.Advertising, _) => (Strings.HeadlineWaitingPhone, StatusLevel.Waiting),
             (_, ReceiverState.Waiting) when s.DeviceWithoutWindow => (Strings.HeadlineDeviceWithoutWindow, StatusLevel.Waiting),
@@ -969,17 +972,23 @@ public sealed class MainViewModel : ObservableObject
         };
     }
 
-    /// <summary>Receiver line: text and colour.</summary>
-    public static (string Text, StatusLevel Level) DescribeReceiver(MirrorStatus s)
+    /// <summary>
+    /// Receiver line: text and colour. With <paramref name="settings"/>, a receiver that is not set up yet or not running is not an
+    /// error (as in <see cref="DescribeHeadline"/>).
+    /// </summary>
+    public static (string Text, StatusLevel Level) DescribeReceiver(MirrorStatus s, AppSettings? settings = null)
     {
         ArgumentNullException.ThrowIfNull(s);
         var name = s.ReceiverName;
+        var notFoundLevel = settings is not null && (SetupViewModel.NeedsReceiver(s, settings) || SetupViewModel.ReceiverNotStarted(s, settings))
+            ? StatusLevel.Waiting
+            : StatusLevel.Error;
         return s.Receiver switch
         {
             ReceiverState.Waiting when s.DeviceWithoutWindow => (Loc.Format(Strings.FormatReceiverDeviceWithoutWindow, name), StatusLevel.Waiting),
             ReceiverState.Waiting => (Loc.Format(Strings.FormatReceiverWaiting, name), StatusLevel.Waiting),
             ReceiverState.Showing => (s.Device is { } d ? Loc.Format(Strings.FormatReceiverShowingDevice, name, d) : Loc.Format(Strings.FormatReceiverShowing, name), StatusLevel.Ok),
-            ReceiverState.NotFound => (Loc.Format(Strings.FormatReceiverNotFound, name), StatusLevel.Error),
+            ReceiverState.NotFound => (Loc.Format(Strings.FormatReceiverNotFound, name), notFoundLevel),
             ReceiverState.Exited => (Loc.Format(Strings.FormatReceiverExited, name, s.ReceiverDetail), StatusLevel.Error),
             ReceiverState.Error => (Loc.Format(Strings.FormatReceiverError, name, s.ReceiverDetail), StatusLevel.Error),
             _ => (Strings.Stopped, StatusLevel.Idle),

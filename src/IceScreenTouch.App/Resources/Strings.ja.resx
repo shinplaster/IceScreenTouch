@@ -373,4 +373,5 @@
   <data name="SetupAllDone" xml:space="preserve"><value>すべて済み</value></data>
   <data name="TrialWorked" xml:space="preserve"><value>動きました。試用期間のあとも使い続けるには、購入してください。</value></data>
   <data name="TrialApiNote" xml:space="preserve"><value>自動操作 API は購入後に使えます。</value></data>
+  <data name="HeadlineStartReceiver" xml:space="preserve"><value>AirPlay の受信ソフトを起動してください</value></data>
 </root>

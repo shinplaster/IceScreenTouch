@@ -219,6 +219,19 @@ public sealed class SetupViewModel : ObservableObject
     }
 
     /// <summary>
+    /// The receiver that the app follows (chosen in the list, picked by itself, or a process name entered in the settings) is not
+    /// running: a step for the user (start it, "Start" in the receiver list), not a fault. The app cannot tell a receiver that was
+    /// never started from one that stopped or crashed, so both get this guidance. Errors stay errors: a uxplay.exe that is not there
+    /// or that exited, and Bluetooth problems.
+    /// </summary>
+    public static bool ReceiverNotStarted(MirrorStatus s, AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        ArgumentNullException.ThrowIfNull(settings);
+        return s.Receiver == ReceiverState.NotFound && settings.Receiver == ReceiverMode.AttachToProcess;
+    }
+
+    /// <summary>
     /// The steps for a session state, in order. Zoom cannot be checked; a passed touch probe proves it, and once the iPhone can
     /// be controlled it is shown as an optional check (clicks that reach the iPhone mean Zoom is on).
     /// </summary>
@@ -254,8 +267,9 @@ public sealed class SetupViewModel : ObservableObject
             ReceiverState.NotFound when NeedsReceiver(s, settings) => new SetupStep(receiverTitle, StatusLevel.Waiting, Strings.StepReceiverInstall),
             ReceiverState.NotFound when settings.Receiver == ReceiverMode.StartUxPlay =>
                 new SetupStep(receiverTitle, StatusLevel.Error, Strings.StepReceiverUxPlayNotFound),
+            // The rest is a followed receiver that is not running (ReceiverNotStarted): a step to take, not an error.
             ReceiverState.NotFound =>
-                new SetupStep(receiverTitle, StatusLevel.Error, Loc.Format(Strings.FormatStepReceiverNotRunning, name)),
+                new SetupStep(receiverTitle, StatusLevel.Waiting, Loc.Format(Strings.FormatStepReceiverNotRunning, name)),
             ReceiverState.Exited or ReceiverState.Error =>
                 new SetupStep(receiverTitle, StatusLevel.Error, Loc.Format(Strings.FormatStepReceiverStopped, name, s.ReceiverDetail)),
             _ => new SetupStep(receiverTitle, StatusLevel.Idle, Strings.StepStopped),

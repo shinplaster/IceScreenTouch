@@ -375,4 +375,5 @@
   <data name="SetupAllDone" xml:space="preserve"><value>All done</value></data>
   <data name="TrialWorked" xml:space="preserve"><value>It works. Buy to keep using it after the trial.</value></data>
   <data name="TrialApiNote" xml:space="preserve"><value>The Automation API is available after purchase.</value></data>
+  <data name="HeadlineStartReceiver" xml:space="preserve"><value>Start the AirPlay receiver</value></data>
 </root>

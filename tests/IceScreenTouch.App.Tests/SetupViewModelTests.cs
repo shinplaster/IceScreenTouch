@@ -189,15 +189,16 @@ public sealed class SetupViewModelTests : IDisposable
     }
 
     [Theory]
-    [InlineData(ReceiverMode.StartUxPlay, "uxplay.exe が見つかりません")]
-    [InlineData(ReceiverMode.AttachToProcess, "AirServer が動いていません")]
-    public void AMissingReceiverPointsAtTheList(ReceiverMode mode, string expected)
+    [InlineData(ReceiverMode.StartUxPlay, "uxplay.exe が見つかりません", StatusLevel.Error)]
+    [InlineData(ReceiverMode.AttachToProcess, "AirServer が動いていません", StatusLevel.Waiting)]
+    public void AMissingReceiverPointsAtTheList(ReceiverMode mode, string expected, StatusLevel level)
     {
-        // A uxplay.exe path that was entered and is not there is an error (unlike the defaults on a PC without UxPlay).
+        // A uxplay.exe path that was entered and is not there is an error (unlike the defaults on a PC without UxPlay); a followed
+        // receiver that is not running is a step to take ("Start" in the list), not an error.
         var settings = new AppSettings { Receiver = mode, AttachProcessName = "AirServer", UxPlayPath = @"C:\gone\uxplay.exe" };
         var steps = Steps(Working with { Receiver = ReceiverState.NotFound }, settings);
 
-        Assert.Equal(StatusLevel.Error, steps[3].Level);
+        Assert.Equal(level, steps[3].Level);
         Assert.Contains(expected, steps[3].Detail, StringComparison.Ordinal);
         Assert.Equal(StatusLevel.Idle, steps[4].Level);
     }
@@ -217,6 +218,19 @@ public sealed class SetupViewModelTests : IDisposable
         Assert.False(SetupViewModel.NeedsReceiver(status, new AppSettings { UxPlayPath = @"C:\gone\uxplay.exe" }));
         Assert.False(SetupViewModel.NeedsReceiver(status, new AppSettings { Receiver = ReceiverMode.AttachToProcess }));
         Assert.False(SetupViewModel.NeedsReceiver(Working, new AppSettings()));
+    }
+
+    [Fact]
+    public void OnlyAFollowedReceiverThatIsNotRunningCountsAsNotStarted()
+    {
+        var notFound = Working with { Receiver = ReceiverState.NotFound, ReceiverName = "AirServer" };
+        var attach = new AppSettings { Receiver = ReceiverMode.AttachToProcess, AttachProcessName = "AirServer" };
+
+        Assert.True(SetupViewModel.ReceiverNotStarted(notFound, attach));
+        Assert.False(SetupViewModel.ReceiverNotStarted(notFound, new AppSettings())); // the defaults: NeedsReceiver instead
+        Assert.False(SetupViewModel.ReceiverNotStarted(notFound, new AppSettings { UxPlayPath = @"C:\gone\uxplay.exe" }));
+        Assert.False(SetupViewModel.ReceiverNotStarted(notFound with { Receiver = ReceiverState.Exited }, attach));
+        Assert.False(SetupViewModel.ReceiverNotStarted(notFound with { Receiver = ReceiverState.Waiting }, attach));
     }
 
     [Fact]

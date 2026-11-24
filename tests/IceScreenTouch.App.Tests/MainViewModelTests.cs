@@ -605,6 +605,43 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public void AFollowedReceiverThatIsNotRunningIsAskedToBeStartedNotAnError()
+    {
+        // AirServer installed and chosen (or picked by itself) but not started: yellow guidance, the next step is "Start" in the list.
+        var status = Ready with { Ble = BleState.Advertising, Receiver = ReceiverState.NotFound, ReceiverName = "AirServer" };
+        var settings = new AppSettings { Receiver = ReceiverMode.AttachToProcess, AttachProcessName = "AirServer" };
+
+        Assert.Equal(("AirPlay の受信ソフトを起動してください", StatusLevel.Waiting), MainViewModel.DescribeHeadline(status, settings));
+        Assert.Contains("AirServer が動いていません", MainViewModel.DescribeNextStep(status, settings), StringComparison.Ordinal);
+        Assert.Contains("下の一覧から起動", MainViewModel.DescribeNextStep(status, settings), StringComparison.Ordinal);
+        Assert.Equal(StatusLevel.Waiting, MainViewModel.DescribeReceiver(status, settings).Level);
+
+        // Real errors stay red: Bluetooth first, a receiver that the app started and that exited, an entered uxplay.exe that is not there.
+        Assert.Equal(StatusLevel.Error, MainViewModel.DescribeHeadline(status with { Ble = BleState.Error }, settings).Level);
+        Assert.Equal(("対応が必要です", StatusLevel.Error), MainViewModel.DescribeHeadline(status with { Receiver = ReceiverState.Exited }, new AppSettings()));
+        var entered = new AppSettings { UxPlayPath = @"C:\gone\uxplay.exe" };
+        Assert.Equal(StatusLevel.Error, MainViewModel.DescribeHeadline(status, entered).Level);
+        Assert.Equal(StatusLevel.Error, MainViewModel.DescribeReceiver(status, entered).Level);
+
+        // Without the settings (older callers) it stays as it was.
+        Assert.Equal(StatusLevel.Error, MainViewModel.DescribeHeadline(status).Level);
+    }
+
+    [Fact]
+    public void TheStatusTabShowsTheStartStepForAChosenReceiverThatIsNotRunning()
+    {
+        var vm = new MainViewModel(_mirror, _store, _log, new AppSettings { Receiver = ReceiverMode.AttachToProcess, AttachProcessName = "AirServer" }, _posted.Add);
+        _mirror.Status = Ready with { Receiver = ReceiverState.NotFound, ReceiverName = "AirServer" };
+
+        vm.Refresh();
+
+        Assert.Equal("AirPlay の受信ソフトを起動してください", vm.Headline);
+        Assert.True(vm.HeadlineWaiting);
+        Assert.Equal(StatusLevel.Waiting, vm.Setup.Steps[3].Level);
+        Assert.True(vm.ReceiverWaiting);
+    }
+
+    [Fact]
     public void AMissingAttachedReceiverIsNamed()
     {
         var hint = MainViewModel.DescribeNextStep(

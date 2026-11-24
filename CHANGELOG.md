@@ -29,6 +29,9 @@ All notable changes to IceScreen Touch are recorded here. The format follows
   showing "Needs attention" and "uxplay.exe was not found". A receiver found on this PC later is then used by itself
   (before, only on the very first start). A uxplay.exe path entered in the settings that does not exist is still an
   error.
+- **A receiver that is not running**: when the receiver that IceScreen Touch follows (chosen in the list or picked by itself)
+  is installed but not running, the Status tab asks you to start it ("Start" in the receiver list) instead of showing
+  "Needs attention". Bluetooth problems, a uxplay.exe that is not there and UxPlay exiting are still shown as errors.
 - **Pairing step**: it says that the iPhone may list this PC twice and that both must be paired, and it names this PC by
   its Bluetooth name, which keeps its upper and lower case (before: the upper-case computer name).
 - **Setup checklist**: once the iPhone can be controlled, the Zoom step (which the app cannot check) is shown as an
