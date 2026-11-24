@@ -116,6 +116,7 @@ the check off for a setup you control, such as a test server; the token then goe
 `find_text`, `tap_text`, `tap`, `long_press`, `swipe`, `pinch`, `type_text`, `press_key`, `home`, `set_rotation`. Positions of the
 touch tools are pixels of the most recent `screenshot` result (or `space="screen"`, 0..1); the text tools use 0..1 of the
 screen. `find_text` and `tap_text` wait at most 10 seconds (`timeout_ms`).
+The server is listed on [Glama](https://glama.ai/mcp/servers/shinplaster/IceScreenTouch).
 
 Claude Code:
 

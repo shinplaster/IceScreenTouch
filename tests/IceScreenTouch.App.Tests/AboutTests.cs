@@ -42,16 +42,17 @@ public sealed class AboutTests
     }
 
     [Fact]
-    public void TheLicenseIsTheMitPartWithoutThePocException()
+    public void TheLicenseIsThePlainMitText()
     {
+        // LICENSE stays the plain MIT text so that GitHub (licensee) detects it as MIT; the GPLv3 note for the
+        // UxPlay patches lives next to them.
         var text = AppInfo.LicenseText;
 
         Assert.StartsWith("MIT License", text, StringComparison.Ordinal);
         Assert.EndsWith("SOFTWARE.", text, StringComparison.Ordinal);
         Assert.DoesNotContain("poc", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("GPL", text, StringComparison.Ordinal);
-        Assert.Equal("a\nb", AppInfo.MitPart("a\r\nb\r\n\r\n----\r\nException"));
-        Assert.Equal("a", AppInfo.MitPart("a\n"));
+        Assert.DoesNotContain("\r", text, StringComparison.Ordinal);
     }
 
     [Fact]

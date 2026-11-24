@@ -41,7 +41,7 @@ public static class AppInfo
     private static readonly Assembly Self = typeof(AppInfo).Assembly;
 
     // Read once, when first needed (the notices are about 430 KB).
-    private static readonly Lazy<string> License = new(() => MitPart(ReadResource(LicenseResource)));
+    private static readonly Lazy<string> License = new(() => ReadResource(LicenseResource).ReplaceLineEndings("\n").Trim());
     private static readonly Lazy<string> Notices = new(() => ReadResource(NoticesResource));
     private static readonly Lazy<IReadOnlyList<string>> ComponentList = new(() =>
         [.. Notices.Value.Split('\n').Select(l => l.TrimEnd('\r')).TakeWhile(l => !l.StartsWith('=')).Where(l => l.StartsWith("- ", StringComparison.Ordinal)).Select(l => l[2..])]);
@@ -60,8 +60,8 @@ public static class AppInfo
     public static string Copyright { get; } = Self.GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright ?? string.Empty;
 
     /// <summary>
-    /// The MIT license of IceScreen Touch: LICENSE up to its separator line. What follows is the GPLv3 exception for
-    /// the UxPlay patches of the PoC, which are not part of the app.
+    /// The MIT license of IceScreen Touch: the text of LICENSE. It is the plain MIT text (the GPLv3 note for the UxPlay
+    /// patches of the PoC, which are not part of the app, is in poc/poc1-uxplay/patches/README.md).
     /// </summary>
     public static string LicenseText => License.Value;
 
@@ -115,14 +115,6 @@ public static class AppInfo
         var metadata = informational[(plus + 1)..];
         var commit = metadata.Length >= 7 && metadata[..7].All(char.IsAsciiHexDigit) ? metadata[..7].ToLowerInvariant() : null;
         return (informational[..plus], commit);
-    }
-
-    /// <summary>The text before the first line of dashes (the whole text when there is none), trimmed.</summary>
-    internal static string MitPart(string license)
-    {
-        var lines = license.ReplaceLineEndings("\n").Split('\n');
-        var end = Array.FindIndex(lines, l => l.StartsWith("---", StringComparison.Ordinal));
-        return string.Join('\n', end < 0 ? lines : lines[..end]).Trim();
     }
 
     private static string ReadResource(string name)
