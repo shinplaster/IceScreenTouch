@@ -29,6 +29,7 @@ The app writes your data only to its own data folder, `%LOCALAPPDATA%\IceScreenT
 | `logs\uxplay-<date>-<time>.log` | Only if you turn on the detailed log and the app starts UxPlay itself: the output of UxPlay. The latest 10 are kept. |
 | `api-token` | Only if you turn on the Automation API: the token that scripts use to authenticate, made by the app. It stays until you regenerate it. Only your Windows user can read it. |
 | `api.json` | Only while the Automation API is on: the port and the token, so that scripts on this PC can find the API. The app deletes it when the API is turned off. Only your Windows user can read it. |
+| `trial-usage.json` | Only in the trial of the Microsoft Store version, once the Automation API has been used: how many operations and how many screenshots or text readings the trial has used (two numbers), so that restarting the app does not reset them. |
 
 Besides the data folder, the following use the Windows temp folder, and none of it is your data. In both builds, the first time the app starts, .NET extracts the app's native libraries (graphics and text rendering) to `%TEMP%\.net`. The diagnostic switch `--self-check` (run from a terminal; the app does not use it on its own) makes a temporary folder for a test file and deletes it when it finishes.
 
