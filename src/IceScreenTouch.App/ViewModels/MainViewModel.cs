@@ -61,6 +61,10 @@ public sealed class MainViewModel : ObservableObject
     private bool _isTrial;
     private bool _isExpired;
     private string _purchaseMessage = string.Empty;
+    private bool _worked;
+
+    // The user chose a receiver on the Settings tab in this run: no receiver is picked by itself over that choice.
+    private bool _receiverSetByUser;
 
     private string _bleText = string.Empty;
     private StatusLevel _bleLevel;
@@ -135,9 +139,10 @@ public sealed class MainViewModel : ObservableObject
     /// Creates the view model with the loaded <paramref name="settings"/>. Without <paramref name="probe"/> there
     /// is no probe tab; without <paramref name="receivers"/> the setup tab lists no receivers; without
     /// <paramref name="license"/> there is no license check (like a build of your own). Without <paramref name="api"/> the
-    /// automation API is not part of the window (no status line, the settings section does nothing).
+    /// automation API is not part of the window (no status line, the settings section does nothing). <paramref name="pcName"/> is the
+    /// name the iPhone lists for this PC (see <see cref="SetupViewModel"/>).
     /// </summary>
-    public MainViewModel(IMirrorService mirror, SettingsStore store, AppLog log, AppSettings settings, Action<Action> post, IProbeService? probe = null, IReceiverFinder? receivers = null, LicenseService? license = null, ApiService? api = null)
+    public MainViewModel(IMirrorService mirror, SettingsStore store, AppLog log, AppSettings settings, Action<Action> post, IProbeService? probe = null, IReceiverFinder? receivers = null, LicenseService? license = null, ApiService? api = null, string? pcName = null)
     {
         ArgumentNullException.ThrowIfNull(mirror);
         ArgumentNullException.ThrowIfNull(store);
@@ -169,7 +174,7 @@ public sealed class MainViewModel : ObservableObject
             });
         }
         RevertSettingsCommand = new RelayCommand(LoadForm, () => SettingsDirty);
-        Setup = new SetupViewModel(receivers, post, UseReceiverAsync);
+        Setup = new SetupViewModel(receivers, post, UseReceiverAsync, pcName);
         OpenProbeCommand = new RelayCommand(() => SelectedTab = ProbeTab, () => HasProbe);
         ToggleApiTokenCommand = new RelayCommand(() => ApiTokenVisible = !ApiTokenVisible);
         RegenerateApiTokenCommand = new RelayCommand(() => ApiConfirmingRegenerate = true, () => HasApiToken && !ApiConfirmingRegenerate);
@@ -227,9 +232,29 @@ public sealed class MainViewModel : ObservableObject
                 // ApiAvailable may already be false (and stay false) when the trial becomes known, so the trial flag must
                 // announce the note too.
                 OnPropertyChanged(nameof(ApiNeedsPurchase));
+                OnPropertyChanged(nameof(ShowsWorkedOffer));
             }
         }
     }
+
+    /// <summary>
+    /// The iPhone could be controlled (or a touch test passed) at least once in this run. Stays true when mirroring stops, so the
+    /// line that goes with it does not come and go.
+    /// </summary>
+    public bool Worked
+    {
+        get => _worked;
+        private set
+        {
+            if (Set(ref _worked, value))
+            {
+                OnPropertyChanged(nameof(ShowsWorkedOffer));
+            }
+        }
+    }
+
+    /// <summary>The trial line says "It works. Buy to keep using it after the trial." next to its Buy button.</summary>
+    public bool ShowsWorkedOffer => _worked && _isTrial;
 
     /// <summary>The trial ended and the app was not bought: the session does not run.</summary>
     public bool IsExpired { get => _isExpired; private set => Set(ref _isExpired, value); }
@@ -755,7 +780,7 @@ public sealed class MainViewModel : ObservableObject
         var checking = _license.IsChecking && !s.Running;
         (Headline, HeadlineLevel) = IsExpired ? (Strings.TrialEndedTitle, StatusLevel.Error)
             : checking ? (Strings.LicenseChecking, StatusLevel.Waiting)
-            : DescribeHeadline(s);
+            : DescribeHeadline(s, _settings);
         StatsText = Loc.Format(Strings.FormatStats, b.Gestures, b.LongPresses, b.Scrolls, b.Dropped);
         CanHome = s.Ble is BleState.Connected or BleState.DryRun;
         ((RelayCommand)ToggleRotationCommand).Refresh();
@@ -763,7 +788,28 @@ public sealed class MainViewModel : ObservableObject
         RefreshTargets(s);
         RefreshApi();
         Probe?.Refresh(s);
-        Setup.Refresh(s, _settings, Probe?.TouchVerified ?? false);
+        var verified = Probe?.TouchVerified ?? false;
+        Setup.Refresh(s, _settings, verified);
+        if (verified || SetupViewModel.ControlWorks(s))
+        {
+            Worked = true;
+        }
+
+        PickFoundReceiver(s);
+    }
+
+    // No receiver set up yet (the defaults, nothing found to start): the first receiver found on this PC is used, as on the first
+    // run. Covers a receiver installed after IceScreen Touch (the first run found none, and the settings file exists since). Not
+    // over a receiver the user chose on the Settings tab in this run; a refused switch (busy) is tried again at the next refresh.
+    private void PickFoundReceiver(MirrorStatus s)
+    {
+        if (_receiverSetByUser || _busy || ProbeRunning || !SetupViewModel.NeedsReceiver(s, _settings) || Setup.FirstChoice is not { } choice)
+        {
+            return;
+        }
+
+        _log.Write($"[app ] no receiver set up yet; using {choice.Name}, found on this PC");
+        _ = UseReceiverAsync(choice);
     }
 
     /// <summary>
@@ -890,10 +936,15 @@ public sealed class MainViewModel : ObservableObject
         };
     }
 
-    /// <summary>The whole session in a few words, most blocking problem first (like <see cref="DescribeNextStep"/>).</summary>
-    public static (string Text, StatusLevel Level) DescribeHeadline(MirrorStatus s)
+    /// <summary>
+    /// The whole session in a few words, most blocking problem first (like <see cref="DescribeNextStep"/>). With
+    /// <paramref name="settings"/>, a PC without a receiver yet (<see cref="SetupViewModel.NeedsReceiver"/>) is asked to install
+    /// one instead of being told that something is wrong.
+    /// </summary>
+    public static (string Text, StatusLevel Level) DescribeHeadline(MirrorStatus s, AppSettings? settings = null)
     {
         ArgumentNullException.ThrowIfNull(s);
+        var needsReceiver = settings is not null && SetupViewModel.NeedsReceiver(s, settings);
         if (!s.Running)
         {
             return s.Ble == BleState.Starting ? (Strings.HeadlineStarting, StatusLevel.Waiting) : (Strings.Stopped, StatusLevel.Idle);
@@ -908,6 +959,7 @@ public sealed class MainViewModel : ObservableObject
         {
             (BleState.Starting, _) => (Strings.HeadlineStarting, StatusLevel.Waiting),
             (BleState.Unsupported or BleState.Error, _) => (Strings.HeadlineProblem, StatusLevel.Error),
+            (_, ReceiverState.NotFound) when needsReceiver => (Strings.HeadlineNeedsReceiver, StatusLevel.Waiting),
             (_, ReceiverState.NotFound or ReceiverState.Exited or ReceiverState.Error) => (Strings.HeadlineProblem, StatusLevel.Error),
             (BleState.Advertising, _) => (Strings.HeadlineWaitingPhone, StatusLevel.Waiting),
             (_, ReceiverState.Waiting) when s.DeviceWithoutWindow => (Strings.HeadlineDeviceWithoutWindow, StatusLevel.Waiting),
@@ -954,6 +1006,7 @@ public sealed class MainViewModel : ObservableObject
             (BleState.Starting, _) => Strings.HintBleStarting,
             (BleState.Unsupported, _) => Strings.HintBleUnsupported,
             (BleState.Error, _) => Strings.HintBleError,
+            (_, ReceiverState.NotFound) when SetupViewModel.NeedsReceiver(s, settings) => Strings.HintNeedsReceiver,
             (_, ReceiverState.NotFound) when settings.Receiver == ReceiverMode.StartUxPlay => Strings.HintUxPlayNotFound,
             (_, ReceiverState.NotFound) => Loc.Format(Strings.FormatHintProcessNotRunning, s.ReceiverName),
             (_, ReceiverState.Exited or ReceiverState.Error) => Strings.HintReceiverStopped,
@@ -1120,6 +1173,11 @@ public sealed class MainViewModel : ObservableObject
     {
         var before = _settings;
         _settings = FormToSettings();
+        if (_settings.Receiver != before.Receiver || _settings.UxPlayPath != before.UxPlayPath || _settings.AttachProcessName != before.AttachProcessName)
+        {
+            _receiverSetByUser = true;
+        }
+
         Save();
         LoadForm();
         SettingsApplied?.Invoke(this, EventArgs.Empty);

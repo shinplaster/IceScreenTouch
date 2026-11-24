@@ -91,7 +91,7 @@
   <data name="HintUxPlayNotFound" xml:space="preserve"><value>uxplay.exe was not found. Pick a receiver in the list below, or enter its location in the Settings tab.</value></data>
   <data name="FormatHintProcessNotRunning" xml:space="preserve"><value>{0} is not running. Start the receiver (you can start it from the list below).</value></data>
   <data name="HintReceiverStopped" xml:space="preserve"><value>The receiver stopped. Press "Restart" (details in the Log tab).</value></data>
-  <data name="HintPair" xml:space="preserve"><value>On the iPhone, open Settings &gt; Bluetooth and choose this PC (pair the first time; after that it connects by itself).</value></data>
+  <data name="HintPair" xml:space="preserve"><value>On the iPhone, open Settings &gt; Bluetooth and choose this PC (pair the first time; after that it connects by itself). The list may show this PC's name twice. Pairing only one of them does not bring touches through, so choose and pair both.</value></data>
   <data name="FormatHintMirrorUxPlay" xml:space="preserve"><value>On the iPhone, open Control Center &gt; Screen Mirroring and choose "{0}".</value></data>
   <data name="FormatHintMirrorAttach" xml:space="preserve"><value>On the iPhone, open Control Center &gt; Screen Mirroring and choose the {0} entry (waiting for the video window to appear).</value></data>
   <data name="HintReadyLandscape" xml:space="preserve"><value>Click the mirror window to control the iPhone. If touches land on the opposite side in landscape, press "Switch rotation".</value></data>
@@ -121,7 +121,7 @@
   <data name="StepAdapterStopped" xml:space="preserve"><value>Stopped. Press "Start".</value></data>
   <data name="StepPairing" xml:space="preserve"><value>Connect the iPhone (Bluetooth)</value></data>
   <data name="StepPairingOk" xml:space="preserve"><value>Connected.</value></data>
-  <data name="FormatStepPairingWaiting" xml:space="preserve"><value>On the iPhone, open Settings &gt; Bluetooth and choose "{0}". The first time, confirm the pairing. After that it connects by itself.</value></data>
+  <data name="FormatStepPairingWaiting" xml:space="preserve"><value>On the iPhone, open Settings &gt; Bluetooth and choose "{0}". The first time, confirm the pairing. After that it connects by itself. The list may show "{0}" twice. Pairing only one of them does not bring touches through, so choose and pair both.</value></data>
   <data name="StepPairingIdle" xml:space="preserve"><value>Once Bluetooth is ready.</value></data>
   <data name="StepZoom" xml:space="preserve"><value>Zoom on the iPhone</value></data>
   <data name="StepZoomOk" xml:space="preserve"><value>The touch test confirmed that touches arrive.</value></data>
@@ -368,4 +368,11 @@
   <data name="ApiNeedsPurchase" xml:space="preserve"><value>Automation API: available after you buy IceScreen Touch</value></data>
   <data name="ApiUnknownNote" xml:space="preserve"><value>The automation API is off because the Microsoft Store license could not be checked. It starts by itself once the license is read.</value></data>
   <data name="ApiLicenseUnknown" xml:space="preserve"><value>Automation API: off until the Microsoft Store license can be checked</value></data>
+  <data name="HeadlineNeedsReceiver" xml:space="preserve"><value>Install an AirPlay receiver</value></data>
+  <data name="HintNeedsReceiver" xml:space="preserve"><value>IceScreen Touch shows the iPhone's screen in the window of a separate AirPlay receiver app on this PC. Install one and start it ("How to install a receiver" in the list below opens the User Guide). A receiver found on this PC is used by itself.</value></data>
+  <data name="StepReceiverInstall" xml:space="preserve"><value>No AirPlay receiver yet. Install one and start it ("How to install a receiver" in the list below).</value></data>
+  <data name="StepZoomUnchecked" xml:space="preserve"><value>The app cannot check this. Touches reach the iPhone only while Zoom is on, so if clicks on the mirror window work, it is on. A touch test confirms it.</value></data>
+  <data name="SetupAllDone" xml:space="preserve"><value>All done</value></data>
+  <data name="TrialWorked" xml:space="preserve"><value>It works. Buy to keep using it after the trial.</value></data>
+  <data name="TrialApiNote" xml:space="preserve"><value>The Automation API is available after purchase.</value></data>
 </root>

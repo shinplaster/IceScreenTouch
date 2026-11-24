@@ -97,9 +97,14 @@
     <TabItem Header="{x:Static res:Strings.TabStatus}">
       <ScrollViewer>
         <StackPanel Spacing="12" Margin="0,8,8,8">
-          <!-- Store trial: the time left and the Buy button (only while the trial runs). -->
+          <!-- Store trial (only while it runs): once the iPhone could be controlled, one line that offers the purchase; the time left;
+               what the trial leaves out (TrialApiNote: the automation API); and the Buy button. -->
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding IsTrial}">
-            <TextBlock Text="{Binding TrialText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+              <TextBlock Text="{x:Static res:Strings.TrialWorked}" TextWrapping="Wrap" FontWeight="SemiBold" IsVisible="{Binding ShowsWorkedOffer}" />
+              <TextBlock Text="{Binding TrialText}" TextWrapping="Wrap" />
+              <TextBlock Text="{x:Static res:Strings.TrialApiNote}" Classes="note" />
+            </StackPanel>
             <Button Grid.Column="1" Content="{x:Static res:Strings.ButtonBuy}" Command="{Binding BuyCommand}" VerticalAlignment="Center" />
           </Grid>
 

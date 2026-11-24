@@ -478,7 +478,7 @@ public sealed class MainViewModelTests : IDisposable
         { MirrorStatus.Idle, "停止中です" },
         { Ready with { Ble = BleState.Unsupported, Receiver = ReceiverState.NotFound }, "BLE ペリフェラル" },
         { Ready with { Ble = BleState.Error, Receiver = ReceiverState.NotFound }, "HID サービスを公開できません" },
-        { Ready with { Ble = BleState.Advertising, Receiver = ReceiverState.NotFound }, "uxplay.exe が見つかりません" },
+        { Ready with { Ble = BleState.Advertising, Receiver = ReceiverState.NotFound }, "受信ソフトを入れて起動してください" },
         { Ready with { Ble = BleState.Advertising, Receiver = ReceiverState.Exited }, "受信ソフトが止まりました" },
         { Ready with { Ble = BleState.Advertising, Receiver = ReceiverState.Waiting }, "設定 > Bluetooth" },
         { Ready with { Receiver = ReceiverState.Waiting }, "「画面ミラーリング」で「IceScreen Touch」" },
@@ -510,6 +510,98 @@ public sealed class MainViewModelTests : IDisposable
     public void TheHeadlineSaysTheMostBlockingStateFirst(MirrorStatus status, string text, StatusLevel level)
     {
         Assert.Equal((text, level), MainViewModel.DescribeHeadline(status));
+    }
+
+    [Fact]
+    public void WithoutAReceiverSetUpTheStatusAsksToInstallOneInsteadOfAnError()
+    {
+        // The defaults on a PC without UxPlay (every new Store install): a request to install a receiver, not "Needs attention".
+        var status = Ready with { Ble = BleState.Advertising, Receiver = ReceiverState.NotFound };
+
+        Assert.Equal(("AirPlay の受信ソフトを入れてください", StatusLevel.Waiting), MainViewModel.DescribeHeadline(status, new AppSettings()));
+        var hint = MainViewModel.DescribeNextStep(status, new AppSettings());
+        Assert.Contains("ユーザーガイド", hint, StringComparison.Ordinal);
+        Assert.DoesNotContain("uxplay", hint, StringComparison.OrdinalIgnoreCase);
+
+        // A path that was entered and is missing stays an error, and Bluetooth problems still come first.
+        var entered = new AppSettings { UxPlayPath = @"C:\gone\uxplay.exe" };
+        Assert.Equal(("対応が必要です", StatusLevel.Error), MainViewModel.DescribeHeadline(status, entered));
+        Assert.Contains("uxplay.exe が見つかりません", MainViewModel.DescribeNextStep(status, entered), StringComparison.Ordinal);
+        Assert.Equal(("対応が必要です", StatusLevel.Error), MainViewModel.DescribeHeadline(status with { Ble = BleState.Unsupported }, new AppSettings()));
+    }
+
+    [Fact]
+    public async Task AReceiverFoundLaterIsPickedWhileNoneIsSetUp()
+    {
+        // The first run found nothing (the settings file exists since); the user installs a receiver afterwards.
+        var finder = new FakeFinder();
+        finder.Candidates.Add(new ReceiverCandidate("AirServer", ReceiverCandidateKind.Attach, "AirServer", @"C:\AirServer\AirServer.exe", false));
+        var posted = new List<Action>();
+        var gate = new Lock();
+        void Post(Action a)
+        {
+            lock (gate)
+            {
+                posted.Add(a);
+            }
+        }
+
+        _mirror.Status = Ready with { Receiver = ReceiverState.NotFound, Running = false };
+        var vm = new MainViewModel(_mirror, _store, _log, new AppSettings(), Post, receivers: finder);
+        await vm.StartAsync();
+        for (var i = 0; i < 500 && _mirror.Calls.Count(c => c == "start") < 2; i++)
+        {
+            Action[] batch;
+            lock (gate)
+            {
+                batch = [.. posted];
+                posted.Clear();
+            }
+
+            foreach (var a in batch)
+            {
+                a();
+            }
+
+            vm.Refresh();
+            await Task.Delay(10);
+        }
+
+        Assert.Equal(ReceiverMode.AttachToProcess, vm.Settings.Receiver);
+        Assert.Equal("AirServer", vm.Settings.AttachProcessName);
+        Assert.Equal("AirServer", _store.Load(out _).AttachProcessName);
+        Assert.Contains(_log.Recent(), l => l.Contains("no receiver set up yet; using AirServer", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task NoReceiverIsPickedOverTheOneTheUserApplied()
+    {
+        var finder = new FakeFinder();
+        finder.Candidates.Add(new ReceiverCandidate("AirServer", ReceiverCandidateKind.Attach, "AirServer", @"C:\AirServer\AirServer.exe", true));
+        var posted = new List<Action>();
+        var vm = new MainViewModel(_mirror, _store, _log, new AppSettings { Receiver = ReceiverMode.AttachToProcess, AttachProcessName = "AirServer" }, posted.Add, receivers: finder);
+
+        // The user switches to "Start UxPlay" without a path on a PC without UxPlay.
+        vm.StartUxPlay = true;
+        vm.ApplySettingsCommand.Execute(null);
+        await vm.ApplySettingsCommand.Last;
+        _mirror.Status = Ready with { Receiver = ReceiverState.NotFound };
+        for (var i = 0; i < 100 && vm.Setup.Receivers.Count == 0; i++)
+        {
+            foreach (var a in posted.ToList())
+            {
+                a();
+            }
+
+            posted.Clear();
+            await Task.Delay(10);
+        }
+
+        vm.Refresh();
+
+        Assert.Single(vm.Setup.Receivers);
+        Assert.Equal(ReceiverMode.StartUxPlay, vm.Settings.Receiver);
+        Assert.Equal("AirPlay の受信ソフトを入れてください", vm.Headline);
     }
 
     [Fact]

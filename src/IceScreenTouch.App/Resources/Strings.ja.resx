@@ -89,7 +89,7 @@
   <data name="HintUxPlayNotFound" xml:space="preserve"><value>uxplay.exe が見つかりません。下の一覧から受信ソフトを選ぶか、「設定」タブで場所を指定してください。</value></data>
   <data name="FormatHintProcessNotRunning" xml:space="preserve"><value>{0} が動いていません。受信ソフトを起動してください（下の一覧から起動できます）。</value></data>
   <data name="HintReceiverStopped" xml:space="preserve"><value>受信ソフトが止まりました。「再起動」を押してください（詳しくは「ログ」タブ）。</value></data>
-  <data name="HintPair" xml:space="preserve"><value>iPhone の「設定 &gt; Bluetooth」で、この PC を選んでください（初回はペアリング。2 回目からは自動で接続します）。</value></data>
+  <data name="HintPair" xml:space="preserve"><value>iPhone の「設定 &gt; Bluetooth」で、この PC を選んでください（初回はペアリング。2 回目からは自動で接続します）。一覧にこの PC の名前が 2 つ出ることがあります。片方だけではタッチが届かないので、両方を選んでペアリングしてください。</value></data>
   <data name="FormatHintMirrorUxPlay" xml:space="preserve"><value>iPhone のコントロールセンター &gt;「画面ミラーリング」で「{0}」を選んでください。</value></data>
   <data name="FormatHintMirrorAttach" xml:space="preserve"><value>iPhone のコントロールセンター &gt;「画面ミラーリング」で {0} の項目を選んでください（映像のウィンドウが出るのを待っています）。</value></data>
   <data name="HintReadyLandscape" xml:space="preserve"><value>ミラー画面をクリックして操作できます。横向きでタッチの位置が反対になるときは「回転を切り替え」を押してください。</value></data>
@@ -119,7 +119,7 @@
   <data name="StepAdapterStopped" xml:space="preserve"><value>停止中です。「開始」を押してください。</value></data>
   <data name="StepPairing" xml:space="preserve"><value>iPhone と接続（Bluetooth）</value></data>
   <data name="StepPairingOk" xml:space="preserve"><value>接続しています。</value></data>
-  <data name="FormatStepPairingWaiting" xml:space="preserve"><value>iPhone の「設定 &gt; Bluetooth」で「{0}」を選んでください。初回はペアリングの確認が出ます。2 回目からは自動で接続します。</value></data>
+  <data name="FormatStepPairingWaiting" xml:space="preserve"><value>iPhone の「設定 &gt; Bluetooth」で「{0}」を選んでください。初回はペアリングの確認が出ます。2 回目からは自動で接続します。一覧に「{0}」が 2 つ出ることがあります。片方だけではタッチが届かないので、両方を選んでペアリングしてください。</value></data>
   <data name="StepPairingIdle" xml:space="preserve"><value>Bluetooth の準備ができてからです。</value></data>
   <data name="StepZoom" xml:space="preserve"><value>iPhone のズーム</value></data>
   <data name="StepZoomOk" xml:space="preserve"><value>タッチの検証で、タッチが届くことを確かめました。</value></data>
@@ -366,4 +366,11 @@
   <data name="ApiNeedsPurchase" xml:space="preserve"><value>自動操作 API: 購入すると使えます</value></data>
   <data name="ApiUnknownNote" xml:space="preserve"><value>Microsoft Store のライセンスを確認できないため、自動操作 API は止まっています。ライセンスを確認できると自動で始まります。</value></data>
   <data name="ApiLicenseUnknown" xml:space="preserve"><value>自動操作 API: Microsoft Store のライセンスを確認できるまで止まっています</value></data>
+  <data name="HeadlineNeedsReceiver" xml:space="preserve"><value>AirPlay の受信ソフトを入れてください</value></data>
+  <data name="HintNeedsReceiver" xml:space="preserve"><value>IceScreen Touch は、この PC で動く AirPlay の受信ソフト（別のソフト）のウィンドウに iPhone の画面を映します。受信ソフトを入れて起動してください（入れ方は、下の一覧の「受信ソフトの入れ方」で開くユーザーガイドにあります）。この PC で見つかった受信ソフトは自動で使います。</value></data>
+  <data name="StepReceiverInstall" xml:space="preserve"><value>AirPlay の受信ソフトがまだありません。入れて起動してください（下の一覧の「受信ソフトの入れ方」）。</value></data>
+  <data name="StepZoomUnchecked" xml:space="preserve"><value>アプリからは確かめられません。ズームがオンのときだけタッチが届くので、ミラー画面のクリックが効いていればオンです。タッチの検証で確かめられます。</value></data>
+  <data name="SetupAllDone" xml:space="preserve"><value>すべて済み</value></data>
+  <data name="TrialWorked" xml:space="preserve"><value>動きました。試用期間のあとも使い続けるには、購入してください。</value></data>
+  <data name="TrialApiNote" xml:space="preserve"><value>自動操作 API は購入後に使えます。</value></data>
 </root>

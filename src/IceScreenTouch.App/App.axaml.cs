@@ -25,7 +25,8 @@ namespace IceScreenTouch.App;
 /// <param name="Receivers">Finds the AirPlay receivers on this PC, if the platform can.</param>
 /// <param name="License">The Store license check, if this build has one (null = a build of your own, nothing is checked).</param>
 /// <param name="OcrEngines">The OCR engines of the automation API's text endpoints, the default first (null or empty: OCR is unavailable).</param>
-public sealed record AppServices(IMirrorService Mirror, SettingsStore Store, AppLog Log, IProbeService? Probe = null, IReceiverFinder? Receivers = null, LicenseService? License = null, IReadOnlyList<IOcrEngine>? OcrEngines = null);
+/// <param name="PcName">The name the iPhone lists for this PC in its Bluetooth settings (the radio's name), if the platform can read it.</param>
+public sealed record AppServices(IMirrorService Mirror, SettingsStore Store, AppLog Log, IProbeService? Probe = null, IReceiverFinder? Receivers = null, LicenseService? License = null, IReadOnlyList<IOcrEngine>? OcrEngines = null, string? PcName = null);
 
 /// <summary>
 /// Avalonia application shared by every platform head. Lives in the notification area: closing the window
@@ -85,7 +86,8 @@ public partial class App : Application
 
         RequestedThemeVariant = AppTheme.ToVariant(settings.Theme);
 
-        // First run (no settings file yet): pick a receiver that is there. The status tab shows the setup steps.
+        // First run (no settings file yet): pick a receiver that is there. The status tab shows the setup steps. Later runs that
+        // still have no receiver set up get one picked once it is found (MainViewModel.PickFoundReceiver).
         var firstRun = !File.Exists(services.Store.Path);
         if (firstRun)
         {
@@ -99,7 +101,7 @@ public partial class App : Application
         // and the API's controller must share one clock).
         var license = services.License ?? new LicenseService(null, log: services.Log);
         _api = new ApiService(services.Mirror, license, AppPaths.Root, () => _vm?.Settings ?? settings, services.Log.Write, ocrEngines: services.OcrEngines);
-        _vm = new MainViewModel(services.Mirror, services.Store, services.Log, settings, a => Dispatcher.UIThread.Post(a), services.Probe, services.Receivers, license, _api);
+        _vm = new MainViewModel(services.Mirror, services.Store, services.Log, settings, a => Dispatcher.UIThread.Post(a), services.Probe, services.Receivers, license, _api, services.PcName);
         services.Log.LineAdded += (_, line) => Dispatcher.UIThread.Post(() => _vm.AppendLog(line));
         _vm.SettingsApplied += (_, _) => RequestedThemeVariant = AppTheme.ToVariant(_vm.Settings.Theme);
 
