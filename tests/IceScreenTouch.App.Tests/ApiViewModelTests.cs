@@ -228,16 +228,22 @@ public sealed class ApiViewModelTests : IAsyncLifetime
     public void AUsedUpTrialQuotaIsAWaitingLineInBothLanguages()
     {
         var listening = new ApiServiceStatus(ApiRunState.Listening, 47821);
-        var usedUp = new ApiTrialInfo(0, 300, 12, 300, 300);
+        var usedUp = new ApiTrialInfo(0, 300, 0, 300, 300);
+        var oneUsedUp = new ApiTrialInfo(0, 300, 12, 300, 300);
         using (new UiCulture("ja-JP"))
         {
             var line = MainViewModel.DescribeApi(listening, usedUp);
-            Assert.Equal("自動操作 API: 試用の回数を使い切りました（残り 操作 0 回・スクリーンショットと文字の読み取り 12 回）。続けて使うには購入してください", line.Text);
+            Assert.Equal("自動操作 API: 試用の回数を使い切りました（残り 操作 0 回・スクリーンショットと文字の読み取り 0 回）。続けて使うには購入してください", line.Text);
             Assert.Equal(StatusLevel.Waiting, line.Level);
+
+            // One counter used up: the other still works, so the line says what is left (in yellow), not that everything is used up.
+            var one = MainViewModel.DescribeApi(listening, oneUsedUp);
+            Assert.Equal("自動操作 API: 127.0.0.1:47821 で待ち受け中（試用中: 残り 操作 0 回・スクリーンショットと文字の読み取り 12 回）", one.Text);
+            Assert.Equal(StatusLevel.Waiting, one.Level);
         }
 
         using var en = new UiCulture("en-US");
-        Assert.Equal("Automation API: the trial limit is used up (0 operations and 12 screenshots or text readings left). Buy IceScreen Touch to keep using it", MainViewModel.DescribeApi(listening, usedUp).Text);
+        Assert.Equal("Automation API: the trial limit is used up (0 operations and 0 screenshots or text readings left). Buy IceScreen Touch to keep using it", MainViewModel.DescribeApi(listening, usedUp).Text);
         Assert.Equal("Automation API: listening on 127.0.0.1:47821 (trial: 5 operations and 6 screenshots or text readings left)", MainViewModel.DescribeApi(listening, new ApiTrialInfo(5, 300, 6, 300, 300)).Text);
         Assert.Equal("Automation API: a script is operating the device", MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.Operating, 47821), usedUp).Text);
     }

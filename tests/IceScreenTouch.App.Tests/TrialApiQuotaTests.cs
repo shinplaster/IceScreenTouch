@@ -45,6 +45,37 @@ public sealed class TrialApiQuotaTests : IDisposable
     }
 
     [Fact]
+    public async Task ConcurrentRequestsNeverCountPastTheLimitAndTheFileHasTheLastCount()
+    {
+        var quota = Create(operations: 50, captures: 0);
+        var taken = 0;
+
+        await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Task.Run(() =>
+        {
+            for (var i = 0; i < 20; i++)
+            {
+                if (quota.TryTake(ApiQuotaCounter.Operations, out _))
+                {
+                    Interlocked.Increment(ref taken);
+                }
+            }
+        })));
+
+        Assert.Equal(50, taken);
+        Assert.Equal(0, quota.Current!.OperationsLeft);
+        Assert.Equal(new ApiTrialInfo(0, 50, 0, 0, 300), Create(operations: 50, captures: 0).Current); // the last write holds the last count
+    }
+
+    [Fact]
+    public void AHugeFileIsNotReadAndCountsFromZero()
+    {
+        File.WriteAllText(UsageFile, "{\"operations\":3" + new string(' ', 10_000) + "}");
+
+        Assert.Equal(new ApiTrialInfo(3, 3, 2, 2, 300), Create().Current);
+        Assert.Single(_log, l => l.Contains("not valid", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void TheCountsSurviveARestartAndDoNotResetWithTime()
     {
         var quota = Create();

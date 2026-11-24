@@ -841,9 +841,11 @@ public sealed class MainViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(status);
         return status.State switch
         {
-            ApiRunState.Listening when trial is { OperationsLeft: > 0, CapturesLeft: > 0 } t =>
-                (Loc.Format(Strings.FormatApiListeningTrial, status.Port, t.OperationsLeft, t.CapturesLeft), StatusLevel.Ok),
-            ApiRunState.Listening when trial is { } t => (Loc.Format(Strings.FormatApiTrialUsedUp, t.OperationsLeft, t.CapturesLeft), StatusLevel.Waiting),
+            // Both counters used up: nothing counted works any more. One of them: the line says what is left, in yellow.
+            ApiRunState.Listening when trial is { OperationsLeft: <= 0, CapturesLeft: <= 0 } t =>
+                (Loc.Format(Strings.FormatApiTrialUsedUp, t.OperationsLeft, t.CapturesLeft), StatusLevel.Waiting),
+            ApiRunState.Listening when trial is { } t =>
+                (Loc.Format(Strings.FormatApiListeningTrial, status.Port, t.OperationsLeft, t.CapturesLeft), t.OperationsLeft > 0 && t.CapturesLeft > 0 ? StatusLevel.Ok : StatusLevel.Waiting),
             ApiRunState.Listening => (Loc.Format(Strings.FormatApiListening, status.Port), StatusLevel.Ok),
             ApiRunState.Operating => (Strings.ApiOperating, StatusLevel.Ok),
             ApiRunState.PortInUse => (Loc.Format(Strings.FormatApiPortInUse, status.Port), StatusLevel.Error),

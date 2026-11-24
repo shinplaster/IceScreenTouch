@@ -30,12 +30,16 @@ public sealed class TrialApiQuota : IApiQuota
     /// <summary>The name of the file in the data folder.</summary>
     public const string FileName = "trial-usage.json";
 
+    // The file holds two small numbers; anything larger is not this file.
+    private const int MaxFileBytes = 4096;
+
     /// <summary>The longest a WebSocket connection may stay open in the trial.</summary>
     public static readonly TimeSpan DefaultStreamLimit = TimeSpan.FromMinutes(5);
 
     private readonly Func<bool> _isTrial;
     private readonly Action<string>? _log;
-    private readonly Lock _lock = new();
+    private readonly Lock _lock = new(); // the counts: held only for a moment, never during the file write
+    private readonly Lock _writeLock = new(); // one write at a time, each with the counts as they are when it starts
     private readonly int _operationLimit;
     private readonly int _captureLimit;
     private readonly int _streamSeconds;
@@ -108,25 +112,36 @@ public sealed class TrialApiQuota : IApiQuota
             }
 
             used++;
-            Write();
-            return true;
         }
+
+        // Outside the count lock: a slow disk (a virus scan) holds up only the request that counted, not the others or the status
+        // tab, which read the counts. The write takes the counts again, so a later write never puts back an older count.
+        Write();
+        return true;
     }
 
     private (int Operations, int Captures) Read()
     {
         try
         {
-            if (!File.Exists(Path))
+            var file = new FileInfo(Path);
+            if (!file.Exists)
             {
                 return (0, 0);
+            }
+
+            if (file.Length > MaxFileBytes)
+            {
+                return Broken(); // never read a huge file into memory
             }
 
             using var document = JsonDocument.Parse(File.ReadAllBytes(Path));
             var root = document.RootElement;
             return root.ValueKind == JsonValueKind.Object ? (Count(root, "operations"), Count(root, "captures")) : Broken();
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+#pragma warning disable CA1031 // Whatever the file holds or the disk does, the app starts: the counts start from 0 (the decision accepts that).
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+#pragma warning restore CA1031
         {
             _log?.Invoke($"[api] cannot read {FileName} ({ex.GetType().Name}); the trial counts start from 0");
             return (0, 0);
@@ -143,19 +158,35 @@ public sealed class TrialApiQuota : IApiQuota
     private static int Count(JsonElement root, string name) =>
         root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var n) && n > 0 ? n : 0;
 
-    // Called with the lock held.
     private void Write()
+    {
+        lock (_writeLock)
+        {
+            int operations, captures;
+            lock (_lock)
+            {
+                (operations, captures) = (_operations, _captures);
+            }
+
+            WriteFile(operations, captures);
+        }
+    }
+
+    // Called with the write lock held.
+    private void WriteFile(int operations, int captures)
     {
         var temp = Path + ".tmp";
         try
         {
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
-            var json = $"{{\"operations\":{_operations},\"captures\":{_captures}}}\n";
+            var json = $"{{\"operations\":{operations},\"captures\":{captures}}}\n";
             File.WriteAllBytes(temp, Encoding.UTF8.GetBytes(json));
             File.Move(temp, Path, overwrite: true);
             _writeFailed = false;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+#pragma warning disable CA1031 // A count that cannot be saved must not fail the request it belongs to: it stays in memory.
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+#pragma warning restore CA1031
         {
             try
             {
