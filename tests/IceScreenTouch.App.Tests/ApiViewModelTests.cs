@@ -112,7 +112,8 @@ public sealed class ApiViewModelTests : IAsyncLifetime
         Assert.False(Vm.ApiEnabled);
         Assert.Equal(47821, Vm.ApiPort);
         Assert.True(Vm.ApiAvailable);
-        Assert.False(Vm.ApiNeedsPurchase);
+        Assert.False(Vm.ApiTrialLimited);
+        Assert.False(Vm.HasApiTrialLeft);
     }
 
     [Fact]
@@ -164,16 +165,16 @@ public sealed class ApiViewModelTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task TheSwitchIsDisabledInTheTrialAndEnabledAgainByThePurchaseWithoutARestart()
+    public async Task TheSwitchIsDisabledAfterTheTrialAndEnabledAgainByThePurchaseWithoutARestart()
     {
-        _source.Next = LicenseState.Trial(Start.AddHours(24));
+        _source.Next = LicenseState.Expired;
         await _license!.RefreshAsync();
         Vm.Refresh();
 
         Assert.False(Vm.ApiAvailable);
-        Assert.True(Vm.ApiNeedsPurchase);
+        Assert.False(Vm.ApiTrialLimited);
 
-        // A switch that is on (saved before the trial, or by hand) does not start the server; the line says why.
+        // A switch that is on (saved during the trial, or by hand) does not start the server; the line says why.
         Vm.ApiEnabled = true;
         Vm.ApiPort = FreePort();
         await ApplyAsync();
@@ -187,13 +188,68 @@ public sealed class ApiViewModelTests : IAsyncLifetime
         Vm.Refresh();
 
         Assert.True(Vm.ApiAvailable);
-        Assert.False(Vm.ApiNeedsPurchase);
         Assert.StartsWith("自動操作 API: 127.0.0.1:", Vm.ApiStatusText, StringComparison.Ordinal);
         Assert.True(Vm.HasApiToken);
     }
 
     [Fact]
-    public async Task TheTrialNoteAppearsWhenTheLicenseTurnsOutToBeATrialAfterTheApiWasAlreadyUnavailable()
+    public async Task InTheTrialTheSwitchWorksAndTheLinesSayTheQuotaUntilThePurchaseLiftsIt()
+    {
+        _source.Next = LicenseState.Trial(Start.AddHours(24));
+        await _license!.RefreshAsync();
+        Vm.Refresh();
+
+        Assert.True(Vm.ApiAvailable);
+        Assert.True(Vm.ApiTrialLimited);
+        Assert.Equal("試用中は、自動操作 API を合計で操作 300 回、スクリーンショットと文字の読み取り 300 回まで使えます（使った回数は戻りません）。WebSocket の接続は 1 回 5 分までです。購入すると、回数の制限なしで使えます。", Vm.ApiTrialNote);
+        Assert.Equal("自動操作 API は試用中、合計で操作 300 回、スクリーンショットと文字の読み取り 300 回まで使えます。", Vm.TrialApiNote);
+
+        var port = FreePort();
+        Vm.ApiEnabled = true;
+        Vm.ApiPort = port;
+        await ApplyAsync();
+
+        Assert.Equal(ApiRunState.Listening, _api!.Status.State);
+        Assert.Equal($"自動操作 API: 127.0.0.1:{port} で待ち受け中（試用中: 残り 操作 300 回・スクリーンショットと文字の読み取り 300 回）", Vm.ApiStatusText);
+        Assert.True(Vm.ApiOk);
+        Assert.True(Vm.HasApiTrialLeft);
+        Assert.Equal("試用の残り: 操作 300 回、スクリーンショットと文字の読み取り 300 回", Vm.ApiTrialLeft);
+
+        _source.Next = LicenseState.Purchased;
+        await _license.RefreshAsync();
+        Vm.Refresh();
+
+        Assert.False(Vm.ApiTrialLimited);
+        Assert.False(Vm.HasApiTrialLeft);
+        Assert.Equal($"自動操作 API: 127.0.0.1:{port} で待ち受け中", Vm.ApiStatusText);
+    }
+
+    [Fact]
+    public void AUsedUpTrialQuotaIsAWaitingLineInBothLanguages()
+    {
+        var listening = new ApiServiceStatus(ApiRunState.Listening, 47821);
+        var usedUp = new ApiTrialInfo(0, 300, 0, 300, 300);
+        var oneUsedUp = new ApiTrialInfo(0, 300, 12, 300, 300);
+        using (new UiCulture("ja-JP"))
+        {
+            var line = MainViewModel.DescribeApi(listening, usedUp);
+            Assert.Equal("自動操作 API: 試用の回数を使い切りました（残り 操作 0 回・スクリーンショットと文字の読み取り 0 回）。続けて使うには購入してください", line.Text);
+            Assert.Equal(StatusLevel.Waiting, line.Level);
+
+            // One counter used up: the other still works, so the line says what is left (in yellow), not that everything is used up.
+            var one = MainViewModel.DescribeApi(listening, oneUsedUp);
+            Assert.Equal("自動操作 API: 127.0.0.1:47821 で待ち受け中（試用中: 残り 操作 0 回・スクリーンショットと文字の読み取り 12 回）", one.Text);
+            Assert.Equal(StatusLevel.Waiting, one.Level);
+        }
+
+        using var en = new UiCulture("en-US");
+        Assert.Equal("Automation API: the trial limit is used up (0 operations and 0 screenshots or text readings left). Buy IceScreen Touch to keep using it", MainViewModel.DescribeApi(listening, usedUp).Text);
+        Assert.Equal("Automation API: listening on 127.0.0.1:47821 (trial: 5 operations and 6 screenshots or text readings left)", MainViewModel.DescribeApi(listening, new ApiTrialInfo(5, 300, 6, 300, 300)).Text);
+        Assert.Equal("Automation API: a script is operating the device", MainViewModel.DescribeApi(new ApiServiceStatus(ApiRunState.Operating, 47821), usedUp).Text);
+    }
+
+    [Fact]
+    public async Task TheTrialNoteAppearsWhenTheLicenseTurnsOutToBeATrial()
     {
         // The startup order: the license is still being read (API unavailable, no trial known), then it says Trial.
         var gate = new TaskCompletionSource<LicenseState>();
@@ -203,7 +259,7 @@ public sealed class ApiViewModelTests : IAsyncLifetime
         var vm = new MainViewModel(_mirror, _store!, _log, new AppSettings(), _posted.Add, license: license, api: api);
         vm.Refresh();
         Assert.False(vm.ApiAvailable);
-        Assert.False(vm.ApiNeedsPurchase);
+        Assert.False(vm.ApiTrialLimited);
 
         var changed = new List<string?>();
         vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
@@ -212,9 +268,10 @@ public sealed class ApiViewModelTests : IAsyncLifetime
         await refresh;
         vm.Refresh();
 
-        Assert.False(vm.ApiAvailable); // unchanged, so only the trial flag can tell the note
-        Assert.True(vm.ApiNeedsPurchase);
-        Assert.Contains(nameof(MainViewModel.ApiNeedsPurchase), changed);
+        Assert.True(vm.ApiAvailable);
+        Assert.True(vm.ApiTrialLimited);
+        Assert.Contains(nameof(MainViewModel.ApiTrialLimited), changed);
+        Assert.Contains(nameof(MainViewModel.ApiTrialLeft), changed);
         await api.StopAsync();
     }
 
@@ -328,7 +385,7 @@ public sealed class ApiViewModelTests : IAsyncLifetime
 
         vm.Refresh();
         Assert.False(vm.ApiAvailable); // a guess that counts as usable must not open the switch
-        Assert.False(vm.ApiNeedsPurchase); // and nothing is said about buying yet
+        Assert.False(vm.ApiTrialLimited); // and nothing is said about the trial yet
 
         var refresh = license.RefreshAsync();
         gate.SetResult(LicenseState.Purchased);
@@ -390,7 +447,8 @@ public sealed class ApiViewModelTests : IAsyncLifetime
             using var _ = new UiCulture(culture);
             string[] texts =
             [
-                Strings.SectionApi, Strings.OptionApiEnabled, Strings.ApiTrialNote, Strings.LabelApiPort, Strings.LabelApiToken,
+                Strings.SectionApi, Strings.OptionApiEnabled, Strings.FormatApiTrialNote, Strings.FormatApiTrialLeft, Strings.FormatApiListeningTrial,
+                Strings.FormatApiTrialUsedUp, Strings.FormatTrialApiNote, Strings.LabelApiPort, Strings.LabelApiToken,
                 Strings.ApiTokenPending, Strings.ButtonShowToken, Strings.ButtonHideToken, Strings.ButtonCopyToken,
                 Strings.ButtonRegenerateToken, Strings.ButtonCancelRegenerate, Strings.ApiRegenerateQuestion, Strings.ApiWarning,
                 Strings.ApiOperating, Strings.ApiNeedsPurchase, Strings.ApiFailed, Strings.ApiUnknownNote, Strings.ApiLicenseUnknown,
@@ -412,7 +470,7 @@ public sealed class ApiViewModelTests : IAsyncLifetime
 
         Assert.True(vm.ApiAvailable); // the user may turn it on: it starts when the license is read
         Assert.True(vm.ApiLicenseUnknown);
-        Assert.False(vm.ApiNeedsPurchase); // a paying user who is offline is not told to buy
+        Assert.False(vm.ApiTrialLimited); // a paying user who is offline is not told about the trial
 
         vm.ApiEnabled = true;
         vm.ApiPort = FreePort();
@@ -441,7 +499,7 @@ public sealed class ApiViewModelTests : IAsyncLifetime
         {
             using var _ = new UiCulture(culture);
 
-            Assert.NotEqual(Strings.ApiTrialNote, Strings.ApiUnknownNote);
+            Assert.NotEqual(Strings.FormatApiTrialNote, Strings.ApiUnknownNote);
             Assert.NotEqual(Strings.ApiNeedsPurchase, Strings.ApiLicenseUnknown);
         }
 

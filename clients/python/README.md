@@ -3,9 +3,11 @@
 Control an iPhone or iPad from Python, or from an AI agent over MCP, through the
 [IceScreen Touch](../../README.md) automation API (Windows).
 
-It needs the app running with **Settings > Automation API** switched on. The API is available in the purchased
-Microsoft Store build and in builds you make yourself from this repository; it is not available during the trial or while
-the Store license cannot be checked.
+It needs the app running with **Settings > Automation API** switched on. The API is available without a limit in the
+purchased Microsoft Store build and in builds you make yourself from this repository. During the 7-day trial it works with a
+limit for the whole trial (300 operations, 300 screenshots or text readings, a WebSocket stream at most 5 minutes; see
+[In the trial](../../docs/API.md#in-the-trial)); a used-up limit raises `PurchaseRequiredError` with `reason == "trial_limit"`.
+It is not available after the trial ends or while the Store license cannot be checked.
 The API listens on `127.0.0.1` only.
 
 Python 3.10 or newer. The client itself uses only the standard library. Not published to PyPI yet: install from this

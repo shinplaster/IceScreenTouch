@@ -84,6 +84,7 @@ public sealed partial class ApiController : IDisposable
 
     private readonly IApiHost _host;
     private readonly Func<bool> _isApiAllowed;
+    private readonly IApiQuota? _quota;
     private readonly TimeProvider _time;
     private readonly Action<string>? _log;
     private readonly RejectionLog _refusals;
@@ -101,12 +102,14 @@ public sealed partial class ApiController : IDisposable
     /// <param name="isApiAllowed">True when the license includes the API (false = <c>purchase_required</c>).</param>
     /// <param name="time">The clock for every wait and measurement.</param>
     /// <param name="log">Receives one line per operation (kind, result code, time).</param>
-    public ApiController(IApiHost host, Func<bool> isApiAllowed, TimeProvider? time = null, Action<string>? log = null)
+    /// <param name="quota">The trial quota (null = never limited): a used-up counter is <c>purchase_required</c> with the reason <c>trial_limit</c>.</param>
+    public ApiController(IApiHost host, Func<bool> isApiAllowed, TimeProvider? time = null, Action<string>? log = null, IApiQuota? quota = null)
     {
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(isApiAllowed);
         _host = host;
         _isApiAllowed = isApiAllowed;
+        _quota = quota;
         _time = time ?? TimeProvider.System;
         _log = log;
         _refusals = new RejectionLog(log, _time);
@@ -129,7 +132,10 @@ public sealed partial class ApiController : IDisposable
 
     // ---- Status and settings -------------------------------------------------------------------------------
 
-    /// <summary><c>GET /v1/status</c> (with the OCR engines and languages, 16.3). Not an operation: allowed while one runs.</summary>
+    /// <summary>
+    /// <c>GET /v1/status</c> (with the OCR engines and languages, 16.3, and what is left of the trial quota). Not an operation: allowed
+    /// while one runs, and never counted.
+    /// </summary>
     public async ValueTask<ApiResult<ApiStatus>> GetStatusAsync(CancellationToken cancellationToken = default)
     {
         if (!_isApiAllowed())
@@ -138,7 +144,7 @@ public sealed partial class ApiController : IDisposable
         }
 
         var ocr = await _ocr.GetStatusAsync(cancellationToken).ConfigureAwait(false);
-        return ApiResult.Ok<ApiStatus>(_host.GetStatus() with { Operating = IsOperating, Ocr = ToStatusInfo(ocr) });
+        return ApiResult.Ok<ApiStatus>(_host.GetStatus() with { Operating = IsOperating, Ocr = ToStatusInfo(ocr), Trial = _quota?.Current });
     }
 
     /// <summary><c>GET /v1/rotation</c>. Not an operation.</summary>
@@ -248,6 +254,11 @@ public sealed partial class ApiController : IDisposable
             return ApiResult.Fail<ScreenshotImage>(parsed.Error);
         }
 
+        if (QuotaUsedUp(ApiQuotaCounter.Captures) is { } usedUp)
+        {
+            return ApiResult.Fail<ScreenshotImage>(usedUp);
+        }
+
         // Too many in progress comes before the rate limit: a request refused for that must not use up the budget of the ones that are served
         // (only a served request, or one refused by the limit itself, is counted, as documented). The count is given back when the
         // request ends, whatever way it ends.
@@ -299,6 +310,12 @@ public sealed partial class ApiController : IDisposable
             if (frame is null)
             {
                 return noPicture;
+            }
+
+            // Counted once there is a picture to give (a refused request, or one without a picture, is not).
+            if (TakeQuota(ApiQuotaCounter.Captures) is { } takenOut)
+            {
+                return ApiResult.Fail<ScreenshotImage>(takenOut);
             }
 
             // Skia works on the thread pool, not on the request's thread. The turn is given back by the encode itself, so a cancelled
@@ -373,6 +390,11 @@ public sealed partial class ApiController : IDisposable
             return Finish(ApiResult.Fail<ApiSession>(PurchaseRequired()));
         }
 
+        if (QuotaUsedUp(ApiQuotaCounter.Operations) is { } usedUp)
+        {
+            return Finish(ApiResult.Fail<ApiSession>(usedUp));
+        }
+
         var admission = Admit(Needs.Session | Needs.Input);
         if (admission.Error is not null)
         {
@@ -384,7 +406,15 @@ public sealed partial class ApiController : IDisposable
         try
         {
             lease = await AcquireInputAsync(handle, cancellationToken).ConfigureAwait(false);
-            var session = new ApiSession(this, handle, lease, started, cancellationToken);
+
+            // One connection is one operation, counted when it opens; in the trial it may stay open for a limited time.
+            if (TakeQuota(ApiQuotaCounter.Operations) is { } takenOut)
+            {
+                return Finish(ApiResult.Fail<ApiSession>(takenOut));
+            }
+
+            var limit = _quota?.Current is { } trial ? TimeSpan.FromSeconds(trial.StreamLimitSeconds) : (TimeSpan?)null;
+            var session = new ApiSession(this, handle, lease, started, cancellationToken, limit);
             lease = null; // owned by the session now
             handle = null;
             return Finish(ApiResult.Ok<ApiSession>(session));
@@ -747,6 +777,23 @@ public sealed partial class ApiController : IDisposable
     private static ApiError PurchaseRequired() =>
         ApiError.Create(ApiErrorCodes.PurchaseRequired, "the API is available after purchase");
 
+    /// <summary>The answer when a trial quota counter is used up: <c>purchase_required</c> with the reason, the limit and the counter.</summary>
+    internal static ApiError TrialLimit(ApiQuotaCounter counter, int limit)
+    {
+        var (name, what) = counter == ApiQuotaCounter.Operations ? ("operations", "operations") : ("captures", "screenshots and text readings");
+        return ApiError.Create(ApiErrorCodes.PurchaseRequired, $"the trial allows {limit} {what} in total and they are used up; buy IceScreen Touch for unlimited use")
+            with { Extras = new ApiErrorExtras { Reason = ApiErrorReasons.TrialLimit, Limit = limit, Counter = name } };
+    }
+
+    // The trial quota, checked after the request itself (a malformed request is invalid_request, also when the quota is used up):
+    // a used-up counter refuses the request before anything is done.
+    private ApiError? QuotaUsedUp(ApiQuotaCounter counter) =>
+        _quota?.Current is { } trial && trial.Left(counter) <= 0 ? TrialLimit(counter, trial.Limit(counter)) : null;
+
+    // Counts the request at the moment it starts its work on the device or the picture; null when counted (or nothing is limited).
+    private ApiError? TakeQuota(ApiQuotaCounter counter) =>
+        _quota is { } quota && !quota.TryTake(counter, out var limit) ? TrialLimit(counter, limit) : null;
+
     private static RotationInfo ToInfo(ApiHostSnapshot state) =>
         new((int)state.LandscapeRotation, (int)state.PortraitRotation);
 
@@ -833,6 +880,13 @@ public sealed partial class ApiController : IDisposable
             return ApiResult.Fail<T>(ex.Error);
         }
 
+        // Every operation that sends input counts (rotation and target do not).
+        var counted = (spec.Needs & Needs.Input) != 0;
+        if (counted && QuotaUsedUp(ApiQuotaCounter.Operations) is { } usedUp)
+        {
+            return ApiResult.Fail<T>(usedUp);
+        }
+
         var admission = Admit(spec.Needs);
         if (admission.Error is not null)
         {
@@ -876,6 +930,12 @@ public sealed partial class ApiController : IDisposable
                 if (cancellationToken.IsCancellationRequested || lease?.UserInput.IsCancellationRequested == true)
                 {
                     throw new OperationCanceledException(token);
+                }
+
+                // Counted when it starts on the device: a request refused by a check above is not.
+                if (counted && TakeQuota(ApiQuotaCounter.Operations) is { } takenOut)
+                {
+                    return ApiResult.Fail<T>(takenOut);
                 }
 
                 return ApiResult.Ok<T>(await job(token).ConfigureAwait(false));

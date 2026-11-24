@@ -9,6 +9,7 @@ This page is the guide. The full reference (every field, default, limit and erro
 ## Contents
 
 - [What you need](#what-you-need)
+- [In the trial](#in-the-trial)
 - [Turning it on](#turning-it-on)
 - [Security](#security)
 - [Quick start](#quick-start)
@@ -22,12 +23,34 @@ This page is the guide. The full reference (every field, default, limit and erro
 
 ## What you need
 
-- The purchased IceScreen Touch from the Microsoft Store, or an app you built yourself from the source code. The API does not start while the app is in its trial, or while the Microsoft Store license cannot be checked (for example when the PC cannot reach the Store); it starts by itself once the license is read. If the license stops covering it while the API runs, every call answers `403` `purchase_required`, except `POST /v1/cancel` (a stop command always works).
+- IceScreen Touch from the Microsoft Store, or an app you built yourself from the source code. The purchased app and a build of your own have no limit. In the 7-day trial the API works with a limit (see [In the trial](#in-the-trial)). After the trial ends, or while the Microsoft Store license cannot be checked (for example when the PC cannot reach the Store), the API does not start; it starts by itself once the license is read. If the license stops covering it while the API runs, every call answers `403` `purchase_required`, except `POST /v1/cancel` (a stop command always works).
 - **Zoom** turned on in the device (Settings > Accessibility > Zoom), as for the mouse. Without it, touches do not arrive.
 - A running mirroring session (the **Status** tab shows the state) and a device that is connected over Bluetooth.
 - For `screen` and `pixel` coordinates, an AirPlay receiver whose window shows the device's picture. If the window is closed or minimized, those calls answer `409` `no_picture`. `device` coordinates do not need the picture (see [Coordinates](#coordinates)).
 
 The API operates the one device the app currently sends input to ("Input to" in the **Status** tab; `PUT /v1/target` changes it).
+
+## In the trial
+
+In the trial of the Microsoft Store app you can try the whole API, with a limit for the whole trial (the counts never come back, and restarting the app does not reset them):
+
+- **300 operations**: tap, long press, swipe, path, pinch, `keys/press`, `keys/type`, Home, `tap-text`, and each WebSocket stream (one connection is one operation).
+- **300 captures**: `GET /v1/screenshot`, `POST /v1/text/read`, `POST /v1/text/find` (a `find` that waits counts once, however often it reads the screen).
+- **A WebSocket stream stays open at most 5 minutes**; then everything is lifted and the stream is closed (see [WebSocket stream](#websocket-stream)). Open a new one to go on.
+- **Not counted**: `GET /v1/status`, `GET` and `PUT /v1/rotation`, `PUT /v1/target`, `POST /v1/cancel`, `GET /v1/openapi.json`, and every request that was refused before it did anything (`400`, `busy`, `user_active`, `not_running`, `not_connected`, `no_picture`, `rate_limited`, `ocr_unavailable`, ...). An operation counts once it starts on the device (also when you then interrupt it), a capture once the screen was captured or read, `tap-text` once its search starts.
+- **What is left** is in `GET /v1/status` (`trial`, only in the trial), on the **Status** tab and in **Settings > Automation API**:
+
+  ```json
+  "trial": { "operationsLeft": 152, "operationsLimit": 300, "capturesLeft": 171, "capturesLimit": 300, "streamLimitSeconds": 300 }
+  ```
+
+- **When a counter is used up**, the requests it counts answer `403` `purchase_required` with `reason: "trial_limit"`, `limit` and `counter` (`operations` or `captures`). The other counter and the free endpoints keep working. Buying IceScreen Touch removes the limit at once (no restart).
+
+  ```json
+  { "type": "about:blank", "title": "Forbidden", "status": 403, "code": "purchase_required",
+    "detail": "the trial allows 300 operations in total and they are used up; buy IceScreen Touch for unlimited use",
+    "reason": "trial_limit", "limit": 300, "counter": "operations" }
+  ```
 
 ## Turning it on
 
@@ -191,7 +214,7 @@ phone.tap_pixel(540, 1200, ref=shot.size)       # a position in the pixels of th
 - **The receiver window gets a colored border during screenshots.** For about 2 seconds after a screenshot is taken, a colored border (usually yellow) is shown around the receiver window. The border is not in the image. If Windows' capture is temporarily unavailable (rare), a screenshot may be taken without the border.
 - **Not an operation.** A screenshot also works while a touch, a key, or a WebSocket stream is running. It never answers `409` `busy`.
 - **At most 10 screenshots in any second, counted over all programs that use the API.** The 11th within a second answers `429` `rate_limited` with the header `Retry-After: 1`. A request counts once it has passed the check of its query (also when it is then answered `409` `not_running` or `409` `no_picture`); a request refused with `429` does not count. Too many screenshots in progress at once are also answered `429` `rate_limited`.
-- **The order of the checks** after the common ones (`Origin`, `Host`, token) is: the license (`403` `purchase_required`), the query (`400` `invalid_request`), the rate limit (`429` `rate_limited`), `409` `not_running`, `409` `no_picture`.
+- **The order of the checks** after the common ones (`Origin`, `Host`, token) is: the license (`403` `purchase_required`), the query (`400` `invalid_request`), the trial limit (`403` `purchase_required` with `reason: "trial_limit"`, only in the trial), the rate limit (`429` `rate_limited`), `409` `not_running`, `409` `no_picture`.
 
 ## Text on the screen (OCR)
 
@@ -267,7 +290,8 @@ Details of every request and response are in [api/openapi.yaml](api/openapi.yaml
 - **Session.** After a good `auth` the server sends `{ "ev": "ready", "api": 1 }`. The stream behaves like a running operation: every other operation answers `409` `busy` while it is open, and the same preconditions as for touches apply. Up to 4 streams can be connected, but only one holds the session.
 - **Messages** are JSON in text frames, at most 4 KB. From the client (`seq` is a number you choose; the answer repeats it): `down` and `move` (`contacts`: one or two fingers `{ "id": 0 or 1, "x", "y" }`; `down` also takes `space` and `ref`), `up`, `key` (`down: true` or `false`), `ping`. From the server: `ack`, `error` (the message did nothing; the stream stays open), `interrupted`, `pong`.
 - **Dead-man.** While a finger or key is down, if no message arrives for **1 second**, everything is lifted and released and the server sends `{ "ev": "interrupted", "reason": "idle" }`; the stream stays open. To hold a finger still, send `ping` regularly. `interrupted` with reason `user`, `cancelled` or `session_ended` ends the stream.
-- **Close codes.** 1000 normal end (client, user, cancel or the end of the session); 1001 the app is shutting down; 1003 binary frame; 1008 authentication failed or timed out, the token was regenerated, the license does not cover the API, or more than 1000 messages in a second (`rate_limited`); 1009 message over 4 KB; 1011 internal error; 1013 try again later (the session could not be opened: `busy`, `user_active`, `not_connected` or `not_running`).
+- **In the trial** a stream counts as one operation when it opens, and it is closed after **5 minutes**: everything is lifted and released, an `error` event `purchase_required` with `reason: "trial_limit"`, `limit: 300` and `counter: "stream_seconds"` comes, then the close code 1008. When the operations are used up, the stream is refused the same way with `counter: "operations"`.
+- **Close codes.** 1000 normal end (client, user, cancel or the end of the session); 1001 the app is shutting down; 1003 binary frame; 1008 authentication failed or timed out, the token was regenerated, the license does not cover the API, the trial limit (`purchase_required`), or more than 1000 messages in a second (`rate_limited`); 1009 message over 4 KB; 1011 internal error; 1013 try again later (the session could not be opened: `busy`, `user_active`, `not_connected` or `not_running`).
 
 ```
 -> { "op": "auth", "token": "..." }
@@ -282,14 +306,14 @@ Details of every request and response are in [api/openapi.yaml](api/openapi.yaml
 
 ## Errors
 
-An error is `application/problem+json` (RFC 9457) with the machine-readable member `code`. `detail` is a sentence for a person and never contains your data (positions, keys, text, the token). The text errors add members that a script can act on: `ocr_unavailable` has `reason` (`language` or `engine`), `available` and `engines`; `text_not_found`, `ambiguous_text` and `tap_outside_screen` have `matches` (up to 20 candidates) and `matchCount`.
+An error is `application/problem+json` (RFC 9457) with the machine-readable member `code`. `detail` is a sentence for a person and never contains your data (positions, keys, text, the token). The text errors add members that a script can act on: `ocr_unavailable` has `reason` (`language` or `engine`), `available` and `engines`; `text_not_found`, `ambiguous_text` and `tap_outside_screen` have `matches` (up to 20 candidates) and `matchCount`. In the trial, `purchase_required` for a used-up limit has `reason: "trial_limit"`, `limit` and `counter` (see [In the trial](#in-the-trial)).
 
 | HTTP status | `code` | Meaning |
 |---|---|---|
 | 400 | `invalid_request` | The body, a range, a limit or a name is wrong. |
 | 401 | `unauthorized` | The token is missing or wrong. |
 | 403 | `forbidden_origin` | The `Origin` header is present, or `Host` is not allowed. |
-| 403 | `purchase_required` | The license does not cover the API (trial, expired). |
+| 403 | `purchase_required` | The license does not cover the API (the trial ended), or a trial limit is used up (`reason: "trial_limit"`). |
 | 404 | `not_found` | No such endpoint. |
 | 405 | `method_not_allowed` | The endpoint does not accept that HTTP method (`Allow` lists the ones it does). |
 | 409 | `not_running` | The mirroring session is not running. |

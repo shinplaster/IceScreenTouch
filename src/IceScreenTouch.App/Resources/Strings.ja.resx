@@ -347,7 +347,7 @@
   <!-- Automation API (settings tab, status tab, tray) -->
   <data name="SectionApi" xml:space="preserve"><value>自動操作 API</value></data>
   <data name="OptionApiEnabled" xml:space="preserve"><value>この PC のスクリプトから端末を操作できるようにする</value></data>
-  <data name="ApiTrialNote" xml:space="preserve"><value>自動操作 API は、IceScreen Touch を購入すると使えます。</value></data>
+  <data name="FormatApiTrialNote" xml:space="preserve"><value>試用中は、自動操作 API を合計で操作 {0} 回、スクリーンショットと文字の読み取り {1} 回まで使えます（使った回数は戻りません）。WebSocket の接続は 1 回 {2} 分までです。購入すると、回数の制限なしで使えます。</value></data>
   <data name="LabelApiPort" xml:space="preserve"><value>ポート（API は 127.0.0.1 だけで待ち受けます）</value></data>
   <data name="LabelApiToken" xml:space="preserve"><value>トークン（スクリプトが認証に使う文字列）</value></data>
   <data name="ApiTokenPending" xml:space="preserve"><value>このスイッチをオンにして「保存して適用」を押すと、トークンが作られます。</value></data>
@@ -360,6 +360,9 @@
   <data name="FormatApiConnectionFile" xml:space="preserve"><value>API がオンの間、スクリプトはポートとトークンを {0} から読めます（読めるのはあなただけです）。</value></data>
   <data name="ApiWarning" xml:space="preserve"><value>スクリプトは、パスコードの入力や購入の承認も含め、あなたと同じ操作を端末に行えます。信頼できるスクリプトにだけ使ってください。API に接続できるのは、この PC のプログラムだけです。</value></data>
   <data name="FormatApiListening" xml:space="preserve"><value>自動操作 API: 127.0.0.1:{0} で待ち受け中</value></data>
+  <data name="FormatApiListeningTrial" xml:space="preserve"><value>自動操作 API: 127.0.0.1:{0} で待ち受け中（試用中: 残り 操作 {1} 回・スクリーンショットと文字の読み取り {2} 回）</value></data>
+  <data name="FormatApiTrialUsedUp" xml:space="preserve"><value>自動操作 API: 試用の回数を使い切りました（残り 操作 {0} 回・スクリーンショットと文字の読み取り {1} 回）。続けて使うには購入してください</value></data>
+  <data name="FormatApiTrialLeft" xml:space="preserve"><value>試用の残り: 操作 {0} 回、スクリーンショットと文字の読み取り {1} 回</value></data>
   <data name="ApiOperating" xml:space="preserve"><value>自動操作 API: スクリプトが操作中</value></data>
   <data name="FormatApiPortInUse" xml:space="preserve"><value>自動操作 API: 起動できません（ポート {0} はほかのプログラムが使っています）</value></data>
   <data name="ApiFailed" xml:space="preserve"><value>自動操作 API: 起動できません（詳しくは「ログ」タブを見てください）</value></data>
@@ -372,6 +375,6 @@
   <data name="StepZoomUnchecked" xml:space="preserve"><value>アプリからは確かめられません。ズームがオンのときだけタッチが届くので、ミラー画面のクリックが効いていればオンです。タッチの検証で確かめられます。</value></data>
   <data name="SetupAllDone" xml:space="preserve"><value>すべて済み</value></data>
   <data name="TrialWorked" xml:space="preserve"><value>動きました。試用期間のあとも使い続けるには、購入してください。</value></data>
-  <data name="TrialApiNote" xml:space="preserve"><value>自動操作 API は購入後に使えます。</value></data>
+  <data name="FormatTrialApiNote" xml:space="preserve"><value>自動操作 API は試用中、合計で操作 {0} 回、スクリーンショットと文字の読み取り {1} 回まで使えます。</value></data>
   <data name="HeadlineStartReceiver" xml:space="preserve"><value>AirPlay の受信ソフトを起動してください</value></data>
 </root>

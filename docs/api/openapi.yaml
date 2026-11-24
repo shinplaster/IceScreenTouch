@@ -29,10 +29,32 @@ info:
       `127.0.0.1` only (never on `::1` or another address) on port 47821 by default; the user can choose another
       port (1024 to 65535, not the probe page's port 8000). A port that is in use is an error in the app, the app
       never looks for another one.
-    * The API is part of the purchased app (and of a build made from the source). While the app is in its trial, or while
-      the Microsoft Store license cannot be checked, it
-      is not started; if the license stops covering it while the API runs, every call answers `403`
-      `purchase_required`, except `POST /v1/cancel` (a stop command always works).
+    * The API is part of the purchased app (and of a build made from the source), without a limit. In the 7-day trial of
+      the Microsoft Store app it works with the **trial quota** (below). After the trial ends, or while the Microsoft
+      Store license cannot be checked, it is not started; if the license stops covering it while the API runs, every
+      call answers `403` `purchase_required`, except `POST /v1/cancel` (a stop command always works).
+
+    ## Trial quota
+
+    In the trial the API counts over the **whole trial** (the counts never reset, and restarting the app does not reset
+    them):
+
+    * **300 operations**: `POST /v1/touch/tap`, `long-press`, `swipe`, `path`, `pinch`, `POST /v1/keys/press`,
+      `POST /v1/keys/type`, `POST /v1/home`, `POST /v1/touch/tap-text`, and each WebSocket stream (one connection
+      is one operation).
+    * **300 captures**: `GET /v1/screenshot`, `POST /v1/text/read`, `POST /v1/text/find` (one request counts once,
+      however often it reads the screen while it waits).
+    * A WebSocket stream stays open at most **5 minutes**; then everything is lifted and released and the stream is
+      closed (1008, an `error` event `purchase_required` with `reason: "trial_limit"` and `counter: "stream_seconds"`).
+    * Not counted: `GET /v1/status`, `GET` and `PUT /v1/rotation`, `PUT /v1/target`, `POST /v1/cancel`, `GET
+      /v1/openapi.json`, and every request that was refused before it did its work (`400`, `busy`, `user_active`,
+      `not_running`, `not_connected`, `no_picture`, `rate_limited`, `ocr_unavailable`, ...). An operation counts when it
+      starts on the device (also when the user then interrupts it), a capture when the screen was captured or read,
+      `tap-text` when its search starts (whether or not it then taps).
+    * `GET /v1/status` has `trial` with what is left (only in the trial).
+    * When a counter is used up, the requests it counts answer `403` `purchase_required` with `reason: "trial_limit"`,
+      `limit` and `counter` (`operations` or `captures`); a malformed request is still `400` first. The other counter
+      and the free endpoints keep working. Buying the app lifts the quota at once.
     * The API can only drive the one target device the app currently sends input to (see `PUT /v1/target`).
 
     ## Finding the API (connection discovery)
@@ -524,7 +546,7 @@ paths:
           tapped.
         * `offset` that puts the tap outside the screen is `409` `tap_outside_screen`.
         * `timeoutMs` + `settleMs` + 2000 + the time of the taps must be at most 60 seconds, else `400`.
-        * Checks in this order, after the common ones: the license, the body (`400`), `not_running`, `busy`,
+        * Checks in this order, after the common ones: the license, the body (`400`), the trial quota (`403`), `not_running`, `busy`,
           `user_active`, `not_connected`, `no_picture`, the engine and the language (`ocr_unavailable`), the limits
           (`429`), the capture, `picture_changed` (`ref`), the recognition.
         * `text_not_found`, `ambiguous_text` and `tap_outside_screen` carry `matches` (at most 20 candidates) and
@@ -755,7 +777,7 @@ paths:
           or `no_picture`); a request refused with `429` does not count. Too many screenshots in progress at once are also
           answered `429` `rate_limited`.
         * Checks in this order, after the common ones (`Origin`, `Host`, token): the license (`403` `purchase_required`), the
-          query (`400` `invalid_request`), the rate limit (`429`), `409` `not_running`, `409` `no_picture` (no picture: the
+          query (`400` `invalid_request`), the trial quota (`403` `purchase_required`, `reason` `trial_limit`), the rate limit (`429`), `409` `not_running`, `409` `no_picture` (no picture: the
           receiver window is closed, minimized, on another virtual desktop or not found, or it could not be read).
         * The query parameter names are case-sensitive and the values are exact: `format` is `png` or `jpeg` in lower case;
           `maxSize` and `quality` are plain decimal digits. An unknown or repeated parameter, a value out of range, and
@@ -864,7 +886,7 @@ paths:
         * Without `lang`, the first of the Windows user's languages that has OCR. When nothing is found, check that the
           language matches the screen (`language` in the answer).
         * `region` reads only part of the screen (lines whose centre is inside it); smaller pictures are read faster.
-        * Checks in this order, after the common ones: the license, the body (`400`), the engine and the language
+        * Checks in this order, after the common ones: the license, the body (`400`), the trial quota (`403`), the engine and the language
           (`409` `ocr_unavailable`), the limits (`429`), `not_running`, `no_picture`, the capture, `picture_changed` (a
           `pixel` `ref` of the other orientation), the recognition.
         * The text is sent to the client only (as the screenshot is); the app logs neither the text nor the boxes.
@@ -1006,7 +1028,7 @@ paths:
         |---|---|---|
         | `ready` | `api` | The stream is open. |
         | `ack` | `seq` | The message with this `seq` was carried out (sent to the device). |
-        | `error` | `seq` (when known), `code`, `detail` | The message was refused and did nothing. `code` is a code of the `Problem` schema (`invalid_request`, `not_connected`, `no_picture`, `picture_changed`, `no_keyboard`, ...). The stream stays open, except where a close code is listed below. |
+        | `error` | `seq` (when known), `code`, `detail`; with the trial quota also `reason`, `limit`, `counter` | The message was refused and did nothing. `code` is a code of the `Problem` schema (`invalid_request`, `not_connected`, `no_picture`, `picture_changed`, `no_keyboard`, ...). The stream stays open, except where a close code is listed below. |
         | `interrupted` | `reason` | `user` (the user took over), `cancelled` (`POST /v1/cancel` or the server stops) or `session_ended` (the mirroring session ended): everything was lifted and released and the stream is closed. `idle`: see the dead-man below; the stream stays open. |
         | `pong` | none | The answer to `ping`. |
 
@@ -1021,6 +1043,10 @@ paths:
           second.
         * When the stream ends for any reason (a client close, a broken connection, the user, the server) every finger
           is lifted and every key released first, then the session is given up.
+        * **Trial**: opening the stream counts one operation of the trial quota (when the operations are used up, the
+          stream is refused: `error` `purchase_required` with `reason: "trial_limit"`, `counter: "operations"`, then
+          1008). An open stream ends after **5 minutes** (`error` `purchase_required` with `reason: "trial_limit"`,
+          `limit: 300`, `counter: "stream_seconds"`, then 1008); open a new stream to go on.
 
         ## Close codes
 
@@ -1029,7 +1055,7 @@ paths:
         | 1000 | The client closed the stream; or the user, `POST /v1/cancel` or the end of the mirroring session stopped it (an `interrupted` event came first). |
         | 1001 | The app is shutting down; or the session could not be opened because the request was cancelled. |
         | 1003 | A binary frame. |
-        | 1008 | Authentication failed or timed out; the token was regenerated; the API is not covered by the license (`purchase_required`); too many messages per second. An `error` event comes first. |
+        | 1008 | Authentication failed or timed out; the token was regenerated; the API is not covered by the license, or the trial quota is used up or the trial's 5 minutes of the stream are over (`purchase_required`); too many messages per second. An `error` event comes first. |
         | 1009 | A message larger than 4 KB. |
         | 1011 | An internal error (for example a failed Bluetooth write); an `error` event (`internal_error`) comes first. |
         | 1013 | Try again later: the session could not be opened because of `busy`, `user_active`, `not_connected` or `not_running`. An `error` event with that code comes first. |
@@ -1140,11 +1166,24 @@ components:
     Forbidden:
       description: |
         `forbidden_origin` (an `Origin` header is present, or `Host` is not `127.0.0.1:<port>`)
-        or `purchase_required` (the license does not cover the API).
+        or `purchase_required` (the license does not cover the API, or the trial quota is used up: `reason`
+        `trial_limit`).
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          examples:
+            trialLimit:
+              summary: The trial quota is used up
+              value:
+                type: about:blank
+                title: Forbidden
+                status: 403
+                detail: the trial allows 300 operations in total and they are used up; buy IceScreen Touch for unlimited use
+                code: purchase_required
+                reason: trial_limit
+                limit: 300
+                counter: operations
     ConflictTouch:
       description: |
         The operation cannot run now: `busy` (another operation, a stream or the probe page is running), `not_running`
@@ -1247,7 +1286,7 @@ components:
         | `invalid_request` | 400 | The body, a range, a limit or a name is wrong. |
         | `unauthorized` | 401 | The token is missing or wrong. |
         | `forbidden_origin` | 403 | The `Origin` header is present, or `Host` is not allowed. |
-        | `purchase_required` | 403 | The license does not cover the API (trial, expired). |
+        | `purchase_required` | 403 | The license does not cover the API (the trial ended), or the trial quota is used up (`reason` `trial_limit`, see `limit` and `counter`). |
         | `not_found` | 404 | No such endpoint. |
         | `method_not_allowed` | 405 | The endpoint does not accept that HTTP method (`Allow` lists the ones it does). |
         | `not_running` | 409 | The mirroring session is not running. |
@@ -1308,8 +1347,16 @@ components:
             - internal_error
         reason:
           type: string
-          enum: [language, engine]
-          description: "`ocr_unavailable` only: the language or the engine is missing."
+          enum: [language, engine, trial_limit]
+          description: "`ocr_unavailable`: the language or the engine is missing (`language`, `engine`). `purchase_required`: `trial_limit`, the trial quota is used up (absent when the license does not cover the API)."
+        limit:
+          type: integer
+          minimum: 0
+          description: "`purchase_required` with `trial_limit` only: the limit of the counter that is used up (it never resets)."
+        counter:
+          type: string
+          enum: [operations, captures]
+          description: "`purchase_required` with `trial_limit` only: the counter that is used up."
         engine:
           type: string
           description: "`ocr_unavailable` only: the engine asked for (left out when the app has no engine at all)."
@@ -1386,6 +1433,8 @@ components:
           description: An API operation or stream is running.
         ocr:
           $ref: "#/components/schemas/OcrStatus"
+        trial:
+          $ref: "#/components/schemas/TrialQuota"
       examples:
         - version: 0.3.0
           apiVersion: 1
@@ -1404,6 +1453,37 @@ components:
             engines: [{ id: windows, name: Windows.Media.Ocr, kind: builtin, available: true }]
             languages: [en-US, ja]
             defaultLanguage: ja
+
+    TrialQuota:
+      type: object
+      description: |
+        `trial` of `GET /v1/status`: what is left of the trial quota. Present only in the trial of the Microsoft Store app
+        (left out when the app is bought or built from the source). The counts are for the whole trial and never reset.
+      required: [operationsLeft, operationsLimit, capturesLeft, capturesLimit, streamLimitSeconds]
+      additionalProperties: false
+      properties:
+        operationsLeft:
+          type: integer
+          minimum: 0
+          description: Operations left (touches, keys, home, `tap-text`, WebSocket streams).
+        operationsLimit:
+          type: integer
+          minimum: 0
+          description: Operations in the whole trial (300).
+        capturesLeft:
+          type: integer
+          minimum: 0
+          description: Captures left (screenshots, `text/read`, `text/find`).
+        capturesLimit:
+          type: integer
+          minimum: 0
+          description: Captures in the whole trial (300).
+        streamLimitSeconds:
+          type: integer
+          minimum: 1
+          description: The longest a WebSocket stream stays open, in seconds (300).
+      examples:
+        - { operationsLeft: 152, operationsLimit: 300, capturesLeft: 171, capturesLimit: 300, streamLimitSeconds: 300 }
 
     Device:
       type: object
@@ -2333,6 +2413,18 @@ components:
               $ref: "#/components/schemas/Problem/properties/code"
             detail:
               type: string
+            reason:
+              type: string
+              const: trial_limit
+              description: "`purchase_required` only: the trial quota is used up, or the trial's time of the stream is over."
+            limit:
+              type: integer
+              minimum: 0
+              description: "With `reason`: the operations of the trial, or the seconds a stream may stay open."
+            counter:
+              type: string
+              enum: [operations, stream_seconds]
+              description: "With `reason`: `operations` (the stream could not be opened) or `stream_seconds` (the stream was open for the trial's time)."
         - type: object
           title: interrupted
           required: [ev, reason]

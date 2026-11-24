@@ -75,9 +75,17 @@ internal sealed record StreamEvent
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Detail { get; init; }
 
-    /// <summary><c>user</c>, <c>cancelled</c>, <c>session_ended</c> or <c>idle</c> (<c>interrupted</c>).</summary>
+    /// <summary><c>user</c>, <c>cancelled</c>, <c>session_ended</c> or <c>idle</c> (<c>interrupted</c>); the error's reason, such as <c>trial_limit</c> (<c>error</c>).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Reason { get; init; }
+
+    /// <summary>The limit that was reached (<c>error</c> with the reason <c>trial_limit</c>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Limit { get; init; }
+
+    /// <summary><c>operations</c> or <c>stream_seconds</c> (<c>error</c> with the reason <c>trial_limit</c>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Counter { get; init; }
 
     public static StreamEvent Ready() => new() { Ev = "ready", Api = 1 };
 
@@ -85,7 +93,10 @@ internal sealed record StreamEvent
 
     public static StreamEvent Pong() => new() { Ev = "pong" };
 
-    public static StreamEvent Error(int? seq, ApiError error) => new() { Ev = "error", Seq = seq, Code = error.Code, Detail = error.Detail };
+    // Only the trial quota's members travel on the stream (the OCR members belong to REST answers).
+    public static StreamEvent Error(int? seq, ApiError error) => error.Extras is { Reason: ApiErrorReasons.TrialLimit } trial
+        ? new() { Ev = "error", Seq = seq, Code = error.Code, Detail = error.Detail, Reason = trial.Reason, Limit = trial.Limit, Counter = trial.Counter }
+        : new() { Ev = "error", Seq = seq, Code = error.Code, Detail = error.Detail };
 
     public static StreamEvent Interrupted(string reason) => new() { Ev = "interrupted", Reason = reason };
 }

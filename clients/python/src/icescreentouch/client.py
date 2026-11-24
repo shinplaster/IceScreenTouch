@@ -35,6 +35,7 @@ from .errors import (
     InvalidArgumentError,
     NotFoundError,
     OcrUnavailableError,
+    PurchaseRequiredError,
     RateLimitedError,
     RequestAbortedError,
     ScreenshotUnsupportedError,
@@ -44,6 +45,7 @@ from .errors import (
     StaleConnectionError,
     UnauthorizedError,
     error_for_code,
+    trial_extensions,
 )
 from .models import (
     RotationInfo,
@@ -748,8 +750,11 @@ def _strings(value: Any) -> Tuple[str, ...]:
 
 
 def _extensions(error: ApiError, parsed: Mapping[str, Any]) -> None:
-    """The extension members of the OCR errors (what languages and engines there are; the candidates of a match)."""
-    if isinstance(error, OcrUnavailableError):
+    """The extension members of the OCR errors (what languages and engines there are; the candidates of a match) and of
+    the trial limit."""
+    if isinstance(error, PurchaseRequiredError):
+        trial_extensions(error, parsed)
+    elif isinstance(error, OcrUnavailableError):
         error.reason = parsed.get("reason") if isinstance(parsed.get("reason"), str) else None
         error.engine = parsed.get("engine") if isinstance(parsed.get("engine"), str) else None
         error.available = _strings(parsed.get("available"))

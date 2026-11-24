@@ -58,6 +58,7 @@ class Status:
     operating: bool
     raw: Mapping[str, Any] = field(repr=False, default_factory=dict)
     ocr: Optional["OcrInfo"] = None  # None: an app version without text recognition
+    trial: Optional["TrialInfo"] = None  # None: not limited (purchased or self-built app), or an app version without it
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "Status":
@@ -81,6 +82,7 @@ class Status:
             operating=bool(data.get("operating", False)),
             raw=dict(data),
             ocr=OcrInfo.from_json(data.get("ocr")),
+            trial=TrialInfo.from_json(data.get("trial")),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -98,6 +100,43 @@ class Status:
             "rotation": {"landscape": self.rotation.landscape, "portrait": self.rotation.portrait},
             "operating": self.operating,
             "ocr": None if self.ocr is None else self.ocr.to_dict(),
+            "trial": None if self.trial is None else self.trial.to_dict(),
+        }
+
+
+@dataclass(frozen=True)
+class TrialInfo:
+    """``Status.trial``: what is left of the trial's limit (only in the trial of the Microsoft Store app).
+
+    The counts are for the whole trial and never reset; buying the app removes the limit.
+    """
+
+    operations_left: int
+    operations_limit: int
+    captures_left: int
+    captures_limit: int
+    stream_limit_seconds: int
+
+    @classmethod
+    def from_json(cls, data: Any) -> Optional["TrialInfo"]:
+        if not isinstance(data, Mapping):
+            return None
+
+        def number(name: str) -> int:
+            value = data.get(name)
+            return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+        return cls(number("operationsLeft"), number("operationsLimit"), number("capturesLeft"), number("capturesLimit"),
+                   number("streamLimitSeconds"))
+
+    def to_dict(self) -> Dict[str, Any]:
+        """A plain, JSON-ready dict (snake_case)."""
+        return {
+            "operations_left": self.operations_left,
+            "operations_limit": self.operations_limit,
+            "captures_left": self.captures_left,
+            "captures_limit": self.captures_limit,
+            "stream_limit_seconds": self.stream_limit_seconds,
         }
 
 

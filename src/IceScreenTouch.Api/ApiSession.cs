@@ -21,8 +21,9 @@ public sealed class ApiSession : IAsyncDisposable
     private readonly long _started;
     private int _disposed;
 
-    internal ApiSession(ApiController controller, ApiController.Handle handle, IInputLease lease, long started, CancellationToken connection)
+    internal ApiSession(ApiController controller, ApiController.Handle handle, IInputLease lease, long started, CancellationToken connection, TimeSpan? timeLimit = null)
     {
+        TimeLimit = timeLimit;
         _controller = controller;
         _handle = handle;
         _lease = lease;
@@ -34,6 +35,9 @@ public sealed class ApiSession : IAsyncDisposable
         _connectionRegistration = handle.CancelOn(connection);
         _userRegistration = handle.CancelOn(lease.UserInput);
     }
+
+    /// <summary>How long the session may stay open (the trial quota), or null without a limit. The owner ends it when the time is up.</summary>
+    public TimeSpan? TimeLimit { get; }
 
     /// <summary>
     /// Cancelled (from a thread-pool thread) when the session must stop: the user took over, the operation was

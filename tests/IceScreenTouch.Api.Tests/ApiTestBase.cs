@@ -14,7 +14,8 @@ public abstract class ApiTestBase : IDisposable
         Time = new FakeTimeProvider();
         Host = new FakeHost(Time);
         Log = [];
-        Controller = new ApiController(Host, () => Allowed, Time, Log.Add);
+        Quota = new FakeQuota();
+        Controller = new ApiController(Host, () => Allowed, Time, Log.Add, Quota);
 
         // The fake engine answers synchronously: inline, the OCR pipeline runs on the fake clock like the touch operations.
         Controller.Ocr.CallInline = true;
@@ -23,6 +24,9 @@ public abstract class ApiTestBase : IDisposable
     internal FakeTimeProvider Time { get; }
 
     internal FakeHost Host { get; }
+
+    /// <summary>The trial quota: not limited until a test sets <see cref="FakeQuota.Limited"/>.</summary>
+    internal FakeQuota Quota { get; }
 
     internal ApiController Controller { get; }
 
