@@ -45,7 +45,7 @@ public sealed class TrialApiQuotaTests : IDisposable
     }
 
     [Fact]
-    public async Task ConcurrentRequestsNeverCountPastTheLimitAndTheFileHasTheLastCount()
+    public async Task ConcurrentRequestsNeverCountPastTheLimitAndTheFileEndsWithTheLastCount()
     {
         var quota = Create(operations: 50, captures: 0);
         var taken = 0;

@@ -114,8 +114,9 @@ public sealed class TrialApiQuota : IApiQuota
             used++;
         }
 
-        // Outside the count lock: a slow disk (a virus scan) holds up only the request that counted, not the others or the status
-        // tab, which read the counts. The write takes the counts again, so a later write never puts back an older count.
+        // Outside the count lock: a slow disk (a virus scan) never holds up the status tab or the limit checks, which read the counts;
+        // only requests that counted wait, one write after the other. The write takes the counts again, so a later write never puts
+        // back an older count.
         Write();
         return true;
     }
@@ -192,7 +193,9 @@ public sealed class TrialApiQuota : IApiQuota
             {
                 File.Delete(temp);
             }
-            catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException)
+#pragma warning disable CA1031 // As above: the request goes on whatever the cleanup throws.
+            catch (Exception cleanup) when (cleanup is not OutOfMemoryException)
+#pragma warning restore CA1031
             {
                 // Overwritten by the next write.
             }
