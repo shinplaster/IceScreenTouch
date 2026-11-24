@@ -33,7 +33,7 @@ It does in software what "wireless monitor with touch control" gadgets for iPhon
 - Automation API: scripts and AI agents on the same PC can tap, swipe, type, take screenshots, read the text on the screen, find a text, and tap it by its words through a local REST / WebSocket API (off by default, reachable from this PC only; a Python client and an MCP server are included). The text is recognized on this PC by the OCR built into Windows, in the OCR languages installed in Windows. It is available in the purchased Store version and in builds of your own, not in the trial or while the Store license cannot be checked: see [docs/API.md](docs/API.md)
 - A setup checklist, and built-in tests that measure touch accuracy, scrolling and latency through a page in Safari on the iPhone
 - English and Japanese user interface
-- Get it from the [Microsoft Store](https://apps.microsoft.com/detail/9PBTCZ9BFFK5) (paid, with a 7-day free trial: signed by Microsoft, updates itself), or build it yourself from this repository for free: a single self-contained `IceScreenTouch.exe` (about 23 MB), no .NET install needed
+- Get it from the [Microsoft Store](https://apps.microsoft.com/detail/9PBTCZ9BFFK5?cid=github-readme-en) (paid, with a 7-day free trial: signed by Microsoft, updates itself), or build it yourself from this repository for free: a single self-contained `IceScreenTouch.exe` (about 23 MB), no .NET install needed
 
 ## Requirements
 
@@ -44,7 +44,7 @@ It does in software what "wireless monitor with touch control" gadgets for iPhon
 
 ## Getting started
 
-1. Install IceScreen Touch from the [Microsoft Store](https://apps.microsoft.com/detail/9PBTCZ9BFFK5), or build it yourself (see [Building from source](#building-from-source)). No official builds are published on GitHub.
+1. Install IceScreen Touch from the [Microsoft Store](https://apps.microsoft.com/detail/9PBTCZ9BFFK5?cid=github-readme-en), or build it yourself (see [Building from source](#building-from-source)). No official builds are published on GitHub.
 2. Install and start an AirPlay receiver (see [Installing an AirPlay receiver](docs/USER-GUIDE.md#installing-an-airplay-receiver)), then start IceScreen Touch and follow the setup steps in the **Status** tab.
 
 The full guide, including the controls and troubleshooting, is in [docs/USER-GUIDE.md](docs/USER-GUIDE.md).
