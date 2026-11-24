@@ -9,6 +9,7 @@ IceScreen Touch には、自動操作 API があります。同じ PC のスク�
 ## 目次
 
 - [必要なもの](#必要なもの)
+- [試用中](#試用中)
 - [オンにする](#オンにする)
 - [セキュリティ](#セキュリティ)
 - [すぐに試す](#すぐに試す)
@@ -22,12 +23,34 @@ IceScreen Touch には、自動操作 API があります。同じ PC のスク�
 
 ## 必要なもの
 
-- Microsoft Store で購入した IceScreen Touch、またはソースコードから自分でビルドしたアプリ。試用中や、Microsoft Store のライセンスを確認できないとき（たとえば PC が Store に接続できないとき）は、API は起動しません。ライセンスを確認できると自動で始まります。API の動作中にライセンスが API を対象としなくなると、`POST /v1/cancel` を除くすべての呼び出しが `403` `purchase_required` を返します（止める命令はいつでも使えます）。
+- Microsoft Store の IceScreen Touch、またはソースコードから自分でビルドしたアプリ。購入したアプリと自分でビルドしたアプリには、回数の制限がありません。7 日間の試用中は、回数の制限つきで使えます（[試用中](#試用中)を見てください）。試用期間が終わったあとや、Microsoft Store のライセンスを確認できないとき（たとえば PC が Store に接続できないとき）は、API は起動しません。ライセンスを確認できると自動で始まります。API の動作中にライセンスが API を対象としなくなると、`POST /v1/cancel` を除くすべての呼び出しが `403` `purchase_required` を返します（止める命令はいつでも使えます）。
 - 端末で**ズーム**をオンにすること（設定 > アクセシビリティ > ズーム）。マウスで操作するときと同じです。オフだと、タッチが届きません。
 - 動作中のミラーリングのセッション（「状態」タブに状態が出ます）と、Bluetooth でつながった端末。
 - `screen` と `pixel` の座標には、端末の映像を映している AirPlay 受信ソフトのウィンドウが要ります。ウィンドウを閉じたり最小化したりすると、これらの呼び出しは `409` `no_picture` を返します。`device` の座標は映像が要りません（[座標](#座標)を見てください）。
 
 API が操作するのは、アプリが今入力を送っている端末 1 台です（「状態」タブの「入力先」。`PUT /v1/target` で変えられます）。
+
+## 試用中
+
+Microsoft Store のアプリの試用中も、API のすべての機能を試せます。ただし、試用期間の全体で次の回数までです（使った回数は戻らず、アプリを起動し直しても戻りません）。
+
+- **操作 300 回**: タップ、長押し、スワイプ、パス、ピンチ、`keys/press`、`keys/type`、ホーム、`tap-text`、WebSocket のストリーム（1 回の接続を 1 回と数えます）。
+- **画面の取得 300 回**: `GET /v1/screenshot`、`POST /v1/text/read`、`POST /v1/text/find`（待つ `find` は、画面を何度読んでも 1 回です）。
+- **WebSocket のストリームは 1 回の接続で 5 分まで**です。過ぎるとすべての指とキーを離して閉じます（[WebSocket のストリーム](#websocket-のストリーム)を見てください）。続けるには、接続し直します。
+- **数えないもの**: `GET /v1/status`、`GET` と `PUT /v1/rotation`、`PUT /v1/target`、`POST /v1/cancel`、`GET /v1/openapi.json`、何もする前に断られた要求（`400`、`busy`、`user_active`、`not_running`、`not_connected`、`no_picture`、`rate_limited`、`ocr_unavailable` など）。操作は端末で始まった時点で数えます（そのあとあなたが割り込んでも数えます）。画面の取得は画面を取り込んだ・読んだ時点、`tap-text` は探し始めた時点で数えます。
+- **残りの回数**は `GET /v1/status` の `trial`（試用中だけ）、「状態」タブ、「設定」>「自動操作 API」に出ます。
+
+  ```json
+  "trial": { "operationsLeft": 152, "operationsLimit": 300, "capturesLeft": 171, "capturesLimit": 300, "streamLimitSeconds": 300 }
+  ```
+
+- **回数を使い切ると**、その回数で数える要求は `403` `purchase_required` を返し、`reason: "trial_limit"`、`limit`、`counter`（`operations` か `captures`）が付きます。もう一方の回数と、数えないエンドポイントはそのまま使えます。IceScreen Touch を購入すると、すぐに（起動し直さずに）制限がなくなります。
+
+  ```json
+  { "type": "about:blank", "title": "Forbidden", "status": 403, "code": "purchase_required",
+    "detail": "the trial allows 300 operations in total and they are used up; buy IceScreen Touch for unlimited use",
+    "reason": "trial_limit", "limit": 300, "counter": "operations" }
+  ```
 
 ## オンにする
 
@@ -191,7 +214,7 @@ phone.tap_pixel(540, 1200, ref=shot.size)       # その画像のピクセルで
 - **スクリーンショット中は受信ソフトのウィンドウ枠に色が付きます。** スクリーンショットを撮ってから約 2 秒の間は、受信ソフトのウィンドウの周りに色つきの枠（通常は黄色）が表示されます。この枠は画像には写りません。Windows の取り込みが一時的に使えないとき（まれです）は、枠が出ないまま撮ることがあります。
 - **操作ではありません。** スクリーンショットは、タッチ、キー、WebSocket のストリームが動いている間も使えます。`409` `busy` にはなりません。
 - **1 秒に最大 10 枚です。API を使うすべてのプログラムの合計で数えます。** 1 秒の間の 11 枚目は、ヘッダー `Retry-After: 1` つきの `429` `rate_limited` です。クエリの確認を通ったリクエストは数えます（そのあとで `409` `not_running` や `409` `no_picture` になった場合も）。`429` で断られたリクエストは数えません。同時に進行中のスクリーンショットが多すぎるときも `429` `rate_limited` です。
-- **確認の順番。** 共通の確認（`Origin`、`Host`、トークン）のあとは、ライセンス（`403` `purchase_required`）、クエリ（`400` `invalid_request`）、頻度の上限（`429` `rate_limited`）、`409` `not_running`、`409` `no_picture` の順です。
+- **確認の順番。** 共通の確認（`Origin`、`Host`、トークン）のあとは、ライセンス（`403` `purchase_required`）、クエリ（`400` `invalid_request`）、試用の回数（`403` `purchase_required` で `reason: "trial_limit"`。試用中だけ）、頻度の上限（`429` `rate_limited`）、`409` `not_running`、`409` `no_picture` の順です。
 
 ## 画面の文字（OCR）
 
@@ -267,7 +290,8 @@ phone.tap_text("Bluetooth", offset=(0.4, 0.0))     # ラベルの右（スイッ
 - **セッション。** `auth` が通ると、サーバーは `{ "ev": "ready", "api": 1 }` を送ります。ストリームは動作中の操作と同じに扱われ、開いている間はほかの操作が `409` `busy` になり、タッチと同じ前提条件が要ります。同時に 4 本までつなげますが、セッションを持てるのは 1 本です。
 - **メッセージ**は、テキストフレームの JSON で、4 KB までです。クライアントから（`seq` は自分で決める番号で、応答が同じ番号を返します）: `down` と `move`（`contacts` は 1 本か 2 本の指 `{ "id": 0 か 1, "x", "y" }`。`down` は `space` と `ref` も取ります）、`up`、`key`（`down: true` か `false`）、`ping`。サーバーから: `ack`、`error`（そのメッセージは何もしていません。ストリームは開いたままです）、`interrupted`、`pong`。
 - **デッドマン。** 指かキーが押されている間に **1 秒**メッセージが届かないと、すべての指を離し、すべてのキーを放して、`{ "ev": "interrupted", "reason": "idle" }` を送ります。ストリームは開いたままです。指を止めたまま保つには、`ping` を定期的に送ります。`interrupted` の理由が `user`、`cancelled`、`session_ended` のときは、ストリームが終わります。
-- **終了コード。** 1000 通常の終了（クライアント、ユーザー、取り消し、セッションの終了）。1001 アプリの終了中。1003 バイナリフレーム。1008 認証の失敗か時間切れ、トークンの作り直し、ライセンスが API を対象としない、1 秒に 1000 を超えるメッセージ（`rate_limited`）。1009 4 KB を超えるメッセージ。1011 内部エラー。1013 あとでやり直す（セッションを開けない: `busy`、`user_active`、`not_connected`、`not_running`）。
+- **試用中**は、ストリームを開いた時点で操作 1 回と数え、**5 分**で閉じます。すべての指を離し、すべてのキーを放してから、`error` イベント（`purchase_required`、`reason: "trial_limit"`、`limit: 300`、`counter: "stream_seconds"`）を送り、終了コード 1008 で閉じます。操作の回数を使い切っているときは、同じ形（`counter: "operations"`）でストリームを断ります。
+- **終了コード。** 1000 通常の終了（クライアント、ユーザー、取り消し、セッションの終了）。1001 アプリの終了中。1003 バイナリフレーム。1008 認証の失敗か時間切れ、トークンの作り直し、ライセンスが API を対象としない、試用の回数・時間（`purchase_required`）、1 秒に 1000 を超えるメッセージ（`rate_limited`）。1009 4 KB を超えるメッセージ。1011 内部エラー。1013 あとでやり直す（セッションを開けない: `busy`、`user_active`、`not_connected`、`not_running`）。
 
 ```
 -> { "op": "auth", "token": "..." }
@@ -282,14 +306,14 @@ phone.tap_text("Bluetooth", offset=(0.4, 0.0))     # ラベルの右（スイッ
 
 ## エラー
 
-エラーは `application/problem+json`（RFC 9457）で、機械が読むメンバー `code` を持ちます。`detail` は人向けの 1 文で、あなたのデータ（位置、キー、文字、トークン）は入りません。文字のエラーには、スクリプトが使えるメンバーが付きます。`ocr_unavailable` には `reason`（`language` か `engine`）、`available`、`engines`、`text_not_found`、`ambiguous_text`、`tap_outside_screen` には `matches`（候補を 20 個まで）と `matchCount` が付きます。
+エラーは `application/problem+json`（RFC 9457）で、機械が読むメンバー `code` を持ちます。`detail` は人向けの 1 文で、あなたのデータ（位置、キー、文字、トークン）は入りません。文字のエラーには、スクリプトが使えるメンバーが付きます。`ocr_unavailable` には `reason`（`language` か `engine`）、`available`、`engines`、`text_not_found`、`ambiguous_text`、`tap_outside_screen` には `matches`（候補を 20 個まで）と `matchCount` が付きます。試用中に回数を使い切ったときの `purchase_required` には、`reason: "trial_limit"`、`limit`、`counter` が付きます（[試用中](#試用中)を見てください）。
 
 | HTTP ステータス | `code` | 意味 |
 |---|---|---|
 | 400 | `invalid_request` | 本文、範囲、上限、名前のどれかが正しくありません。 |
 | 401 | `unauthorized` | トークンがない、または違います。 |
 | 403 | `forbidden_origin` | `Origin` ヘッダーがある、または `Host` が許可されていません。 |
-| 403 | `purchase_required` | ライセンスが API を対象としていません（試用中、期限切れ）。 |
+| 403 | `purchase_required` | ライセンスが API を対象としていません（試用期間の終了）。または、試用の回数を使い切りました（`reason: "trial_limit"`）。 |
 | 404 | `not_found` | そのエンドポイントはありません。 |
 | 405 | `method_not_allowed` | そのエンドポイントはその HTTP メソッドを受け付けません（`Allow` に使えるものが並びます）。 |
 | 409 | `not_running` | ミラーリングのセッションが動いていません。 |

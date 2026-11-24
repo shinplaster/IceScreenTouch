@@ -501,6 +501,16 @@ public sealed class ApiServiceTests : IAsyncLifetime
         return response.StatusCode;
     }
 
+    private async Task<JsonElement> GetJsonAsync(string path)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{Api.Status.Port}{path}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Api.Token);
+        using var response = await _http.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return document.RootElement.Clone();
+    }
+
     private static int FreePort()
     {
         using var probe = new TcpListener(IPAddress.Loopback, 0);
@@ -653,9 +663,9 @@ public sealed class ApiServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task TheTrialDoesNotStartTheServerAndAPurchaseStartsItWithoutAnotherApply()
+    public async Task TheEndedTrialDoesNotStartTheServerAndAPurchaseStartsItWithoutAnotherApply()
     {
-        _source.Next = LicenseState.Trial(Start.AddHours(24));
+        _source.Next = LicenseState.Expired;
         await _license!.RefreshAsync();
 
         await Api.ConfigureAsync(enabled: true, port: 0);
@@ -671,6 +681,69 @@ public sealed class ApiServiceTests : IAsyncLifetime
         await TestWait.UntilAsync(() => Api.Status.State == ApiRunState.Listening, "the API starts after the purchase");
         Assert.True(Api.IsAllowed);
         Assert.Equal(HttpStatusCode.OK, await StatusCodeAsync("/v1/status", Api.Token));
+    }
+
+    [Fact]
+    public async Task TheTrialStartsTheServerWithTheQuotaAndAPurchaseLiftsItAtOnce()
+    {
+        _source.Next = LicenseState.Trial(Start.AddHours(24));
+        await _license!.RefreshAsync();
+
+        await Api.ConfigureAsync(enabled: true, port: 0);
+
+        Assert.Equal(ApiRunState.Listening, Api.Status.State);
+        Assert.True(Api.IsAllowed);
+        Assert.Equal(new ApiTrialInfo(300, 300, 300, 300, 300), Api.TrialQuota);
+        var status = await GetJsonAsync("/v1/status");
+        Assert.Equal(300, status.GetProperty("trial").GetProperty("operationsLeft").GetInt32());
+        Assert.Equal(300, status.GetProperty("trial").GetProperty("capturesLimit").GetInt32());
+        Assert.Equal(300, status.GetProperty("trial").GetProperty("streamLimitSeconds").GetInt32());
+
+        _source.Next = LicenseState.Purchased;
+        await _license.RefreshAsync();
+
+        Assert.Null(Api.TrialQuota);
+        Assert.False((await GetJsonAsync("/v1/status")).TryGetProperty("trial", out _)); // not limited: no member at all
+        Assert.Equal(ApiRunState.Listening, Api.Status.State); // the same server goes on
+    }
+
+    [Fact]
+    public async Task AUsedUpTrialQuotaAnswers403WithTheReasonAndSurvivesARestartOfTheApp()
+    {
+        _source.Next = LicenseState.Trial(Start.AddHours(24));
+        await _license!.RefreshAsync();
+        var dir = Path.Combine(_dir.Path, "quota");
+        Directory.CreateDirectory(dir);
+        var quota = new TrialApiQuota(dir, () => ApiService.IsTrial(_license.Current), operationLimit: 2, captureLimit: 1);
+        using (var api = new ApiService(_mirror, _license, dir, () => new AppSettings(), _log.Enqueue, anyPort: true, quota: quota))
+        {
+            await api.ConfigureAsync(enabled: true, port: 0);
+            Assert.True(quota.TryTake(ApiQuotaCounter.Captures, out _)); // as a screenshot that was served
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{api.Status.Port}/v1/screenshot");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", api.Token);
+            using var response = await _http.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var root = problem.RootElement;
+            Assert.Equal("purchase_required", root.GetProperty("code").GetString());
+            Assert.Equal("trial_limit", root.GetProperty("reason").GetString());
+            Assert.Equal(1, root.GetProperty("limit").GetInt32());
+            Assert.Equal("captures", root.GetProperty("counter").GetString());
+            Assert.False(root.TryGetProperty("resetsAt", out _)); // the quota never resets
+            await api.StopAsync();
+        }
+
+        // The app restarts: the counts come from the data folder.
+        var again = new TrialApiQuota(dir, () => ApiService.IsTrial(_license.Current), operationLimit: 2, captureLimit: 1);
+        Assert.Equal(new ApiTrialInfo(2, 2, 0, 1, 300), again.Current);
+    }
+
+    [Fact]
+    public void ThePurchasedAppHasNoQuotaAndWritesNoUsageFile()
+    {
+        Assert.Null(Api.TrialQuota);
+        Assert.False(File.Exists(Path.Combine(_dir.Path, TrialApiQuota.FileName)));
     }
 
     [Fact]
@@ -777,7 +850,7 @@ public sealed class ApiServiceTests : IAsyncLifetime
         var controller = new ApiController(Api.Host, () => Api.IsAllowed);
         Assert.True((await controller.GetStatusAsync()).IsSuccess);
 
-        _source.Next = LicenseState.Trial(Start.AddHours(1));
+        _source.Next = LicenseState.Expired;
         await _license!.RefreshAsync();
 
         Assert.False((await controller.GetStatusAsync()).IsSuccess);
@@ -897,8 +970,8 @@ public sealed class ApiServiceTests : IAsyncLifetime
     [Fact]
     public async Task BeforeTheFirstLicenseReadTheApiDoesNotStartAndNothingIsSaidAboutPurchases()
     {
-        // The Store build: the license is a guess (Unknown, which is usable) until the first read finishes. A trial user must
-        // not get a window in which the server runs.
+        // The Store build: the license is a guess (Unknown, which is usable) until the first read finishes. A user whose trial
+        // ended must not get a window in which the server runs.
         var gate = new TaskCompletionSource<LicenseState>();
         var source = new FakeLicenseSource { Hang = gate };
         using var license = new LicenseService(source, _time);
@@ -913,12 +986,12 @@ public sealed class ApiServiceTests : IAsyncLifetime
         Assert.False(File.Exists(TokenFile));
 
         var refresh = license.RefreshAsync();
-        gate.SetResult(LicenseState.Trial(Start.AddHours(24)));
+        gate.SetResult(LicenseState.Expired);
         await refresh;
 
         Assert.False(license.IsChecking);
         await api.ConfigureAsync(enabled: true, port: 0);
-        Assert.Equal(ApiRunState.NotAllowed, api.Status.State); // the trial: now it is a refusal
+        Assert.Equal(ApiRunState.NotAllowed, api.Status.State); // the ended trial: now it is a refusal
         Assert.False(File.Exists(ConnectionFile));
 
         await api.StopAsync();

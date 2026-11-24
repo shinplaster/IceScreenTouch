@@ -13,7 +13,7 @@ The error texts never contain the bearer token.
 
 from __future__ import annotations
 
-from typing import Any, Optional, Tuple
+from typing import Any, Mapping, Optional, Tuple
 
 
 class IceScreenTouchError(Exception):
@@ -101,8 +101,26 @@ class ForbiddenOriginError(ApiError):
 
 
 class PurchaseRequiredError(ApiError):
-    """403 purchase_required: the license does not include the API (trial, expired)."""
+    """403 purchase_required: the license does not include the API (the trial ended), or a trial limit is used up.
+
+    In the trial of the Microsoft Store app the API counts over the whole trial (it never resets); buying the app removes
+    the limit.
+
+    Attributes:
+        reason: ``"trial_limit"`` when a trial limit is used up, or None when the license does not include the API.
+        limit: The limit that was reached (a count, or the seconds of a WebSocket stream), or None.
+        counter: ``"operations"`` or ``"captures"`` (REST), or ``"stream_seconds"`` (a WebSocket stream reached the
+            trial's time), or None.
+    """
     code = "purchase_required"
+    reason: Optional[str] = None
+    limit: Optional[int] = None
+    counter: Optional[str] = None
+
+    @property
+    def is_trial_limit(self) -> bool:
+        """True when a trial limit is used up (buying the app removes it), not the end of the license."""
+        return self.reason == "trial_limit"
 
 
 class NotRunningError(ApiError):
@@ -277,6 +295,16 @@ def error_for_code(code: Optional[str], detail: Optional[str], status: Optional[
     return cls(text, code=code, status=status, detail=detail)
 
 
+def trial_extensions(error: PurchaseRequiredError, members: Mapping[str, Any]) -> None:
+    """Reads the members of a trial limit (``reason``, ``limit``, ``counter``) of a problem body or a stream error event."""
+    reason = members.get("reason")
+    limit = members.get("limit")
+    counter = members.get("counter")
+    error.reason = reason if isinstance(reason, str) else None
+    error.limit = limit if isinstance(limit, int) and not isinstance(limit, bool) else None
+    error.counter = counter if isinstance(counter, str) else None
+
+
 # ---- WebSocket stream ----------------------------------------------------------------------------------------
 
 class StreamError(IceScreenTouchError):
@@ -318,7 +346,7 @@ _CLOSE_TEXT = {
     1000: "the stream was closed",
     1001: "the server is shutting down",
     1003: "the server accepts text messages only",
-    1008: "the server refused the stream (authentication, license or rate limit)",
+    1008: "the server refused the stream (authentication, license, trial limit or rate limit)",
     1009: "a message was larger than the 4 KB limit",
     1011: "the server failed inside (an internal error)",
     1013: "the server cannot take the stream now (try again later)",

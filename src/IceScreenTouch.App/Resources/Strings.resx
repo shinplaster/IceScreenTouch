@@ -349,7 +349,7 @@
   <!-- Automation API (settings tab, status tab, tray) -->
   <data name="SectionApi" xml:space="preserve"><value>Automation API</value></data>
   <data name="OptionApiEnabled" xml:space="preserve"><value>Let scripts on this PC operate the device</value></data>
-  <data name="ApiTrialNote" xml:space="preserve"><value>The automation API can be used after you buy IceScreen Touch.</value></data>
+  <data name="FormatApiTrialNote" xml:space="preserve"><value>In the trial, the automation API works for {0} operations and {1} screenshots or text readings in total (they do not come back), and a WebSocket connection stays open for at most {2} minutes. Buy IceScreen Touch for unlimited use.</value></data>
   <data name="LabelApiPort" xml:space="preserve"><value>Port (the API listens on 127.0.0.1 only)</value></data>
   <data name="LabelApiToken" xml:space="preserve"><value>Token (scripts use it to authenticate)</value></data>
   <data name="ApiTokenPending" xml:space="preserve"><value>The token is created when you save and apply with this switch on.</value></data>
@@ -362,6 +362,9 @@
   <data name="FormatApiConnectionFile" xml:space="preserve"><value>While the API is on, scripts find the port and the token in {0} (only you can read it).</value></data>
   <data name="ApiWarning" xml:space="preserve"><value>A script can do everything you can do on the device, including typing the passcode and confirming purchases. Turn this on only for scripts you trust. Only programs on this PC can reach the API.</value></data>
   <data name="FormatApiListening" xml:space="preserve"><value>Automation API: listening on 127.0.0.1:{0}</value></data>
+  <data name="FormatApiListeningTrial" xml:space="preserve"><value>Automation API: listening on 127.0.0.1:{0} (trial: {1} operations and {2} screenshots or text readings left)</value></data>
+  <data name="FormatApiTrialUsedUp" xml:space="preserve"><value>Automation API: the trial limit is used up ({0} operations and {1} screenshots or text readings left). Buy IceScreen Touch to keep using it</value></data>
+  <data name="FormatApiTrialLeft" xml:space="preserve"><value>Left in the trial: {0} operations, {1} screenshots or text readings.</value></data>
   <data name="ApiOperating" xml:space="preserve"><value>Automation API: a script is operating the device</value></data>
   <data name="FormatApiPortInUse" xml:space="preserve"><value>Automation API: could not start (port {0} is in use by another program)</value></data>
   <data name="ApiFailed" xml:space="preserve"><value>Automation API: could not start (see the Log tab)</value></data>
@@ -374,6 +377,6 @@
   <data name="StepZoomUnchecked" xml:space="preserve"><value>The app cannot check this. Touches reach the iPhone only while Zoom is on, so if clicks on the mirror window work, it is on. A touch test confirms it.</value></data>
   <data name="SetupAllDone" xml:space="preserve"><value>All done</value></data>
   <data name="TrialWorked" xml:space="preserve"><value>It works. Buy to keep using it after the trial.</value></data>
-  <data name="TrialApiNote" xml:space="preserve"><value>The Automation API is available after purchase.</value></data>
+  <data name="FormatTrialApiNote" xml:space="preserve"><value>The Automation API works in the trial for {0} operations and {1} screenshots or text readings in total.</value></data>
   <data name="HeadlineStartReceiver" xml:space="preserve"><value>Start the AirPlay receiver</value></data>
 </root>

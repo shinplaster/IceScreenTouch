@@ -76,6 +76,15 @@ internal sealed record StreamEnd(string LogReason, WebSocketCloseStatus Status, 
         error.Code,
         StreamEvent.Error(null, error));
 
+    /// <summary>The trial's time for one connection is up (1008, with <c>purchase_required</c> and the reason <c>trial_limit</c> first).</summary>
+    public static StreamEnd TrialTimeUp(TimeSpan limit)
+    {
+        var seconds = (int)Math.Round(limit.TotalSeconds);
+        var error = ApiError.Create(ApiErrorCodes.PurchaseRequired, $"the trial allows a stream connection to stay open for {seconds} seconds; every finger and key was released; buy IceScreen Touch for unlimited use")
+            with { Extras = new ApiErrorExtras { Reason = ApiErrorReasons.TrialLimit, Limit = seconds, Counter = "stream_seconds" } };
+        return new("trial time limit", WebSocketCloseStatus.PolicyViolation, ApiErrorReasons.TrialLimit, StreamEvent.Error(null, error));
+    }
+
     /// <summary>The user, <c>POST /v1/cancel</c> or the end of the mirroring session stopped the stream.</summary>
     public static StreamEnd Interrupted(string reason) => new(reason, WebSocketCloseStatus.NormalClosure, "interrupted", StreamEvent.Interrupted(reason));
 }
@@ -146,6 +155,7 @@ internal sealed class ApiStream
     private ITimer? _authTimer;
     private ITimer? _flushTimer;
     private ITimer? _idleTimer;
+    private ITimer? _limitTimer;
     private CancellationTokenRegistration _interruptRegistration;
     private long _lastActivity;
     private long? _lastTouchSend;
@@ -528,6 +538,22 @@ internal sealed class ApiStream
         }
     }
 
+    private async Task EndIfOpenAsync(StreamEnd end)
+    {
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_phase == Phase.Open)
+            {
+                await EndLockedAsync(end).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     private async Task InterruptedAsync()
     {
         await _gate.WaitAsync().ConfigureAwait(false);
@@ -573,6 +599,7 @@ internal sealed class ApiStream
         _authTimer?.Dispose();
         _flushTimer?.Dispose();
         _idleTimer?.Dispose();
+        _limitTimer?.Dispose();
         _interruptRegistration.Dispose();
         _deviceCts?.Dispose();
 
@@ -699,6 +726,13 @@ internal sealed class ApiStream
         _lastActivity = _time.GetTimestamp();
         _flushTimer = _time.CreateTimer(static s => ((ApiStream)s!).Fire(static self => self.FlushAsync()), this, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         _idleTimer = _time.CreateTimer(static s => ((ApiStream)s!).Fire(static self => self.IdleCheckAsync()), this, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        if (_session.TimeLimit is { } limit)
+        {
+            // The trial: counted from the open; the end releases everything first, like every other end.
+            var timeUp = StreamEnd.TrialTimeUp(limit);
+            _limitTimer = _time.CreateTimer(_ => Fire(self => self.EndIfOpenAsync(timeUp)), null, limit, Timeout.InfiniteTimeSpan);
+        }
+
         _log?.Invoke("[api] stream opened");
         await SendAsync(StreamEvent.Ready()).ConfigureAwait(false);
 

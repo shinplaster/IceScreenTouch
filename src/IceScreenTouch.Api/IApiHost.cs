@@ -89,6 +89,7 @@ public sealed record ApiDevice(string Id, string Name, string? Model, bool Subsc
 /// <param name="Rotation">The assumed rotations.</param>
 /// <param name="Operating">An API operation or session is running (filled by the controller).</param>
 /// <param name="Ocr">Text recognition: engines and languages (filled by the controller).</param>
+/// <param name="Trial">What is left of the trial quota (filled by the controller); null, and left out of the JSON, when the API is not limited.</param>
 public sealed record ApiStatus(
     string Version,
     int ApiVersion,
@@ -100,7 +101,8 @@ public sealed record ApiStatus(
     PictureInfo? Picture,
     RotationInfo Rotation,
     bool Operating,
-    OcrStatusInfo? Ocr = null);
+    OcrStatusInfo? Ocr = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ApiTrialInfo? Trial = null);
 
 /// <summary>The assumed rotations (degrees): landscape 90 or 270, portrait 0 or 180.</summary>
 /// <param name="Landscape">90 or 270.</param>

@@ -14,7 +14,7 @@ public enum ApiRunState
     /// <summary>The setting is off: nothing listens.</summary>
     Off,
 
-    /// <summary>The setting is on but the license does not include the API (trial, ended): nothing listens.</summary>
+    /// <summary>The setting is on but the license does not include the API (the trial ended): nothing listens.</summary>
     NotAllowed,
 
     /// <summary>The setting is on but the Store license could not be read (<see cref="LicenseKind.Unknown"/>): nothing listens until it is read.</summary>
@@ -48,7 +48,8 @@ public sealed record ApiServiceStatus(ApiRunState State, int Port, string? Error
 
 /// <summary>
 /// Runs the automation API for the application's lifetime: the <see cref="ApiController"/> and the <see cref="ApiServer"/> on
-/// 127.0.0.1, while the setting is on AND the license includes the API (docs/API-DESIGN.md, chapter 5). It is independent of
+/// 127.0.0.1, while the setting is on AND the license includes the API (docs/API-DESIGN.md, chapter 5; the Store trial with the
+/// <see cref="TrialApiQuota"/>). It is independent of
 /// the mirror session: the server keeps listening while the session is stopped or restarted (requests get <c>not_running</c>),
 /// and it reads the current session through <see cref="IMirrorService.ApiSession"/> on every request.
 /// <para>
@@ -63,6 +64,7 @@ public sealed class ApiService : IDisposable
     private readonly ApiTokenStore _tokens;
     private readonly ApiConnectionFile _connectionFile;
     private readonly ApiHost _host;
+    private readonly TrialApiQuota _quota;
     private readonly TimeProvider _time;
     private readonly Action<string>? _log;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -88,7 +90,8 @@ public sealed class ApiService : IDisposable
     /// <param name="time">The clock of the controller and of the session's input arbitration (pass the same one to the session).</param>
     /// <param name="anyPort">Port 0 ("any free port") is accepted: for tests and the self-check, never for a user's setting.</param>
     /// <param name="ocrEngines">The OCR engines of the text endpoints, the default first (none: they answer <c>ocr_unavailable</c>).</param>
-    public ApiService(IMirrorService mirror, LicenseService license, string dataDirectory, Func<AppSettings> settings, Action<string>? log = null, TimeProvider? time = null, bool anyPort = false, IReadOnlyList<IOcrEngine>? ocrEngines = null)
+    /// <param name="quota">The trial quota (tests pass smaller limits); by default <see cref="TrialApiQuota"/> with its limits in <paramref name="dataDirectory"/>, applied while the license is the trial.</param>
+    public ApiService(IMirrorService mirror, LicenseService license, string dataDirectory, Func<AppSettings> settings, Action<string>? log = null, TimeProvider? time = null, bool anyPort = false, IReadOnlyList<IOcrEngine>? ocrEngines = null, TrialApiQuota? quota = null)
     {
         ArgumentNullException.ThrowIfNull(mirror);
         ArgumentNullException.ThrowIfNull(license);
@@ -99,6 +102,7 @@ public sealed class ApiService : IDisposable
         _tokens = new ApiTokenStore(dataDirectory, log);
         _connectionFile = new ApiConnectionFile(dataDirectory, log: log);
         _host = new ApiHost(mirror, settings, _time, log, ocrEngines: ocrEngines);
+        _quota = quota ?? new TrialApiQuota(dataDirectory, () => IsTrial(license.Current), log);
         _host.LandscapeRotationSetWhileStopped += r => LandscapeRotationSetWhileStopped?.Invoke(r);
         _host.TargetChosen += id => TargetChosen?.Invoke(id);
         _anyPort = anyPort;
@@ -112,19 +116,30 @@ public sealed class ApiService : IDisposable
     public event Action<string?>? TargetChosen;
 
     /// <summary>
-    /// The API is a paid feature: only <see cref="LicenseKind.Purchased"/> and <see cref="LicenseKind.NotPackaged"/> (a build of
-    /// your own) include it. The trial, the ended license and a license that could not be read (<see cref="LicenseKind.Unknown"/>)
-    /// do not, unlike the session, which fails open on Unknown (<see cref="LicenseState.AllowsSession"/>).
+    /// The API is a paid feature: <see cref="LicenseKind.Purchased"/> and <see cref="LicenseKind.NotPackaged"/> (a build of your own)
+    /// include it without a limit, and the running trial includes it with the <see cref="TrialApiQuota"/> (<see cref="IsTrial"/>). The
+    /// ended license and a license that could not be read (<see cref="LicenseKind.Unknown"/>) do not, unlike the session, which fails
+    /// open on Unknown (<see cref="LicenseState.AllowsSession"/>).
     /// </summary>
     public static bool Allows(LicenseState license)
     {
         ArgumentNullException.ThrowIfNull(license);
-        return license.Kind is LicenseKind.Purchased or LicenseKind.NotPackaged;
+        return license.Kind is LicenseKind.Purchased or LicenseKind.NotPackaged or LicenseKind.Trial;
     }
+
+    /// <summary>The license limits the API with the trial quota (the running Store trial).</summary>
+    public static bool IsTrial(LicenseState license)
+    {
+        ArgumentNullException.ThrowIfNull(license);
+        return license.Kind == LicenseKind.Trial;
+    }
+
+    /// <summary>What is left of the trial quota, or null when the API is not limited (purchased, a build of your own, or not the trial).</summary>
+    public ApiTrialInfo? TrialQuota => _quota.Current;
 
     /// <summary>
     /// The current license includes the API AND has been read: until the first read finishes (the Store build) the state is only a
-    /// guess (Unknown), and a trial user must not get a window in which the server runs.
+    /// guess (Unknown), and a user whose trial ended must not get a window in which the server runs.
     /// </summary>
     public bool IsAllowed => !_license.IsChecking && Allows(_license.Current);
 
@@ -340,7 +355,7 @@ public sealed class ApiService : IDisposable
             return;
         }
 
-        var controller = new ApiController(_host, () => IsAllowed, _time, _log);
+        var controller = new ApiController(_host, () => IsAllowed, _time, _log, _quota);
         var server = new ApiServer(controller, token, port, _connectionFile, _log, _time);
         ApiServerStartResult result;
         try

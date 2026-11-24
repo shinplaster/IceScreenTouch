@@ -45,10 +45,12 @@ from .errors import (
     ApiTimeoutError,
     ApiUnavailableError,
     InvalidArgumentError,
+    PurchaseRequiredError,
     StreamClosedError,
     StreamInterruptedError,
     closed_error,
     error_for_code,
+    trial_extensions,
 )
 
 Contact = Tuple[int, float, float]  # (id, x, y)
@@ -519,4 +521,7 @@ def _parse_event(raw: Any) -> Optional[Dict[str, Any]]:
 def _error_of(event: Dict[str, Any]) -> ApiError:
     code = event.get("code") if isinstance(event.get("code"), str) else None
     detail = event.get("detail") if isinstance(event.get("detail"), str) else None
-    return error_for_code(code, detail)
+    error = error_for_code(code, detail)
+    if isinstance(error, PurchaseRequiredError):
+        trial_extensions(error, event)
+    return error

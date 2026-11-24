@@ -36,10 +36,11 @@ from .models import (
     TextPicture,
     TextResult,
     TextWord,
+    TrialInfo,
 )
 
 __version__ = "0.1.0"
 
 __all__ = ["Client", "RequestScope", "Connection", "discover", "Device", "Picture", "RotationInfo", "Screenshot", "Status",
-           "OcrInfo", "OcrEngineInfo", "TextResult", "TextLine", "TextWord", "TextBox", "TextMatch", "TextPicture",
+           "OcrInfo", "TrialInfo", "OcrEngineInfo", "TextResult", "TextLine", "TextWord", "TextBox", "TextMatch", "TextPicture",
            "TapTextResult", "__version__", *_errors_all]

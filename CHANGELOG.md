@@ -22,6 +22,21 @@ All notable changes to IceScreen Touch are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Automation API in the trial**: the Microsoft Store trial can now use the Automation API with a limit for the whole
+  trial: 300 operations (taps, long presses, swipes, paths, pinches, keys, Home, `tap-text`, and one per WebSocket
+  stream) and 300 captures (screenshots, `text/read`, `text/find`), and a WebSocket stream stays open at most 5 minutes.
+  The counts never reset and are kept when the app restarts (`trial-usage.json` in the data folder). `GET /v1/status`,
+  the rotation, the target, cancel and the specification are not counted, nor are requests refused before they did
+  anything. What is left is in `GET /v1/status` (`trial`, only in the trial), on the Status tab and in Settings >
+  Automation API. A used-up limit answers `403` `purchase_required` with `reason: "trial_limit"`, `limit` and `counter`
+  (`operations` or `captures`); the end of a trial stream is an `error` event with `counter: "stream_seconds"` and the
+  close code 1008. Buying the app removes the limit at once; the purchased app and a build of your own have no limit, and
+  after the trial ends the API stops as before. The Python client's `PurchaseRequiredError` has `reason`, `limit`,
+  `counter` and `is_trial_limit`, `Status.trial` holds what is left, and the MCP server tells the agent that the trial's
+  limit is used up and that buying the app removes it.
+
 ### Changed
 
 - **First start without a receiver**: on a PC that has no AirPlay receiver set up yet (the default settings and no local
@@ -36,7 +51,7 @@ All notable changes to IceScreen Touch are recorded here. The format follows
   its Bluetooth name, which keeps its upper and lower case (before: the upper-case computer name).
 - **Setup checklist**: once the iPhone can be controlled, the Zoom step (which the app cannot check) is shown as an
   optional check and the checklist says "All done".
-- **Trial**: the trial line on the Status tab says that the Automation API is available after purchase, and once the
+- **Trial**: the trial line on the Status tab says how far the Automation API can be used in the trial, and once the
   iPhone could be controlled it adds one line: "It works. Buy to keep using it after the trial."
 
 ## [0.4.0] - 2026-11-23

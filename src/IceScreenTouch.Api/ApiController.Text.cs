@@ -133,6 +133,11 @@ public sealed partial class ApiController
             return ApiResult.Fail<TextReadResponse>(ex.Error);
         }
 
+        if (QuotaUsedUp(ApiQuotaCounter.Captures) is { } usedUp)
+        {
+            return ApiResult.Fail<TextReadResponse>(usedUp);
+        }
+
         var (target, unavailable) = await ResolveTargetAsync(scope, cancellationToken).ConfigureAwait(false);
         if (unavailable is not null)
         {
@@ -144,6 +149,12 @@ public sealed partial class ApiController
         if (outcome.Error is { } error)
         {
             return ApiResult.Fail<TextReadResponse>(error);
+        }
+
+        // Counted once the screen was read (a refused request, or one that could not read the screen, is not).
+        if (TakeQuota(ApiQuotaCounter.Captures) is { } takenOut)
+        {
+            return ApiResult.Fail<TextReadResponse>(takenOut);
         }
 
         var shot = outcome.Shot!;
@@ -205,6 +216,11 @@ public sealed partial class ApiController
             return ApiResult.Fail<TextFindResponse>(ex.Error);
         }
 
+        if (QuotaUsedUp(ApiQuotaCounter.Captures) is { } usedUp)
+        {
+            return ApiResult.Fail<TextFindResponse>(usedUp);
+        }
+
         var (target, unavailable) = await ResolveTargetAsync(scope, cancellationToken).ConfigureAwait(false);
         if (unavailable is not null)
         {
@@ -232,6 +248,12 @@ public sealed partial class ApiController
 
                 if (outcome.Shot is { } shot)
                 {
+                    // One request counts once, at its first reading of the screen, however often it reads again while it waits.
+                    if (attempts == 0 && TakeQuota(ApiQuotaCounter.Captures) is { } takenOut)
+                    {
+                        return ApiResult.Fail<TextFindResponse>(takenOut);
+                    }
+
                     attempts++;
                     last = shot;
                     var matches = TextMatcher.Find(shot.Reading.Lines, query.Text, query.Mode, query.Options);
@@ -349,6 +371,11 @@ public sealed partial class ApiController
             return ApiResult.Fail<TapTextResponse>(ex.Error);
         }
 
+        if (QuotaUsedUp(ApiQuotaCounter.Operations) is { } usedUp)
+        {
+            return ApiResult.Fail<TapTextResponse>(usedUp);
+        }
+
         var admission = Admit(Needs.Session | Needs.Input | Needs.Picture);
         if (admission.Error is not null)
         {
@@ -385,6 +412,13 @@ public sealed partial class ApiController
             }
 
             countedWait = query.TimeoutMs > 0;
+
+            // One operation, counted when the search starts (it reads the screen whether or not it then taps).
+            if (TakeQuota(ApiQuotaCounter.Operations) is { } takenOut)
+            {
+                return ApiResult.Fail<TapTextResponse>(takenOut);
+            }
+
             var found = await SearchToTapAsync(target, scope, query, select, index, settle, admitted, phase, seen, search.Token).ConfigureAwait(false);
             if (found.Error is { } searchError)
             {

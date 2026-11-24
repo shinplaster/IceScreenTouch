@@ -182,7 +182,7 @@ def test_user_priority_errors_say_not_to_retry_blindly(tools, phone, error):
     (ist.BusyError("x", code="busy"), "Another operation"),
     (ist.NotConnectedError("x", code="not_connected"), "Bluetooth"),
     (ist.NotRunningError("x", code="not_running"), "Mirroring"),
-    (ist.PurchaseRequiredError("x", code="purchase_required"), "purchased"),
+    (ist.PurchaseRequiredError("x", code="purchase_required"), "trial has ended"),
     (ist.ScreenshotUnsupportedError("x", code="not_found"), "Update the app"),
     (ist.InvalidRequestError("x", code="invalid_request", detail="position is outside the screenshot"), "outside the screenshot"),
     (ist.ApiUnavailableError("could not be reached"), "switch on Settings > Automation API"),
@@ -554,3 +554,15 @@ def test_cancel_is_only_sent_while_a_call_of_this_server_is_in_flight():
     tools.get_status()
     tools.cancel_running()
     assert sent == [1]
+
+
+@pytest.mark.parametrize("counter,words", [("operations", "300 actions"), ("captures", "300 screenshots and text readings")])
+def test_a_used_up_trial_limit_tells_the_model_not_to_retry_and_that_buying_removes_it(tools, phone, counter, words):
+    error = ist.PurchaseRequiredError("x", code="purchase_required")
+    error.reason, error.limit, error.counter = "trial_limit", 300, counter
+    phone.fail = error
+    with pytest.raises(ToolError) as info:
+        tools.home()
+    text = str(info.value)
+    assert words in text and "does not reset" in text and "retrying will not help" in text
+    assert "buying IceScreen Touch" in text and "removes the limit" in text

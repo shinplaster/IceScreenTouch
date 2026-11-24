@@ -31,6 +31,14 @@ public sealed record ApiProblem(string Type, string Title, int Status, string De
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Reason { get; init; }
 
+    /// <summary>See <see cref="ApiErrorExtras.Limit"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Limit { get; init; }
+
+    /// <summary>See <see cref="ApiErrorExtras.Counter"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Counter { get; init; }
+
     /// <summary>See <see cref="ApiErrorExtras.Engine"/>.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Engine { get; init; }
@@ -75,6 +83,8 @@ internal static class ApiResponses
         var problem = new ApiProblem("about:blank", TitleOf(error.Status), error.Status, error.Detail, error.Code)
         {
             Reason = extras?.Reason,
+            Limit = extras?.Limit,
+            Counter = extras?.Counter,
             Engine = extras?.Engine,
             Available = extras?.Available,
             Engines = extras?.Engines,

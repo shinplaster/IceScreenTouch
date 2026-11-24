@@ -15,7 +15,7 @@ public static class ApiErrorCodes
     /// <summary>403: the Origin or Host header is not allowed.</summary>
     public const string ForbiddenOrigin = "forbidden_origin";
 
-    /// <summary>403: the license does not include the API (trial, expired).</summary>
+    /// <summary>403: the license does not include the API (the trial ended), or the trial quota is used up (<see cref="ApiErrorReasons.TrialLimit"/>).</summary>
     public const string PurchaseRequired = "purchase_required";
 
     /// <summary>409: the mirroring session is not running.</summary>
@@ -92,13 +92,20 @@ public static class ApiErrorCodes
     };
 }
 
+/// <summary>The <c>reason</c> member of some errors (an extension member of the problem response).</summary>
+public static class ApiErrorReasons
+{
+    /// <summary><c>purchase_required</c>: the trial quota is used up, or a trial stream reached its time.</summary>
+    public const string TrialLimit = "trial_limit";
+}
+
 /// <summary>An API failure: a machine code, the HTTP status and a human-readable detail (never user data).</summary>
 /// <param name="Code">One of <see cref="ApiErrorCodes"/>.</param>
 /// <param name="Status">The HTTP status.</param>
 /// <param name="Detail">A sentence for the person reading the response.</param>
 public sealed record ApiError(string Code, int Status, string Detail)
 {
-    /// <summary>The extension members of the problem response (OCR errors only); null for the others, whose shape does not change.</summary>
+    /// <summary>The extension members of the problem response (OCR errors and the trial quota); null for the others, whose shape does not change.</summary>
     public ApiErrorExtras? Extras { get; init; }
 
     /// <summary>An error with the status that belongs to <paramref name="code"/>.</summary>
@@ -179,8 +186,14 @@ internal sealed class ApiRequestException(ApiError error) : Exception(error.Deta
 /// </summary>
 public sealed record ApiErrorExtras
 {
-    /// <summary><c>ocr_unavailable</c>: <c>language</c> or <c>engine</c>.</summary>
+    /// <summary><c>ocr_unavailable</c>: <c>language</c> or <c>engine</c>; <c>purchase_required</c>: <c>trial_limit</c> (the trial quota is used up).</summary>
     public string? Reason { get; init; }
+
+    /// <summary><c>purchase_required</c> with <c>trial_limit</c>: the limit that was reached (a count, or the seconds of a stream).</summary>
+    public int? Limit { get; init; }
+
+    /// <summary><c>purchase_required</c> with <c>trial_limit</c>: <c>operations</c> or <c>captures</c> (REST), or <c>stream_seconds</c> (the time of a WebSocket connection).</summary>
+    public string? Counter { get; init; }
 
     /// <summary><c>ocr_unavailable</c>: the engine's id (left out when there is no engine at all).</summary>
     public string? Engine { get; init; }

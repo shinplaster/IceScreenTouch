@@ -605,3 +605,42 @@ def test_a_connect_timeout_says_nothing_was_sent(api, monkeypatch):
         api.client().home()
     assert info.value.request_sent is False
     assert api.requests == []
+
+
+# ---- Trial limit ---------------------------------------------------------------------------------------------
+
+def _trial_problem(counter: str, limit: int = 300) -> Reply:
+    reply = problem(403, "purchase_required", f"the trial allows {limit} {counter} in total and they are used up")
+    body = json.loads(reply.body)
+    body.update(reason="trial_limit", limit=limit, counter=counter)
+    return Reply(403, reply.content_type, json.dumps(body).encode())
+
+
+@pytest.mark.parametrize("counter", ["operations", "captures"])
+def test_a_used_up_trial_limit_carries_the_reason_the_limit_and_the_counter(api, counter):
+    api.route("POST", "/v1/home", _trial_problem(counter))
+    with pytest.raises(ist.PurchaseRequiredError) as caught:
+        api.client().home()
+    error = caught.value
+    assert (error.reason, error.limit, error.counter, error.status) == ("trial_limit", 300, counter, 403)
+    assert error.is_trial_limit
+
+
+def test_purchase_required_without_a_reason_is_not_a_trial_limit(api):
+    api.route("POST", "/v1/home", problem(403, "purchase_required", "the API is available after purchase"))
+    with pytest.raises(ist.PurchaseRequiredError) as caught:
+        api.client().home()
+    assert (caught.value.reason, caught.value.limit, caught.value.counter) == (None, None, None)
+    assert not caught.value.is_trial_limit
+
+
+def test_status_carries_what_is_left_of_the_trial(api):
+    trial = {"operationsLeft": 152, "operationsLimit": 300, "capturesLeft": 171, "capturesLimit": 300, "streamLimitSeconds": 300}
+    api.route("GET", "/v1/status", {**STATUS, "trial": trial})
+    status = api.client().get_status()
+    assert status.trial == ist.TrialInfo(152, 300, 171, 300, 300)
+    assert status.to_dict()["trial"]["captures_left"] == 171
+
+
+def test_status_without_the_trial_member_is_not_limited(api):
+    assert api.client().get_status().trial is None

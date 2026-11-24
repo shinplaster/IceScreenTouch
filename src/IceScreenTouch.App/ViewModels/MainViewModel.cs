@@ -3,6 +3,7 @@
 
 using System.Collections.ObjectModel;
 using System.Globalization;
+using IceScreenTouch.Api;
 using IceScreenTouch.App.Logging;
 using IceScreenTouch.App.Resources;
 using IceScreenTouch.App.Services;
@@ -86,6 +87,7 @@ public sealed class MainViewModel : ObservableObject
 
     // The automation API: its status line (status tab, tray) and the token controls of the settings tab.
     private string _apiStatusText = string.Empty;
+    private ApiTrialInfo? _apiTrial;
     private StatusLevel _apiStatusLevel;
     private bool _apiAvailable = true;
     private bool _apiLicenseUnknown;
@@ -229,9 +231,7 @@ public sealed class MainViewModel : ObservableObject
         {
             if (Set(ref _isTrial, value))
             {
-                // ApiAvailable may already be false (and stay false) when the trial becomes known, so the trial flag must
-                // announce the note too.
-                OnPropertyChanged(nameof(ApiNeedsPurchase));
+                OnPropertyChanged(nameof(ApiTrialLimited));
                 OnPropertyChanged(nameof(ShowsWorkedOffer));
             }
         }
@@ -583,8 +583,8 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The API settings can be changed: the license includes the API, or it could not be read (then the API starts by itself once
-    /// it is read, see <see cref="ApiLicenseUnknown"/>). False during the trial and after it: the section says it works after the purchase.
+    /// The API settings can be changed: the license includes the API (the trial with its quota too), or it could not be read (then the
+    /// API starts by itself once it is read, see <see cref="ApiLicenseUnknown"/>). False after the trial ended.
     /// </summary>
     public bool ApiAvailable
     {
@@ -593,13 +593,30 @@ public sealed class MainViewModel : ObservableObject
         {
             if (Set(ref _apiAvailable, value))
             {
-                OnPropertyChanged(nameof(ApiNeedsPurchase));
+                OnPropertyChanged(nameof(ApiTrialLimited));
             }
         }
     }
 
-    /// <summary>The trial runs: the API can be used after buying the app.</summary>
-    public bool ApiNeedsPurchase => !_apiAvailable && IsTrial;
+    /// <summary>The trial runs and the API can be used with the trial quota: the section says the limits and what is left.</summary>
+    public bool ApiTrialLimited => _apiAvailable && IsTrial;
+
+    /// <summary>The limits of the trial (the Settings note): the quota in effect, or the default limits before the API service has one.</summary>
+    public string ApiTrialNote => TrialNote(Strings.FormatApiTrialNote, _apiTrial);
+
+    /// <summary>The trial line's note on the status tab: the API works in the trial with the quota.</summary>
+    public string TrialApiNote => TrialNote(Strings.FormatTrialApiNote, _apiTrial);
+
+    /// <summary>What is left of the trial quota (the Settings note); empty when the API is not limited.</summary>
+    public string ApiTrialLeft => _apiTrial is { } t ? Loc.Format(Strings.FormatApiTrialLeft, t.OperationsLeft, t.CapturesLeft) : string.Empty;
+
+    /// <summary>There is an <see cref="ApiTrialLeft"/> to show.</summary>
+    public bool HasApiTrialLeft => _apiTrial is not null;
+
+    // The format's {0} operations, {1} captures, {2} minutes of a stream.
+    private static string TrialNote(string format, ApiTrialInfo? trial) => trial is { } t
+        ? Loc.Format(format, t.OperationsLimit, t.CapturesLimit, Math.Max(1, (int)Math.Round(t.StreamLimitSeconds / 60.0)))
+        : Loc.Format(format, TrialApiQuota.DefaultOperationLimit, TrialApiQuota.DefaultCaptureLimit, (int)TrialApiQuota.DefaultStreamLimit.TotalMinutes);
 
     /// <summary>
     /// The Store license could not be read (and the first read is over): the API stays off until it is read, which is not the same
@@ -813,14 +830,20 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The automation API line: text and colour. Empty while the API is off (nothing to say); the license note for a trial that
-    /// has it on; the port in use, "operating", or why it could not start.
+    /// The automation API line: text and colour. Empty while the API is off (nothing to say); the license note for an ended trial that
+    /// has it on; the port in use (in the trial with what is left of the quota, or that it is used up), "operating", or why it could
+    /// not start.
     /// </summary>
-    public static (string Text, StatusLevel Level) DescribeApi(ApiServiceStatus status)
+    /// <param name="status">The service's state.</param>
+    /// <param name="trial">What is left of the trial quota, or null when the API is not limited.</param>
+    public static (string Text, StatusLevel Level) DescribeApi(ApiServiceStatus status, ApiTrialInfo? trial = null)
     {
         ArgumentNullException.ThrowIfNull(status);
         return status.State switch
         {
+            ApiRunState.Listening when trial is { OperationsLeft: > 0, CapturesLeft: > 0 } t =>
+                (Loc.Format(Strings.FormatApiListeningTrial, status.Port, t.OperationsLeft, t.CapturesLeft), StatusLevel.Ok),
+            ApiRunState.Listening when trial is { } t => (Loc.Format(Strings.FormatApiTrialUsedUp, t.OperationsLeft, t.CapturesLeft), StatusLevel.Waiting),
             ApiRunState.Listening => (Loc.Format(Strings.FormatApiListening, status.Port), StatusLevel.Ok),
             ApiRunState.Operating => (Strings.ApiOperating, StatusLevel.Ok),
             ApiRunState.PortInUse => (Loc.Format(Strings.FormatApiPortInUse, status.Port), StatusLevel.Error),
@@ -839,7 +862,17 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        (ApiStatusText, ApiStatusLevel) = DescribeApi(_api.Status);
+        var trial = _api.TrialQuota;
+        if (trial != _apiTrial)
+        {
+            _apiTrial = trial;
+            OnPropertyChanged(nameof(ApiTrialNote));
+            OnPropertyChanged(nameof(TrialApiNote));
+            OnPropertyChanged(nameof(ApiTrialLeft));
+            OnPropertyChanged(nameof(HasApiTrialLeft));
+        }
+
+        (ApiStatusText, ApiStatusLevel) = DescribeApi(_api.Status, trial);
         ApiToken = _api.Token ?? string.Empty;
     }
 

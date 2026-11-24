@@ -98,12 +98,12 @@
       <ScrollViewer>
         <StackPanel Spacing="12" Margin="0,8,8,8">
           <!-- Store trial (only while it runs): once the iPhone could be controlled, one line that offers the purchase; the time left;
-               what the trial leaves out (TrialApiNote: the automation API); and the Buy button. -->
+               the trial's limit of the automation API (TrialApiNote); and the Buy button. -->
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding IsTrial}">
             <StackPanel Spacing="2" VerticalAlignment="Center">
               <TextBlock Text="{x:Static res:Strings.TrialWorked}" TextWrapping="Wrap" FontWeight="SemiBold" IsVisible="{Binding ShowsWorkedOffer}" />
               <TextBlock Text="{Binding TrialText}" TextWrapping="Wrap" />
-              <TextBlock Text="{x:Static res:Strings.TrialApiNote}" Classes="note" />
+              <TextBlock Text="{Binding TrialApiNote}" Classes="note" />
             </StackPanel>
             <Button Grid.Column="1" Content="{x:Static res:Strings.ButtonBuy}" Command="{Binding BuyCommand}" VerticalAlignment="Center" />
           </Grid>
@@ -129,11 +129,12 @@
             <Button Content="{x:Static res:Strings.ButtonRestart}" Command="{Binding RestartCommand}" ToolTip.Tip="{x:Static res:Strings.TipRestart}" />
           </WrapPanel>
 
-          <!-- The automation API (only while it is on): listening, a script operating, or why it could not start. -->
-          <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasApiStatus}">
+          <!-- The automation API (only while it is on): listening (in the trial with what is left), a script operating, or why it could
+               not start. A grid, not a horizontal stack panel, so that the longer lines wrap. -->
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" IsVisible="{Binding HasApiStatus}">
             <Ellipse Classes="dot" Classes.ok="{Binding ApiOk}" Classes.waiting="{Binding ApiWaiting}" Classes.error="{Binding ApiError}" />
-            <TextBlock Text="{Binding ApiStatusText}" TextWrapping="Wrap" VerticalAlignment="Center" />
-          </StackPanel>
+            <TextBlock Grid.Column="1" Text="{Binding ApiStatusText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+          </Grid>
 
           <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="4">
             <TextBlock Grid.Row="0" Classes="label" Text="{x:Static res:Strings.LabelPicture}" />
@@ -319,7 +320,8 @@
                 <CheckBox IsChecked="{Binding ApiEnabled}" IsEnabled="{Binding ApiAvailable}">
                   <TextBlock Text="{x:Static res:Strings.OptionApiEnabled}" TextWrapping="Wrap" />
                 </CheckBox>
-                <TextBlock Classes="note" Text="{x:Static res:Strings.ApiTrialNote}" IsVisible="{Binding ApiNeedsPurchase}" />
+                <TextBlock Classes="note" Text="{Binding ApiTrialNote}" IsVisible="{Binding ApiTrialLimited}" />
+                <TextBlock Classes="note" Text="{Binding ApiTrialLeft}" IsVisible="{Binding HasApiTrialLeft}" />
                 <TextBlock Classes="note" Text="{x:Static res:Strings.ApiUnknownNote}" IsVisible="{Binding ApiLicenseUnknown}" TextWrapping="Wrap" />
                 <StackPanel Spacing="6" IsEnabled="{Binding ApiAvailable}">
                   <TextBlock Classes="label" Text="{x:Static res:Strings.LabelApiPort}" TextWrapping="Wrap" />

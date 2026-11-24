@@ -83,11 +83,13 @@ public sealed class ApiSettingsTests : IDisposable
     [InlineData(LicenseKind.Purchased, true)]
     [InlineData(LicenseKind.NotPackaged, true)]
     [InlineData(LicenseKind.Unknown, false)]
-    [InlineData(LicenseKind.Trial, false)]
+    [InlineData(LicenseKind.Trial, true)]
     [InlineData(LicenseKind.Expired, false)]
-    public void TheApiBelongsToThePurchasedAppAndABuildOfYourOwnOnly(LicenseKind kind, bool allowed)
+    public void TheApiBelongsToThePurchasedAppABuildOfYourOwnAndTheRunningTrial(LicenseKind kind, bool allowed)
     {
-        Assert.Equal(allowed, ApiService.Allows(new LicenseState(kind, kind == LicenseKind.Trial ? DateTimeOffset.UnixEpoch.AddYears(60) : null)));
+        var license = new LicenseState(kind, kind == LicenseKind.Trial ? DateTimeOffset.UnixEpoch.AddYears(60) : null);
+        Assert.Equal(allowed, ApiService.Allows(license));
+        Assert.Equal(kind == LicenseKind.Trial, ApiService.IsTrial(license)); // only the trial has the quota
     }
 }
 

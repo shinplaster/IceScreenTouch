@@ -147,8 +147,16 @@ def describe_error(exc: IceScreenTouchError, *, text: bool = False) -> str:
         return "The phone is not connected over Bluetooth (it has not subscribed to the input device). Ask the user to check the pairing."
     if isinstance(exc, NotRunningError):
         return "Mirroring is not running in IceScreen Touch. Ask the user to start it."
+    if isinstance(exc, PurchaseRequiredError) and exc.reason == "trial_limit":
+        what = {"operations": "actions (taps, swipes, keys, Home, tap_text)",
+                "captures": "screenshots and text readings (screenshot, read_text, find_text)"}.get(exc.counter or "", "uses")
+        limit = f"{exc.limit} " if exc.limit is not None else ""
+        return (f"The IceScreen Touch trial's limit of {limit}{what} is used up; it counts over the whole trial and does "
+                "not reset, so retrying will not help. Tell the user; buying IceScreen Touch in the Microsoft Store removes "
+                "the limit. get_status shows what is left.")
     if isinstance(exc, PurchaseRequiredError):
-        return "The automation API is not available in the trial (it needs the purchased or a self-built app)."
+        return ("The automation API is not available with the current IceScreen Touch license (the trial has ended, or "
+                "the license could not be checked); it needs the purchased or a self-built app. Tell the user; do not retry.")
     if isinstance(exc, UnauthorizedError):
         return "IceScreen Touch refused the token (it may have been regenerated). Restart this MCP server or set ICESCREENTOUCH_TOKEN."
     if isinstance(exc, (NoKeyboardError, NoHomeButtonError)):

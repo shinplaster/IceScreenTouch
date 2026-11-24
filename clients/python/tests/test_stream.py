@@ -593,3 +593,17 @@ def test_a_websocket_that_cannot_be_opened_in_time_says_nothing_was_sent(make_st
     with pytest.raises(ist.ApiTimeoutError) as info:
         server.client().stream().open()
     assert info.value.request_sent is False
+
+
+def test_the_trial_time_of_a_stream_is_a_purchase_required_error_with_the_trial_members(make_stream):
+    def time_up(message, connection):
+        send(connection, ev="error", code="purchase_required", reason="trial_limit", limit=300, counter="stream_seconds",
+             detail="the trial allows a stream connection to stay open for 300 seconds")
+        connection.close(1008, "trial_limit")
+        return True
+
+    server = make_stream(hook=time_up)
+    with server.client().stream() as s:
+        with pytest.raises(ist.PurchaseRequiredError) as caught:
+            s.down(0.5, 0.5)
+    assert (caught.value.reason, caught.value.limit, caught.value.counter) == ("trial_limit", 300, "stream_seconds")
